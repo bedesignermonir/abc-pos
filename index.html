@@ -1101,7 +1101,7 @@ function jsonpRequest(requestUrl, timeoutMs = SHEET_REQUEST_TIMEOUT_MS) {
     }, timeoutMs);
 
     window[callbackName] = result => finish(null, result);
-    script.onerror = () => finish(new Error('Apps Script URL খোলা যায়নি। /exec URL এবং Anyone access পরীক্ষা করুন।'));
+    script.onerror = () => finish(new Error('Apps Script উত্তর পাওয়া যায়নি। Web App-টি Execute as: Me, access: Anyone দিয়ে deploy করে সর্বশেষ deployment-এর /exec URL ব্যবহার করুন।'));
     script.src = url.toString();
     document.head.appendChild(script);
   });
@@ -1114,10 +1114,14 @@ async function postSheetData(payload) {
     return await fetch(normalizeSheetUrl(getSheetUrl()), {
       method: 'POST',
       mode: 'no-cors',
+      redirect: 'follow',
       credentials: 'omit',
       cache: 'no-store',
-      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-      body: JSON.stringify(payload),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({
+        action: payload.action || '',
+        payload: JSON.stringify(payload)
+      }).toString(),
       signal: controller.signal
     });
   } catch (error) {
