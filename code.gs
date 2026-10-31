@@ -203,16 +203,17 @@ function handleRequest(e) {
         data = JSON.parse(e.postData.contents);
       } catch (error) {
         data = e.parameter || {};
-        if (typeof data.payload === 'string') {
-          try {
-            data = JSON.parse(data.payload);
-          } catch (payloadError) {
-            return createJsonResponse({ success: false, message: 'POST payload JSON সঠিক নয়' });
-          }
-        }
       }
     } else if (e && e.parameter) {
       data = e.parameter;
+    }
+
+    if (data && typeof data.payload === 'string') {
+      try {
+        data = JSON.parse(data.payload);
+      } catch (error) {
+        return createJsonResponse({ success: false, message: 'POST payload JSON সঠিক নয়' });
+      }
     }
 
     if (typeof data !== 'object' || data === null) {

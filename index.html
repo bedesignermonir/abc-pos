@@ -1111,7 +1111,7 @@ async function postSheetData(payload) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SHEET_REQUEST_TIMEOUT_MS);
   try {
-    return await fetch(normalizeSheetUrl(getSheetUrl()), {
+    await fetch(normalizeSheetUrl(getSheetUrl()), {
       method: 'POST',
       mode: 'no-cors',
       redirect: 'follow',
@@ -1124,6 +1124,7 @@ async function postSheetData(payload) {
       }).toString(),
       signal: controller.signal
     });
+    return true;
   } catch (error) {
     if (error.name === 'AbortError') {
       throw new Error('Apps Script-এ POST অনুরোধ ৪৫ সেকেন্ডে সম্পন্ন হয়নি। Deployment ও ইন্টারনেট সংযোগ পরীক্ষা করুন।');
@@ -2045,23 +2046,35 @@ function closeSettings() {
 }
 
 async function saveSettingsToSheet() {
-  await postSheetData({
-    action: 'saveSettings',
-    pin: SETTINGS_PIN,
-    settings: {
-      presetItems: settings.presetItems,
-      costPrices: settings.costPrices,
-      sellingPrices: settings.sellingPrices,
-      profitShares: settings.profitShares
-    }
-  });
+  let postError = '';
+  try {
+    await postSheetData({
+      action: 'saveSettings',
+      pin: SETTINGS_PIN,
+      settings: {
+        presetItems: settings.presetItems,
+        costPrices: settings.costPrices,
+        sellingPrices: settings.sellingPrices,
+        profitShares: settings.profitShares
+      }
+    });
+  } catch (error) {
+    postError = error.message;
+  }
 
-  const result = await jsonpRequest(buildSheetUrl('getSettings', { pin: SETTINGS_PIN }));
-  if (!result.success || !result.settings ||
-      result.settings.presetItems !== settings.presetItems ||
-      JSON.stringify(JSON.parse(result.settings.costPrices || '{}')) !== JSON.stringify(settings.costPrices) ||
-      JSON.stringify(JSON.parse(result.settings.sellingPrices || '{}')) !== JSON.stringify(settings.sellingPrices)) {
-    throw new Error('Google Sheet-এ সংরক্ষিত সেটিংস মেলেনি। PIN এবং deployment পরীক্ষা করুন।');
+  try {
+    const result = await jsonpRequest(buildSheetUrl('getSettings', { pin: SETTINGS_PIN }));
+    const remoteSettings = result && result.settings;
+    const settingsMatch = result && result.success && remoteSettings &&
+      remoteSettings.presetItems === settings.presetItems &&
+      JSON.stringify(JSON.parse(remoteSettings.costPrices || '{}')) === JSON.stringify(settings.costPrices) &&
+      JSON.stringify(JSON.parse(remoteSettings.sellingPrices || '{}')) === JSON.stringify(settings.sellingPrices) &&
+      JSON.stringify(JSON.parse(remoteSettings.profitShares || '[]')) === JSON.stringify(settings.profitShares);
+    if (!settingsMatch) {
+      throw new Error('Google Sheet-এ সংরক্ষিত সেটিংস মেলেনি। PIN এবং deployment পরীক্ষা করুন।');
+    }
+  } catch (error) {
+    throw new Error((postError ? postError + ' ' : '') + error.message);
   }
 }
 
