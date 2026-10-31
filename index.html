@@ -116,6 +116,9 @@ body {
 .stat-card.total::before { background: var(--accent); }
 .stat-card.discount::before { background: #8b5cf6; }
 .stat-card.count::before { background: var(--danger); }
+.stat-card.myshare::before { background: var(--success); }
+.stat-card.partnershare::before { background: #f59e0b; }
+.stat-card .sublabel { color: var(--gray-500); font-size: 11px; margin-top: 5px; font-weight: 600; }
 .stat-card .icon {
   position: absolute;
   top: 12px; right: 15px;
@@ -746,6 +749,18 @@ body {
       <div class="icon">🧾</div>
       <div class="label">মোট ইনভয়েস</div>
       <div class="value" id="totalCount">০</div>
+    </div>
+    <div class="stat-card myshare">
+      <div class="icon">👤</div>
+      <div class="label">আমার অংশ (কস্ট + ৬০% লাভ)</div>
+      <div class="value" id="myShareTotal">৳০</div>
+      <div class="sublabel" id="myShareBreakdown">কস্ট ৳০ + লাভের অংশ ৳০</div>
+    </div>
+    <div class="stat-card partnershare">
+      <div class="icon">🤝</div>
+      <div class="label">পার্টনারের অংশ (৪০% লাভ)</div>
+      <div class="value" id="partnerShareTotal">৳০</div>
+      <div class="sublabel" id="partnerShareBreakdown">মোট নিট লাভ ৳০</div>
     </div>
   </div>
 
@@ -1774,6 +1789,51 @@ function printCurrent() {
 }
 
 // ===== Stats =====
+function getInvoiceCostTotal(inv) {
+  if (Number.isFinite(Number(inv.costTotal))) return Number(inv.costTotal);
+  let cost = 0;
+  (inv.items || []).forEach(item => {
+    const qty = Number(item.qty) || 0;
+    const unitCost = Number.isFinite(Number(item.costPrice)) ? Number(item.costPrice) : 0;
+    cost += qty * unitCost;
+  });
+  return Number(cost.toFixed(2));
+}
+
+function computeDashboardShares() {
+  // Net Profit = Total Sale - Total Cost Price (per invoice, discount already reflected in total)
+  let totalSale = 0, totalCost = 0;
+  invoices.forEach(inv => {
+    totalSale += Number(inv.total) || 0;
+    totalCost += getInvoiceCostTotal(inv);
+  });
+  const netProfit = Number((totalSale - totalCost).toFixed(2));
+
+  // Business rules: My Share = Total Cost Price + (Net Profit x my configured %, default 60%)
+  // Partner's Share = Net Profit x partner % (default 40%), excluding cost price.
+  const shares = getConfiguredProfitShares();
+  const myShareCfg = shares.find(s => /আমার|my|i'?m\s*me|owner/i.test(s.name)) || shares[0];
+  const myPct = Number(myShareCfg && myShareCfg.percentage) || 60;
+  const myProfitCents = Math.round(netProfit * 100 * myPct / 100);
+  const allProfitCents = Math.round(netProfit * 100);
+  const partnerProfitCents = allProfitCents - myProfitCents;
+
+  const myProfitShare = myProfitCents / 100;
+  const partnerShare = partnerProfitCents / 100;
+  const myShare = Number(totalCost + myProfitShare);
+
+  return {
+    totalSale: Number(totalSale.toFixed(2)),
+    totalCost: Number(totalCost.toFixed(2)),
+    netProfit,
+    myPct,
+    partnerPct: Number((100 - myPct).toFixed(2)),
+    myProfitShare: Number(myProfitShare.toFixed(2)),
+    myShare: Number(myShare.toFixed(2)),
+    partnerShare: Number(partnerShare.toFixed(2))
+  };
+}
+
 function updateStats() {
   const today = new Date().toDateString();
   const now = new Date();
@@ -1796,6 +1856,15 @@ function updateStats() {
   document.getElementById('totalSales').textContent = formatMoney(allTotal);
   document.getElementById('monthDiscount').textContent = formatMoney(monthDiscount);
   document.getElementById('totalCount').textContent = toBnNum(invoices.length);
+
+  // Profit sharing dashboard cards
+  const s = computeDashboardShares();
+  document.getElementById('myShareTotal').textContent = formatMoney(s.myShare);
+  document.getElementById('myShareBreakdown').textContent =
+    'কস্ট ' + formatMoney(s.totalCost) + ' + লাভের ' + toBnNum(s.myPct) + '% (' + formatMoney(s.myProfitShare) + ')';
+  document.getElementById('partnerShareTotal').textContent = formatMoney(s.partnerShare);
+  document.getElementById('partnerShareBreakdown').textContent =
+    'মোট নিট লাভ ' + formatMoney(s.netProfit) + ' → পার্টনারের ' + toBnNum(s.partnerPct) + '%';
 }
 
 // ===== Render Invoices =====
