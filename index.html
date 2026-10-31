@@ -18,6 +18,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./app-icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./app-icon-180.png">
 <title>ABC COMPUTER - POS সিস্টেম</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/noto-sans-bengali@latest/bengali-400-normal.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/noto-sans-bengali@latest/bengali-700-normal.css">
@@ -140,7 +146,8 @@ body {
   grid-template-columns: 1.4fr 1fr;
   gap: 18px;
 }
-@media (max-width: 960px) { .main-grid { grid-template-columns: 1fr; } }
+@media (max-width: 960px) { .main-grid { grid-template-columns: minmax(0, 1fr); } }
+.main-grid > div, .card { min-width: 0; }
 
 .card {
   background: white;
@@ -489,6 +496,69 @@ body {
   align-items: center;
   gap: 10px;
 }
+.preset-price-list {
+  display: grid;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 10px;
+  background: var(--gray-50);
+  border-radius: 10px;
+}
+.preset-price-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) repeat(2, minmax(85px, 125px));
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.preset-price-row input {
+  width: 100%;
+  padding: 8px;
+  border: 2px solid var(--gray-200);
+  border-radius: 8px;
+  font: inherit;
+}
+.preset-price-labels {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) repeat(2, minmax(85px, 125px));
+  gap: 8px;
+  margin-bottom: 6px;
+  color: var(--gray-500);
+  font-size: 11px;
+  font-weight: 700;
+}
+.item-description { display: grid; gap: 4px; min-width: 0; }
+.item-description select, .item-description .customName { min-width: 0; }
+.item-cost-display {
+  color: var(--gray-500);
+  font-size: 10px;
+  line-height: 1.3;
+  padding: 0 3px;
+}
+@media (max-width: 600px) {
+  .preset-price-row, .preset-price-labels {
+    grid-template-columns: minmax(70px, 1fr) repeat(2, minmax(75px, 100px));
+    gap: 5px;
+  }
+  body { padding: 8px; }
+  .header { padding: 14px; }
+  .card { padding: 15px; }
+  .item-row, .items-header {
+    grid-template-columns: minmax(0, 1.3fr) minmax(42px, 0.55fr) minmax(60px, 0.8fr) minmax(58px, 0.75fr) 30px;
+    gap: 4px;
+  }
+  .item-row input, .item-row select { padding: 8px 4px; font-size: 16px; }
+  .remove-btn { width: 30px; height: 36px; }
+  .header-btn, .btn { min-height: 44px; }
+  .discount-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 90px);
+    gap: 6px;
+  }
+  .discount-row label { white-space: nowrap; font-size: 12px !important; }
+  .discount-row input, .discount-row select { min-width: 0; width: 100%; padding: 8px 5px; }
+}
 
 /* ===== Print Styles ===== */
 .print-area { display: none; }
@@ -802,17 +872,47 @@ body {
       <label>🔗 Google Apps Script URL</label>
       <input type="text" id="sheetUrl" placeholder="https://script.google.com/macros/s/.../exec">
       <small style="color:var(--gray-500);font-size:11px;margin-top:4px;display:block;">
-        আপনার Google Sheet এর Apps Script Web App URL দিন
+        Apps Script Web App URL (/exec) দিন। Deploy: Execute as “Me”, access “Anyone”; পরিবর্তনের পর নতুন version deploy করুন।
       </small>
     </div>
     <div class="form-group">
       <label>📋 প্রি-সেট আইটেম (প্রতি লাইনে একটি করে)</label>
-      <textarea id="presetItems" style="min-height:120px;" placeholder="Photocopy&#10;ছবি তোলা&#10;কম্পিউটার ট্রেনিং&#10;গ্রাফিক ডিজাইন"></textarea>
+      <textarea id="presetItems" onchange="capturePresetPriceDraft(); renderPresetPriceFields()" style="min-height:120px;" placeholder="Photocopy&#10;ছবি তোলা&#10;কম্পিউটার ট্রেনিং&#10;গ্রাফিক ডিজাইন"></textarea>
+    </div>
+    <div class="form-group">
+      <label>💳 প্রি-সেট আইটেমের কস্ট ও বিক্রয়মূল্য (প্রতি ইউনিট)</label>
+      <div class="preset-price-labels"><span>আইটেম</span><span>কস্ট / ইউনিট</span><span>বিক্রয় / ইউনিট</span></div>
+      <div id="presetPriceFields" class="preset-price-list"></div>
+      <small style="color:var(--gray-500);font-size:11px;margin-top:4px;display:block;">
+        নির্বাচিত প্রি-সেট আইটেমের বিক্রয়মূল্য বিলে বসবে; প্রয়োজনে বিলে পরিবর্তন করা যাবে। কাস্টম আইটেমের কস্ট ০ ধরা হবে।
+      </small>
+    </div>
+    <div class="form-group">
+      <label>🤝 নিট লাভের ভাগ (প্রতি লাইনে: নাম | শতাংশ)</label>
+      <textarea id="profitShares" style="min-height:80px;" placeholder="আমার অংশ | 60&#10;পার্টনার | 40"></textarea>
+      <small style="color:var(--gray-500);font-size:11px;margin-top:4px;display:block;">
+        সব অংশের যোগফল ১০০% হতে হবে। নতুন অংশীদার যোগ করতে নতুন লাইন দিন।
+      </small>
     </div>
     <div class="action-btns-3">
       <button class="btn btn-whatsapp" onclick="saveSettings()">💾 সেভ</button>
       <button class="btn btn-print" onclick="testSheetConnection()">🧪 টেস্ট</button>
       <button class="btn btn-reset" onclick="closeSettings()">বন্ধ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings PIN Modal -->
+<div class="modal" id="settingsPinModal">
+  <div class="modal-content">
+    <h2>🔒 সেটিংস PIN</h2>
+    <div class="form-group">
+      <label for="settingsPinInput">সেটিংস খুলতে ৮ সংখ্যার PIN দিন</label>
+      <input id="settingsPinInput" type="password" inputmode="numeric" autocomplete="current-password" maxlength="8" placeholder="PIN">
+    </div>
+    <div class="action-btns-3">
+      <button class="btn btn-whatsapp" onclick="verifySettingsPin()">🔓 খুলুন</button>
+      <button class="btn btn-reset" onclick="closeSettingsPin()">বাতিল</button>
     </div>
   </div>
 </div>
@@ -885,6 +985,9 @@ function supportsEmoji() {
 }
 const EMOJI_OK = supportsEmoji();
 function em(emoji, fallback='>>') { return EMOJI_OK ? emoji : fallback; }
+const SETTINGS_PIN = '25802580';
+let settingsPinAttempts = 0;
+let settingsPinLockedUntil = 0;
 
 // ===== ইউটিলিটি ফাংশন =====
 function toBnNum(n) {
@@ -938,8 +1041,7 @@ function hideLoading() {
 }
 
 // ===== Google Sheets API =====
-function buildSheetUrl(action, extraParams = {}) {
-  const baseUrl = getSheetUrl();
+function buildSheetUrl(action, extraParams = {}, baseUrl = getSheetUrl()) {
   if (!baseUrl) return '';
 
   const url = new URL(baseUrl);
@@ -954,14 +1056,94 @@ function buildSheetUrl(action, extraParams = {}) {
   return url.toString();
 }
 
-function parseJsonResponse(response) {
-  return response.text().then(text => {
-    if (!text) return {};
-    try {
-      return JSON.parse(text);
-    } catch (error) {
-      return { raw: text };
+const SHEET_REQUEST_TIMEOUT_MS = 15000;
+
+function jsonpRequest(requestUrl, timeoutMs = SHEET_REQUEST_TIMEOUT_MS) {
+  return new Promise((resolve, reject) => {
+    const callbackName = `__posJsonp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement('script');
+    const url = new URL(requestUrl);
+    url.searchParams.set('callback', callbackName);
+    url.searchParams.set('_', String(Date.now()));
+    let finished = false;
+
+    const finish = (error, result) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      delete window[callbackName];
+      script.remove();
+      if (error) reject(error);
+      else resolve(result);
+    };
+
+    const timer = setTimeout(() => {
+      finish(new Error('সংযোগে ১৫ সেকেন্ডের মধ্যে উত্তর আসেনি। URL, ইন্টারনেট এবং Apps Script deployment পরীক্ষা করুন।'));
+    }, timeoutMs);
+
+    window[callbackName] = result => finish(null, result);
+    script.onerror = () => finish(new Error('Apps Script URL খোলা যায়নি। /exec URL এবং Anyone access পরীক্ষা করুন।'));
+    script.src = url.toString();
+    document.head.appendChild(script);
+  });
+}
+
+async function postSheetData(payload) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SHEET_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(getSheetUrl(), {
+      method: 'POST',
+      mode: 'no-cors',
+      credentials: 'omit',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function getSheetSettingsFromResponse(remoteSettings) {
+  const normalized = { ...settings };
+  ['presetItems', 'costPrices', 'sellingPrices', 'profitShares'].forEach(key => {
+    if (Object.prototype.hasOwnProperty.call(settings, key) ||
+        !Object.prototype.hasOwnProperty.call(remoteSettings || {}, key)) return;
+    const value = remoteSettings[key];
+    if (key === 'presetItems') {
+      normalized[key] = String(value || '');
+      return;
     }
+    try {
+      normalized[key] = typeof value === 'string' ? JSON.parse(value) : value;
+    } catch (error) {
+      console.error(`Invalid ${key} in Google Sheet settings`, error);
+    }
+  });
+  settings = normalized;
+  localStorage.setItem('pos_settings', JSON.stringify(settings));
+}
+
+function refreshPresetOptions() {
+  document.querySelectorAll('.item-row').forEach(row => {
+    const select = row.querySelector('select');
+    const selected = select.value;
+    const presets = (settings.presetItems || '').split('\n').map(item => item.trim()).filter(Boolean);
+    select.innerHTML = '<option value="">-- বাছাই --</option>';
+    presets.forEach(name => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      select.appendChild(option);
+    });
+    const customOption = document.createElement('option');
+    customOption.value = '__custom__';
+    customOption.textContent = '✏️ কাস্টম...';
+    select.appendChild(customOption);
+    select.value = selected;
+    updateItem(select);
   });
 }
 
@@ -974,62 +1156,21 @@ async function loadFromSheet() {
 
   try {
     showLoading('শিট থেকে ডাটা লোড হচ্ছে...');
-
-    const month = new Date().toISOString().slice(0, 7);
-    const candidates = [
-      buildSheetUrl('getAll'),
-      buildSheetUrl('filterByMonth', { month }),
-      `${url}?action=filterByMonth&month=${month}`,
-      `${url}?action=test`
-    ];
-
-    let payload = null;
-    let sawCorsError = false;
-
-    for (const candidate of candidates) {
-      if (!candidate) continue;
-
-      try {
-        const response = await fetch(candidate, {
-          method: 'GET',
-          mode: 'cors',
-          headers: { 'Accept': 'application/json' }
-        });
-
-        if (!response.ok) continue;
-
-        const result = await parseJsonResponse(response);
-
-        if (result && result.success && Array.isArray(result.data)) {
-          payload = result;
-          break;
-        }
-
-        if (result && result.result === 'success' && Array.isArray(result.data)) {
-          payload = { success: true, data: result.data, nextNumber: 1 };
-          break;
-        }
-
-        if (result && result.result === 'found' && result.invoice) {
-          payload = { success: true, data: [result.invoice], nextNumber: 1 };
-          break;
-        }
-      } catch (error) {
-        sawCorsError = true;
-        continue;
-      }
+    const payload = await jsonpRequest(buildSheetUrl('getAll'));
+    if (!payload || !payload.success || !Array.isArray(payload.data)) {
+      throw new Error(payload && payload.message
+        ? payload.message
+        : 'Apps Script থেকে ইনভয়েস ডাটা পাওয়া যায়নি। সর্বশেষ deployment আপডেট করুন।');
     }
-
-    if (!payload) {
-      if (sawCorsError) {
-        throw new Error('CORS ব্লক হচ্ছে। Apps Script URL এর deployment public ঠিক আছে কিনা দেখুন।');
-      }
-      throw new Error('Apps Script API বুঝতে পারছে না। Script-এ getAll / filterByMonth / test action লাগাতে হবে।');
-    }
+    const remoteSettings = await jsonpRequest(buildSheetUrl('getSettings', { pin: SETTINGS_PIN }));
+    if (remoteSettings.success) getSheetSettingsFromResponse(remoteSettings.settings || {});
 
     const data = Array.isArray(payload.data) ? payload.data : [];
     invoices = data.map(inv => {
-      if (inv.itemsSummary && !inv.items) {
+      if (Array.isArray(inv.profitDetails) && inv.profitDetails.length) {
+        return { ...inv, items: inv.profitDetails };
+      }
+      if (inv.itemsSummary && (!Array.isArray(inv.items) || !inv.items.length)) {
         return {
           ...inv,
           items: [{ name: inv.itemsSummary, qty: 1, price: Number(inv.total || 0), total: Number(inv.total || 0) }]
@@ -1044,6 +1185,7 @@ async function loadFromSheet() {
       localStorage.setItem('pos_next_inv_no', nextInvoiceNumber.toString());
     }
 
+    refreshPresetOptions();
     hideLoading();
     return true;
   } catch (error) {
@@ -1060,87 +1202,41 @@ async function saveToSheet(invoice) {
     return true;
   }
 
-  const attempts = [
-    { action: 'saveInvoice', data: invoice },
-    { data: invoice },
-    invoice
-  ];
-
-  for (const payload of attempts) {
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        mode: 'cors',
-        headers: {
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) continue;
-
-      const result = await parseJsonResponse(response);
-      if (result && (result.success || result.result === 'success')) {
-        return true;
-      }
-    } catch (error) {
-      continue;
-    }
+  let postError = '';
+  try {
+    await postSheetData({ action: 'saveInvoice', data: invoice });
+  } catch (error) {
+    postError = error.message;
   }
 
   try {
-    const fallback = await fetch(url, {
-      method: 'POST',
-      mode: 'cors',
-      body: new URLSearchParams({ action: 'saveInvoice', data: JSON.stringify(invoice) })
-    });
-    if (fallback.ok) {
-      const text = await fallback.text();
-      const result = JSON.parse(text || '{}');
-      if (result && (result.success || result.result === 'success')) {
-        return true;
-      }
-    }
+    const result = await jsonpRequest(buildSheetUrl('verifyInvoice', { id: invoice.id }));
+    if (result.success && result.inSales && result.inProfit) return true;
+    showToast('Sales বা Profit Sharing শিটে ইনভয়েস সম্পূর্ণ সেভ হয়নি। Apps Script deployment পরীক্ষা করুন।', 'error');
+    return false;
   } catch (error) {
-    // ignore fallback failure and continue with false below
+    showToast('শিটে সেভ যাচাই করা যায়নি: ' + (postError || error.message), 'error');
+    return false;
   }
-
-  showToast('শিটে সেভ করা যায়নি: Apps Script response/status ঠিকভাবে এসেছে না', 'error');
-  return false;
 }
 
 async function deleteFromSheet(id) {
   const url = getSheetUrl();
   if (!url) return true;
 
-  const attempts = [
-    { action: 'deleteInvoice', id },
-    { id },
-    { action: 'deleteInvoice', receiptId: id }
-  ];
-
-  for (const payload of attempts) {
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        mode: 'cors',
-        headers: {
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) continue;
-      const result = await parseJsonResponse(response);
-      if (result && (result.success || result.result === 'success')) {
-        return true;
-      }
-    } catch (error) {
-      continue;
-    }
+  try {
+    await postSheetData({ action: 'deleteInvoice', id });
+  } catch (error) {
+    console.error('Sheet delete request error:', error);
   }
 
-  return false;
+  try {
+    const result = await jsonpRequest(buildSheetUrl('verifyDelete', { id }));
+    return result.success && !result.inSales && !result.inProfit;
+  } catch (error) {
+    showToast('Google Sheet-এ মুছে ফেলা যাচাই করা যায়নি: ' + error.message, 'error');
+    return false;
+  }
 }
 
 async function refreshFromSheet() {
@@ -1163,49 +1259,24 @@ async function testSheetConnection() {
   showLoading('সংযোগ পরীক্ষা করা হচ্ছে...');
 
   try {
-    const candidates = [
-      buildSheetUrl('test'),
-      `${url}?action=test`,
-      `${url}?action=filterByMonth&month=${new Date().toISOString().slice(0, 7)}`
-    ];
-
-    let result = null;
-    for (const candidate of candidates) {
-      if (!candidate) continue;
-      try {
-        const response = await fetch(candidate, {
-          method: 'GET',
-          mode: 'cors',
-          headers: { 'Accept': 'application/json' }
-        });
-        if (!response.ok) continue;
-        const json = await parseJsonResponse(response);
-        if ((json && json.success) || (json && json.result)) {
-          result = json;
-          break;
-        }
-      } catch (error) {
-        continue;
-      }
-    }
-
+    const result = await jsonpRequest(buildSheetUrl('test', {}, url));
     hideLoading();
-    if (result && (result.success || result.result === 'success' || result.result === 'found')) {
-      const count = Array.isArray(result.data) ? result.data.length : (result.count || 0);
+    if (result && result.success) {
+      const count = result.count || 0;
       showToast('✓ সংযোগ সফল! ' + count + ' টি ইনভয়েস পাওয়া গেছে');
     } else {
-      showToast('সংযোগ ব্যর্থ: Apps Script এ test/getAll/filterByMonth action নেই', 'error');
+      showToast('সংযোগ ব্যর্থ: ' + ((result && result.message) || 'Apps Script test action সফল হয়নি'), 'error');
     }
   } catch (error) {
     hideLoading();
-    showToast('সংযোগ ব্যর্থ: ' + error.message, 'error');
+    showToast('সংযোগ ব্যর্থ: ' + error.message + ' Deploy as: Me; access: Anyone; URL must end in /exec.', 'error');
   }
 }
 
 // ===== Items Management =====
 function addItem(name='', qty=1, price=0) {
   const container = document.getElementById('itemsContainer');
-  const presets = (settings.presetItems || '').split('\n').filter(x => x.trim());
+  const presets = (settings.presetItems || '').split('\n').map(item => item.trim()).filter(Boolean);
   const row = document.createElement('div');
   row.className = 'item-row';
   
@@ -1215,14 +1286,20 @@ function addItem(name='', qty=1, price=0) {
   });
   
   const isCustom = name && !presets.includes(name);
+  const initialPrice = price || Number((settings.sellingPrices || {})[name] || 0);
+  const initialCost = Number((settings.costPrices || {})[name] || 0);
   row.innerHTML = `
-    <select onchange="updateItem(this); calculateRowTotal(this.parentElement); calculateTotal()">
+    <div class="item-description">
+      <select onchange="updateItem(this); calculateRowTotal(this.closest('.item-row')); calculateTotal()">
       ${optionsHtml}
       <option value="__custom__" ${isCustom?'selected':''}>✏️ কাস্টম...</option>
-    </select>
-    <input type="text" class="customName" placeholder="নাম" value="${isCustom ? name : ''}" style="display:${isCustom ? 'block':'none'}">
-    <input type="number" class="itemQty" value="${qty}" min="1" onchange="calculateRowTotal(this.parentElement); calculateTotal()" placeholder="পরিমাণ">
-    <input type="number" class="itemPrice" value="${price}" min="0" onchange="calculateRowTotal(this.parentElement); calculateTotal()" placeholder="মূল্য">
+      </select>
+      <input type="text" class="customName" placeholder="নাম" value="${isCustom ? name : ''}" style="display:${isCustom ? 'block':'none'}">
+      <div class="item-cost-display">ক্রয়: ${formatMoney(initialCost)} / ইউনিট</div>
+      <input type="hidden" class="itemCostPrice" value="${initialCost}">
+    </div>
+    <input type="number" class="itemQty" value="${qty}" min="1" onchange="calculateRowTotal(this.closest('.item-row')); calculateTotal()" placeholder="পরিমাণ">
+    <input type="number" class="itemPrice" value="${initialPrice}" min="0" step="0.01" onchange="calculateRowTotal(this.closest('.item-row')); calculateTotal()" placeholder="বিক্রয়মূল্য">
     <div class="item-total-display">৳০</div>
     <button class="remove-btn" onclick="this.parentElement.remove(); calculateTotal()">×</button>
   `;
@@ -1232,15 +1309,28 @@ function addItem(name='', qty=1, price=0) {
 }
 
 function updateItem(sel) {
-  const row = sel.parentElement;
+  const row = sel.closest('.item-row');
   const customInput = row.querySelector('.customName');
+  const priceInput = row.querySelector('.itemPrice');
+  const costInput = row.querySelector('.itemCostPrice');
+  const costDisplay = row.querySelector('.item-cost-display');
   if (sel.value === '__custom__') {
     customInput.style.display = 'block';
     customInput.focus();
+    costInput.value = '0';
+    costDisplay.textContent = 'ক্রয়: ৳০ / ইউনিট';
+    priceInput.value = '0';
   } else {
     customInput.style.display = 'none';
     customInput.value = '';
+    const costPrice = Number((settings.costPrices || {})[sel.value] || 0);
+    costInput.value = String(costPrice);
+    costDisplay.textContent = 'ক্রয়: ' + formatMoney(costPrice) + ' / ইউনিট';
+    priceInput.value = Object.prototype.hasOwnProperty.call(settings.sellingPrices || {}, sel.value)
+      ? settings.sellingPrices[sel.value]
+      : '0';
   }
+  calculateRowTotal(row.closest('.item-row'));
 }
 
 function calculateRowTotal(row) {
@@ -1284,6 +1374,7 @@ function getItems() {
     const customInput = row.querySelector('.customName');
     const qty = parseFloat(row.querySelector('.itemQty').value) || 0;
     const price = parseFloat(row.querySelector('.itemPrice').value) || 0;
+    const costPrice = parseFloat(row.querySelector('.itemCostPrice').value) || 0;
     let name = '';
     if (sel.value === '__custom__') {
       name = customInput.value.trim();
@@ -1291,10 +1382,70 @@ function getItems() {
       name = sel.value;
     }
     if (name && qty > 0 && price >= 0) {
-      items.push({ name, qty, price, total: qty * price });
+      items.push({ name, qty, price, costPrice, total: qty * price });
     }
   });
   return items;
+}
+
+function getConfiguredProfitShares() {
+  if (Array.isArray(settings.profitShares) && settings.profitShares.length) {
+    return settings.profitShares;
+  }
+  return [
+    { name: 'আমার অংশ', percentage: 60 },
+    { name: 'পার্টনার', percentage: 40 }
+  ];
+}
+
+function calculateInvoiceProfit(invoice) {
+  const costPrices = settings.costPrices || {};
+  const presets = new Set((settings.presetItems || '').split('\n').map(item => item.trim()).filter(Boolean));
+  const missingCostItems = [...new Set(invoice.items
+    .filter(item => presets.has(item.name) && !Object.prototype.hasOwnProperty.call(costPrices, item.name))
+    .map(item => item.name))];
+
+  if (missingCostItems.length) return { missingCostItems };
+
+  let costTotal = 0;
+  invoice.items = invoice.items.map(item => {
+    const costPrice = Object.prototype.hasOwnProperty.call(costPrices, item.name)
+      ? Number(costPrices[item.name])
+      : Number(item.costPrice || 0);
+    const itemCost = costPrice * item.qty;
+    const itemRevenue = invoice.subtotal > 0
+      ? Number((invoice.total * item.total / invoice.subtotal).toFixed(2))
+      : 0;
+    const itemProfit = Number((itemRevenue - itemCost).toFixed(2));
+    costTotal += itemCost;
+    return {
+      ...item,
+      costPrice,
+      costTotal: Number(itemCost.toFixed(2)),
+      netRevenue: itemRevenue,
+      netProfit: itemProfit
+    };
+  });
+
+  invoice.costTotal = Number(costTotal.toFixed(2));
+  invoice.netProfit = Number((invoice.total - invoice.costTotal).toFixed(2));
+
+  const profitCents = Math.round(invoice.netProfit * 100);
+  let allocatedCents = 0;
+  const shares = getConfiguredProfitShares();
+  invoice.profitShares = shares.map((share, index) => {
+    const amountCents = index === shares.length - 1
+      ? profitCents - allocatedCents
+      : Math.round(profitCents * Number(share.percentage) / 100);
+    allocatedCents += amountCents;
+    return {
+      name: share.name,
+      percentage: Number(share.percentage),
+      amount: amountCents / 100
+    };
+  });
+
+  return { missingCostItems: [] };
 }
 
 function updateCurrentInvoiceNo() {
@@ -1331,12 +1482,21 @@ async function saveAndWhatsApp() {
     date: new Date().toISOString()
   };
 
+  const profitResult = calculateInvoiceProfit(invoice);
+  if (profitResult.missingCostItems.length) {
+    return showToast('সেটিংসে কস্টিং প্রাইস সেট করুন: ' + profitResult.missingCostItems.join(', '), 'error');
+  }
+
+  const whatsappWindow = window.open('about:blank', '_blank');
+  if (whatsappWindow) whatsappWindow.opener = null;
   showLoading('সেভ করা হচ্ছে...');
 
+  const hasSheetUrl = Boolean(getSheetUrl());
   const sheetSuccess = await saveToSheet(invoice);
 
   if (!sheetSuccess) {
     hideLoading();
+    if (whatsappWindow && !whatsappWindow.closed) whatsappWindow.close();
     const pending = JSON.parse(localStorage.getItem('pos_unsent_invoices') || '[]');
     pending.push(invoice);
     localStorage.setItem('pos_unsent_invoices', JSON.stringify(pending));
@@ -1355,9 +1515,9 @@ async function saveAndWhatsApp() {
   localStorage.setItem('pos_next_inv_no', nextInvoiceNumber.toString());
 
   hideLoading();
-  showToast('✓ ইনভয়েস শিটে সেভ হয়েছে: ' + invoiceNo);
+  showToast((hasSheetUrl ? '✓ ইনভয়েস শিটে সেভ হয়েছে: ' : '✓ ইনভয়েস লোকাল স্টোরেজে সেভ হয়েছে: ') + invoiceNo);
 
-  sendWhatsAppMessage(invoice);
+  sendWhatsAppMessage(invoice, whatsappWindow);
 
   resetForm();
   updateStats();
@@ -1365,7 +1525,7 @@ async function saveAndWhatsApp() {
   updateCurrentInvoiceNo();
 }
 
-function sendWhatsAppMessage(inv) {
+function sendWhatsAppMessage(inv, whatsappWindow = null) {
   const E = EMOJI_OK;
   const msg = generateWhatsAppMessage(inv);
   
@@ -1373,7 +1533,11 @@ function sendWhatsAppMessage(inv) {
   if (waPhone.startsWith('0')) waPhone = '880' + waPhone.substring(1);
   
   const url = `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
-  window.open(url, '_blank');
+  if (whatsappWindow && !whatsappWindow.closed) {
+    whatsappWindow.location.href = url;
+    return;
+  }
+  if (!window.open(url, '_blank')) window.location.href = url;
 }
 
 function generateWhatsAppMessage(inv) {
@@ -1677,6 +1841,24 @@ function viewInvoice(id) {
         <span>সর্বমোট</span>
         <span>${formatMoney(inv.total)}</span>
       </div>
+      ${Number.isFinite(Number(inv.netProfit)) ? `
+        <div style="margin-top:12px;padding:12px;background:#ecfdf5;border-radius:10px;">
+          <div style="display:flex;justify-content:space-between;font-weight:700;color:var(--dark);">
+            <span>নিট লাভ</span>
+            <span>${formatMoney(inv.netProfit)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px;color:var(--gray-500);font-size:12px;">
+            <span>মোট কস্ট</span>
+            <span>${formatMoney(inv.costTotal || 0)}</span>
+          </div>
+          ${(inv.profitShares || []).map(share => `
+            <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:13px;">
+              <span>${share.name} (${toBnNum(share.percentage)}%)</span>
+              <span style="font-weight:700;">${formatMoney(share.amount)}</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
     </div>
   `;
   document.getElementById('invoiceModal').classList.add('active');
@@ -1690,7 +1872,11 @@ async function deleteInvoice(id) {
   if (!confirm('এই ইনভয়েসটি মুছে ফেলবেন?')) return;
   
   showLoading('মুছে ফেলা হচ্ছে...');
-  await deleteFromSheet(id);
+  const deletedFromSheet = await deleteFromSheet(id);
+  if (!deletedFromSheet) {
+    hideLoading();
+    return showToast('ইনভয়েসটি Google Sheet থেকে যাচাই করে মুছতে পারেনি', 'error');
+  }
   
   invoices = invoices.filter(i => i.id !== id);
   localStorage.setItem('pos_invoices', JSON.stringify(invoices));
@@ -1703,23 +1889,196 @@ async function deleteInvoice(id) {
 
 // ===== Settings =====
 function openSettings() {
+  if (Date.now() < settingsPinLockedUntil) {
+    return showToast('অনেকবার ভুল PIN দেওয়া হয়েছে। এক মিনিট পরে চেষ্টা করুন।', 'error');
+  }
+  if (settingsPinLockedUntil) settingsPinAttempts = 0;
+  document.getElementById('settingsPinInput').value = '';
+  document.getElementById('settingsPinModal').classList.add('active');
+  setTimeout(() => document.getElementById('settingsPinInput').focus(), 0);
+}
+
+function verifySettingsPin() {
+  if (document.getElementById('settingsPinInput').value !== SETTINGS_PIN) {
+    settingsPinAttempts++;
+    document.getElementById('settingsPinInput').value = '';
+    showToast(settingsPinAttempts >= 5
+      ? 'অনেকবার ভুল PIN দেওয়া হয়েছে। আবার চেষ্টা করুন।'
+      : 'PIN সঠিক নয়', 'error');
+    if (settingsPinAttempts >= 5) {
+      settingsPinLockedUntil = Date.now() + 60000;
+      closeSettingsPin();
+    }
+    return;
+  }
+
+  closeSettingsPin();
   document.getElementById('sheetUrl').value = settings.sheetUrl || '';
   document.getElementById('presetItems').value = settings.presetItems || '';
+  document.getElementById('profitShares').value = getConfiguredProfitShares()
+    .map(share => `${share.name} | ${share.percentage}`)
+    .join('\n');
+  renderPresetPriceFields();
   document.getElementById('settingsModal').classList.add('active');
+}
+
+function closeSettingsPin() {
+  document.getElementById('settingsPinModal').classList.remove('active');
+}
+
+function capturePresetPriceDraft() {
+  settings.costPrices = settings.costPrices || {};
+  settings.sellingPrices = settings.sellingPrices || {};
+  document.querySelectorAll('.preset-cost-input, .preset-selling-input').forEach(input => {
+    const name = input.dataset.itemName;
+    const prices = input.classList.contains('preset-cost-input')
+      ? settings.costPrices
+      : settings.sellingPrices;
+    if (input.value === '') {
+      delete prices[name];
+    } else {
+      prices[name] = input.value;
+    }
+  });
+}
+
+function renderPresetPriceFields() {
+  const container = document.getElementById('presetPriceFields');
+  const presets = [...new Set((document.getElementById('presetItems').value || '')
+    .split('\n').map(item => item.trim()).filter(Boolean))];
+  container.innerHTML = '';
+
+  if (!presets.length) {
+    container.textContent = 'আগে প্রি-সেট আইটেম যোগ করুন।';
+    return;
+  }
+
+  presets.forEach(name => {
+    const row = document.createElement('div');
+    row.className = 'preset-price-row';
+    const title = document.createElement('span');
+    title.textContent = name;
+    const costInput = document.createElement('input');
+    costInput.type = 'number';
+    costInput.min = '0';
+    costInput.step = '0.01';
+    costInput.placeholder = 'কস্ট';
+    costInput.className = 'preset-cost-input';
+    costInput.dataset.itemName = name;
+    if (Object.prototype.hasOwnProperty.call(settings.costPrices || {}, name)) {
+      costInput.value = settings.costPrices[name];
+    }
+    const sellingInput = document.createElement('input');
+    sellingInput.type = 'number';
+    sellingInput.min = '0';
+    sellingInput.step = '0.01';
+    sellingInput.placeholder = 'বিক্রয়';
+    sellingInput.className = 'preset-selling-input';
+    sellingInput.dataset.itemName = name;
+    if (Object.prototype.hasOwnProperty.call(settings.sellingPrices || {}, name)) {
+      sellingInput.value = settings.sellingPrices[name];
+    }
+    row.append(title, costInput, sellingInput);
+    container.appendChild(row);
+  });
+}
+
+function parseProfitShares(value) {
+  const lines = value.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if (!lines.length) return null;
+
+  const shares = [];
+  const names = new Set();
+  let total = 0;
+  for (const line of lines) {
+    const parts = line.split('|');
+    if (parts.length !== 2) return null;
+    const name = parts[0].trim();
+    const percentage = Number(parts[1].trim());
+    if (!name || !Number.isFinite(percentage) || percentage < 0 || percentage > 100 || names.has(name)) {
+      return null;
+    }
+    names.add(name);
+    total += percentage;
+    shares.push({ name, percentage });
+  }
+  return Math.abs(total - 100) <= 0.01 ? shares : null;
 }
 
 function closeSettings() {
   document.getElementById('settingsModal').classList.remove('active');
 }
 
-function saveSettings() {
+async function saveSettingsToSheet() {
+  await postSheetData({
+    action: 'saveSettings',
+    pin: SETTINGS_PIN,
+    settings: {
+      presetItems: settings.presetItems,
+      costPrices: settings.costPrices,
+      sellingPrices: settings.sellingPrices,
+      profitShares: settings.profitShares
+    }
+  });
+
+  const result = await jsonpRequest(buildSheetUrl('getSettings', { pin: SETTINGS_PIN }));
+  if (!result.success || !result.settings ||
+      result.settings.presetItems !== settings.presetItems ||
+      JSON.stringify(JSON.parse(result.settings.costPrices || '{}')) !== JSON.stringify(settings.costPrices) ||
+      JSON.stringify(JSON.parse(result.settings.sellingPrices || '{}')) !== JSON.stringify(settings.sellingPrices)) {
+    throw new Error('Google Sheet-এ সংরক্ষিত সেটিংস মেলেনি। PIN এবং deployment পরীক্ষা করুন।');
+  }
+}
+
+async function saveSettings() {
+  const profitShares = parseProfitShares(document.getElementById('profitShares').value);
+  if (!profitShares) {
+    return showToast('লাভের ভাগ সঠিকভাবে লিখুন; সব শতাংশের যোগফল ১০০% হতে হবে', 'error');
+  }
+
+  const costPrices = {};
+  const sellingPrices = {};
+  let invalidPrice = false;
+  document.querySelectorAll('.preset-cost-input, .preset-selling-input').forEach(input => {
+    if (input.value === '') return;
+    const price = Number(input.value);
+    if (!Number.isFinite(price) || price < 0) {
+      invalidPrice = true;
+      return;
+    }
+    if (input.classList.contains('preset-cost-input')) {
+      costPrices[input.dataset.itemName] = price;
+    } else {
+      sellingPrices[input.dataset.itemName] = price;
+    }
+  });
+  if (invalidPrice) {
+    return showToast('কস্ট ও বিক্রয়মূল্য শূন্য বা তার বেশি সংখ্যা হতে হবে', 'error');
+  }
+
   settings.sheetUrl = document.getElementById('sheetUrl').value.trim();
   settings.presetItems = document.getElementById('presetItems').value;
+  settings.costPrices = costPrices;
+  settings.sellingPrices = sellingPrices;
+  settings.profitShares = profitShares;
   localStorage.setItem('pos_settings', JSON.stringify(settings));
   closeSettings();
-  showToast('✓ সেটিংস সেভ হয়েছে');
   document.getElementById('itemsContainer').innerHTML = '';
   addItem();
+
+  if (settings.sheetUrl) {
+    showLoading('সেটিংস সেভ হচ্ছে...');
+    try {
+      await saveSettingsToSheet();
+      hideLoading();
+      showToast('✓ সেটিংস লোকাল ও Google Sheet-এ সেভ হয়েছে');
+    } catch (error) {
+      hideLoading();
+      showToast('লোকালে সেটিংস সেভ হয়েছে, Google Sheet-এ হয়নি: ' + error.message, 'error');
+    }
+  } else {
+    showToast('✓ সেটিংস লোকাল স্টোরেজে সেভ হয়েছে');
+  }
 }
 
 function exportData() {
@@ -1741,6 +2100,9 @@ renderInvoices();
 updateCurrentInvoiceNo();
 const now = new Date();
 document.getElementById('monthFilter').value = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+document.getElementById('settingsPinInput').addEventListener('keydown', event => {
+  if (event.key === 'Enter') verifySettingsPin();
+});
 
 // Auto-load from sheet on startup
 if (getSheetUrl()) {
@@ -1754,167 +2116,17 @@ if (getSheetUrl()) {
     });
   }, 500);
 }
+
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  navigator.serviceWorker.register('./service-worker.js')
+    .catch(error => console.error('Service worker registration failed:', error));
+}
 </script>
 </body>
 </html>
 
 
-              <script>
-                              const SHEET_NAME = 'Sheet1'; // আপনার শিটের নাম
-
-function doPost(e) {
-  return handleRequest(e);
-}
-
-function doGet(e) {
-  const action = e.parameter.action || 'getAll';
-
-  if (action === 'test') {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
-    const data = sheet.getDataRange().getValues();
-    return ContentService.createTextOutput(JSON.stringify({
-      success: true,
-      message: 'সংযোগ সফল',
-      count: Math.max(0, data.length - 1)
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-
-  if (action === 'getAll') {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
-    const data = sheet.getDataRange().getValues();
-
-    if (data.length <= 1) {
-      return ContentService.createTextOutput(JSON.stringify({
-        success: true,
-        data: [],
-        nextNumber: 1
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    const invoices = [];
-    let maxNum = 0;
-
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      const inv = {
-        id: row[0],
-        invoiceNo: row[1],
-        date: row[2],
-        customer: row[3],
-        phone: row[4],
-        items: safeJsonParse(row[5], []),
-        subtotal: row[6],
-        discount: row[7],
-        total: row[8]
-      };
-      invoices.push(inv);
-
-      const match = String(row[1] || '').match(/ABC-(\d+)/);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (num > maxNum) maxNum = num;
-      }
-    }
-
-    return ContentService.createTextOutput(JSON.stringify({
-      success: true,
-      data: invoices,
-      nextNumber: maxNum + 1
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-
-  return ContentService.createTextOutput(JSON.stringify({
-    success: false,
-    message: 'অজানা action'
-  })).setMimeType(ContentService.MimeType.JSON);
-}
-
-function safeJsonParse(value, fallback) {
-  try {
-    return value ? JSON.parse(value) : fallback;
-  } catch (error) {
-    return fallback;
-  }
-}
-
-function handleRequest(e) {
-  try {
-    let data;
-
-    if (e.postData && e.postData.contents) {
-      const contentType = (e.postData.type || '').toLowerCase();
-      if (contentType.includes('application/json')) {
-        data = JSON.parse(e.postData.contents);
-      } else if (contentType.includes('application/x-www-form-urlencoded')) {
-        data = e.parameter;
-      } else {
-        try {
-          data = JSON.parse(e.postData.contents);
-        } catch (error) {
-          data = e.parameter;
-        }
-      }
-    } else {
-      data = e.parameter;
-    }
-
-    const action = data.action;
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
-
-    if (action === 'saveInvoice') {
-      const inv = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
-
-      sheet.appendRow([
-        inv.id,
-        inv.invoiceNo,
-        inv.date,
-        inv.customer,
-        inv.phone,
-        JSON.stringify(inv.items || []),
-        inv.subtotal,
-        inv.discount,
-        inv.total
-      ]);
-
-      return ContentService.createTextOutput(JSON.stringify({
-        success: true,
-        message: 'সেভ হয়েছে'
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    if (action === 'deleteInvoice') {
-      const id = data.id;
-      const dataRange = sheet.getDataRange();
-      const values = dataRange.getValues();
-
-      for (let i = 1; i < values.length; i++) {
-        if (String(values[i][0]) === String(id)) {
-          sheet.deleteRow(i + 1);
-          break;
-        }
-      }
-
-      return ContentService.createTextOutput(JSON.stringify({
-        success: true,
-        message: 'মুছে ফেলা হয়েছে'
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    return ContentService.createTextOutput(JSON.stringify({
-      success: false,
-      message: 'ভুল action'
-    })).setMimeType(ContentService.MimeType.JSON);
-
-  } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({
-      success: false,
-      message: error.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-
-              </script>
+<!-- Apps Script backend is maintained in code.gs. -->
                         </body>
                         </html>
                     
