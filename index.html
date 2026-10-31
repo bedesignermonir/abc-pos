@@ -1,0 +1,1920 @@
+
+                        <!DOCTYPE html>
+                        <html lang="en">
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <style>
+                body {
+                  background-color: white; /* Ensure the iframe has a white background */
+                }
+
+                
+              </style>
+                        </head>
+                        <body>
+                            <!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ABC COMPUTER - POS সিস্টেম</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/noto-sans-bengali@latest/bengali-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/noto-sans-bengali@latest/bengali-700-normal.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Noto Sans Bengali', sans-serif; }
+:root {
+  --primary: #25d366;
+  --primary-dark: #128c7e;
+  --dark: #0f172a;
+  --dark-2: #1e3a8a;
+  --accent: #f59e0b;
+  --danger: #ef4444;
+  --success: #10b981;
+  --gray-50: #f8fafc;
+  --gray-100: #f1f5f9;
+  --gray-200: #e2e8f0;
+  --gray-500: #64748b;
+  --gray-700: #334155;
+  --gray-900: #0f172a;
+}
+body {
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #0f172a 100%);
+  min-height: 100vh;
+  padding: 15px;
+  color: #333;
+}
+.container { max-width: 1280px; margin: 0 auto; }
+
+/* ===== Header ===== */
+.header {
+  background: white;
+  padding: 18px 28px;
+  border-radius: 20px;
+  margin-bottom: 18px;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.25);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+  border-top: 5px solid var(--primary);
+  position: relative;
+  overflow: hidden;
+}
+.header::before {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 200px; height: 100%;
+  background: linear-gradient(135deg, rgba(37,211,102,0.08), transparent);
+  pointer-events: none;
+}
+.brand { display: flex; align-items: center; gap: 15px; z-index: 1; }
+.logo {
+  width: 58px; height: 58px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  color: white; font-size: 30px; font-weight: 700;
+  box-shadow: 0 6px 16px rgba(37,211,102,0.4);
+  flex-shrink: 0;
+}
+.brand-text h1 { color: var(--dark); font-size: 22px; line-height: 1.2; }
+.brand-text .tagline { color: var(--gray-500); font-size: 12px; margin-top: 3px; }
+.header-actions { display: flex; gap: 8px; flex-wrap: wrap; z-index: 1; }
+.header-btn {
+  background: var(--gray-100);
+  border: none;
+  padding: 10px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--gray-700);
+  transition: 0.3s;
+  font-size: 13px;
+}
+.header-btn:hover { background: var(--primary); color: white; transform: translateY(-2px); }
+
+/* ===== Stats ===== */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.stat-card {
+  background: white;
+  padding: 18px;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s;
+}
+.stat-card:hover { transform: translateY(-3px); }
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 5px; height: 100%;
+}
+.stat-card.today::before { background: var(--success); }
+.stat-card.month::before { background: #3b82f6; }
+.stat-card.total::before { background: var(--accent); }
+.stat-card.discount::before { background: #8b5cf6; }
+.stat-card.count::before { background: var(--danger); }
+.stat-card .icon {
+  position: absolute;
+  top: 12px; right: 15px;
+  font-size: 28px;
+  opacity: 0.15;
+}
+.stat-card .label { color: var(--gray-500); font-size: 12px; margin-bottom: 6px; font-weight: 700; }
+.stat-card .value { font-size: 24px; font-weight: 700; color: var(--dark); }
+
+/* ===== Main Layout ===== */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 18px;
+}
+@media (max-width: 960px) { .main-grid { grid-template-columns: 1fr; } }
+
+.card {
+  background: white;
+  padding: 22px;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  margin-bottom: 18px;
+}
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--gray-100);
+}
+.card-header .icon-box {
+  width: 38px; height: 38px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: white; font-size: 18px;
+}
+.card-header h2 { color: var(--dark); font-size: 17px; }
+
+/* ===== Form ===== */
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+@media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+.form-group { margin-bottom: 12px; }
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 700;
+  color: var(--gray-700);
+  font-size: 13px;
+}
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%;
+  padding: 11px 14px;
+  border: 2px solid var(--gray-200);
+  border-radius: 10px;
+  font-size: 14px;
+  transition: 0.3s;
+  font-family: inherit;
+  background: white;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37,211,102,0.15);
+}
+
+/* ===== Invoice Number Display ===== */
+.invoice-number-box {
+  background: linear-gradient(135deg, var(--dark), var(--dark-2));
+  color: white;
+  padding: 12px 18px;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  font-size: 14px;
+}
+.invoice-number-box .inv-label { opacity: 0.85; font-size: 12px; }
+.invoice-number-box .inv-number {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--primary);
+}
+
+/* ===== Items Table ===== */
+.items-header {
+  display: grid;
+  grid-template-columns: 2.5fr 0.8fr 1fr 1fr 40px;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--gray-100);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gray-700);
+}
+.item-row {
+  display: grid;
+  grid-template-columns: 2.5fr 0.8fr 1fr 1fr 40px;
+  gap: 6px;
+  margin-bottom: 8px;
+  align-items: center;
+  animation: slideIn 0.3s ease;
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.item-row input, .item-row select {
+  padding: 9px 10px;
+  border: 2px solid var(--gray-200);
+  border-radius: 8px;
+  font-size: 13px;
+  transition: 0.2s;
+  width: 100%;
+}
+.item-row input:focus, .item-row select:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+.item-total-display {
+  padding: 9px 10px;
+  background: var(--gray-50);
+  border-radius: 8px;
+  font-weight: 700;
+  color: var(--success);
+  font-size: 13px;
+  text-align: right;
+}
+.remove-btn {
+  background: #fee2e2;
+  color: var(--danger);
+  border: none;
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 700;
+  transition: 0.2s;
+}
+.remove-btn:hover { background: var(--danger); color: white; transform: rotate(90deg); }
+
+.add-item-btn {
+  background: var(--gray-50);
+  color: var(--success);
+  border: 2px dashed var(--success);
+  padding: 10px;
+  width: 100%;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 700;
+  margin-bottom: 15px;
+  transition: 0.3s;
+}
+.add-item-btn:hover { background: var(--success); color: white; }
+
+/* ===== Discount & Total ===== */
+.summary-section {
+  background: linear-gradient(135deg, var(--gray-50), white);
+  padding: 15px;
+  border-radius: 14px;
+  margin-bottom: 15px;
+  border: 2px solid var(--gray-200);
+}
+.summary-line {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 14px;
+  color: var(--gray-700);
+}
+.summary-line.discount { color: var(--danger); font-weight: 700; }
+.discount-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.discount-row input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 2px solid var(--gray-200);
+  border-radius: 8px;
+  font-size: 14px;
+}
+.discount-row select {
+  padding: 8px 12px;
+  border: 2px solid var(--gray-200);
+  border-radius: 8px;
+  font-size: 13px;
+  background: white;
+  font-weight: 700;
+}
+
+.total-box {
+  background: linear-gradient(135deg, var(--dark), var(--dark-2));
+  color: white;
+  padding: 18px;
+  border-radius: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  box-shadow: 0 8px 20px rgba(15,23,42,0.3);
+}
+.total-box .label { font-size: 15px; opacity: 0.9; }
+.total-box .amount {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+/* ===== Action Buttons ===== */
+.action-btns-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+@media (max-width: 600px) { .action-btns-3 { grid-template-columns: 1fr; } }
+.btn {
+  padding: 13px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+  transition: 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
+.btn:active { transform: translateY(0); }
+.btn-whatsapp {
+  background: linear-gradient(135deg, #25d366, #128c7e);
+  color: white;
+}
+.btn-print {
+  background: linear-gradient(135deg, #3b82f6, #1e40af);
+  color: white;
+}
+.btn-reset {
+  background: linear-gradient(135deg, #64748b, #334155);
+  color: white;
+}
+
+/* ===== Invoice List ===== */
+.filter-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+}
+.filter-row input {
+  padding: 9px 12px;
+  border: 2px solid var(--gray-200);
+  border-radius: 10px;
+  font-size: 13px;
+  flex: 1;
+  min-width: 120px;
+}
+.filter-row input:focus { outline: none; border-color: var(--primary); }
+
+.invoice-list { max-height: 650px; overflow-y: auto; padding-right: 4px; }
+.invoice-item {
+  background: white;
+  padding: 14px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  border-left: 4px solid var(--primary);
+  cursor: pointer;
+  transition: 0.3s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  border: 1px solid var(--gray-200);
+  border-left: 4px solid var(--primary);
+}
+.invoice-item:hover {
+  transform: translateX(4px);
+  box-shadow: 0 6px 16px rgba(37,211,102,0.2);
+  border-left-color: var(--primary-dark);
+}
+.invoice-item .top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.invoice-item .inv-no {
+  font-size: 11px;
+  color: var(--primary-dark);
+  font-weight: 700;
+  background: rgba(37,211,102,0.1);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.invoice-item .customer { font-weight: 700; color: var(--dark); font-size: 15px; }
+.invoice-item .amount { font-weight: 700; color: var(--success); font-size: 16px; }
+.invoice-item .meta { font-size: 12px; color: var(--gray-500); }
+.invoice-item .actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.invoice-item .actions button {
+  padding: 6px 10px;
+  font-size: 11px;
+  border-radius: 7px;
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+  transition: 0.2s;
+}
+.invoice-item .actions button:hover { transform: scale(1.05); }
+
+.empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--gray-500);
+}
+.empty .icon { font-size: 48px; margin-bottom: 10px; opacity: 0.3; }
+
+/* ===== Modal ===== */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.7);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+}
+.modal.active { display: flex; animation: fadeIn 0.3s; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.modal-content {
+  background: white;
+  padding: 28px;
+  border-radius: 20px;
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s;
+}
+@keyframes slideUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.modal-content h2 {
+  color: var(--dark);
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ===== Print Styles ===== */
+.print-area { display: none; }
+@media print {
+  @page { size: A5; margin: 8mm; }
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area {
+    display: block !important;
+    position: absolute;
+    left: 0; top: 0;
+    width: 100%;
+    background: white;
+    color: #000;
+    padding: 0;
+  }
+  .no-print { display: none !important; }
+}
+.print-area {
+  font-family: 'Noto Sans Bengali', sans-serif;
+  color: var(--dark);
+  padding: 6mm;
+  font-size: 11pt;
+}
+.print-header {
+  text-align: center;
+  border-bottom: 2px solid var(--dark);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+.print-header .biz-name { font-size: 20pt; font-weight: 700; letter-spacing: 1px; }
+.print-header .biz-tag { font-size: 9pt; color: var(--gray-500); margin-top: 3px; }
+.print-header .biz-addr { font-size: 8.5pt; color: var(--gray-500); margin-top: 2px; }
+.print-header .biz-services { font-size: 8pt; color: var(--success); margin-top: 4px; font-weight: 700; }
+
+.print-inv-no {
+  background: var(--dark);
+  color: var(--primary);
+  padding: 6px 12px;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 14pt;
+  font-weight: 700;
+  margin-bottom: 10px;
+  letter-spacing: 1px;
+}
+
+.print-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9pt;
+  margin-bottom: 6px;
+  padding: 5px 8px;
+  background: var(--gray-50);
+  border-radius: 6px;
+}
+.print-meta div span { font-weight: 700; }
+
+.print-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 10pt; }
+.print-table th { background: var(--dark); color: white; padding: 5px 6px; text-align: left; font-weight: 700; font-size: 9pt; }
+.print-table td { padding: 5px 6px; border-bottom: 1px solid var(--gray-200); }
+.print-table tr:nth-child(even) td { background: var(--gray-50); }
+.print-table .text-right { text-align: right; }
+.print-table .text-center { text-align: center; }
+
+.print-totals { margin-bottom: 10px; }
+.print-totals .line { display: flex; justify-content: flex-end; gap: 20px; padding: 3px 0; font-size: 10pt; }
+.print-totals .line.discount { color: var(--danger); }
+.print-totals .final-total {
+  background: var(--dark);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14pt;
+  font-weight: 700;
+  display: inline-block;
+  float: right;
+  margin-top: 5px;
+}
+
+.print-footer {
+  border-top: 1px dashed #94a3b8;
+  padding-top: 8px;
+  margin-top: 10px;
+  text-align: center;
+  font-size: 8.5pt;
+  color: var(--gray-500);
+}
+.print-footer .thanks { font-size: 10.5pt; font-weight: 700; color: var(--success); margin-bottom: 6px; }
+.print-footer-content { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; margin: 8px 0; }
+.print-footer-content.small-bill { flex-direction: column; }
+.print-footer-content.large-bill { flex-direction: row; }
+.print-social-qr-section { display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.print-social-text { text-align: left; font-size: 8pt; }
+.print-social-text .review-line { margin-top: 4px; font-weight: 700; color: #92400e; background: #fef3c7; padding: 3px 8px; border-radius: 4px; display: inline-block; }
+.print-qr-img { width: 60px; height: 60px; border: 2px solid var(--dark); padding: 3px; background: white; }
+.print-qr-img.large { width: 80px; height: 80px; }
+.print-social-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 6px 0; font-size: 8pt; color: var(--dark); }
+.print-social-row span { font-weight: 700; }
+.print-computer-gen { font-size: 7.5pt; color: #94a3b8; text-align: center; margin-top: 6px; }
+
+/* ===== Toast ===== */
+.toast {
+  position: fixed;
+  bottom: 30px; right: 30px;
+  background: var(--success);
+  color: white;
+  padding: 14px 22px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  transform: translateX(400px);
+  transition: 0.4s;
+  z-index: 2000;
+  font-weight: 700;
+  max-width: 320px;
+}
+.toast.show { transform: translateX(0); }
+.toast.error { background: var(--danger); }
+.toast.loading { background: #3b82f6; }
+
+/* ===== Loading Overlay ===== */
+.loading-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(15,23,42,0.8);
+  z-index: 3000;
+  justify-content: center;
+  align-items: center;
+  backdrop-filter: blur(4px);
+}
+.loading-overlay.active { display: flex; }
+.loading-box {
+  background: white;
+  padding: 30px 40px;
+  border-radius: 16px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.spinner {
+  width: 50px; height: 50px;
+  border: 5px solid var(--gray-200);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 15px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--gray-100); border-radius: 10px; }
+::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; }
+</style>
+</head>
+<body>
+
+<div class="no-print">
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <div class="brand">
+      <div class="logo">A</div>
+      <div class="brand-text">
+        <h1>ABC COMPUTER</h1>
+        <div class="tagline">আপনার বিশ্বস্ত ডিজিটাল সেবা কেন্দ্র</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="header-btn" onclick="openSettings()">⚙️ সেটিংস</button>
+      <button class="header-btn" onclick="refreshFromSheet()">🔄 রিফ্রেশ</button>
+      <button class="header-btn" onclick="exportData()">📥 ব্যাকআপ</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat-card today">
+      <div class="icon">📅</div>
+      <div class="label">আজকের বিক্রি</div>
+      <div class="value" id="todaySales">৳০</div>
+    </div>
+    <div class="stat-card month">
+      <div class="icon">📊</div>
+      <div class="label">এই মাসের বিক্রি</div>
+      <div class="value" id="monthSales">৳০</div>
+    </div>
+    <div class="stat-card total">
+      <div class="icon">💰</div>
+      <div class="label">মোট বিক্রি</div>
+      <div class="value" id="totalSales">৳০</div>
+    </div>
+    <div class="stat-card discount">
+      <div class="icon">🎁</div>
+      <div class="label">এই মাসের ডিসকাউন্ট</div>
+      <div class="value" id="monthDiscount">৳০</div>
+    </div>
+    <div class="stat-card count">
+      <div class="icon">🧾</div>
+      <div class="label">মোট ইনভয়েস</div>
+      <div class="value" id="totalCount">০</div>
+    </div>
+  </div>
+
+  <!-- Main Grid -->
+  <div class="main-grid">
+    <!-- Left: New Invoice -->
+    <div>
+      <div class="card">
+        <div class="card-header">
+          <div class="icon-box">🛒</div>
+          <h2>নতুন বিল তৈরি করুন</h2>
+        </div>
+
+        <!-- Invoice Number -->
+        <div class="invoice-number-box">
+          <div>
+            <div class="inv-label">ইনভয়েস নম্বর</div>
+            <div style="font-size:11px;opacity:0.7;">অটোমেটিক জেনারেট হবে</div>
+          </div>
+          <div class="inv-number" id="currentInvNo">ABC-0001</div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group" style="margin:0;">
+            <label>👤 কাস্টমারের নাম</label>
+            <input type="text" id="customerName" placeholder="যেমনঃ রহিম সাহেব">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label>📱 ফোন (WhatsApp)</label>
+            <input type="text" id="customerPhone" placeholder="০১৭XXXXXXXX">
+          </div>
+        </div>
+
+        <label style="font-weight:700;color:var(--gray-700);font-size:13px;margin:10px 0 8px;display:block;">📦 আইটেম তালিকা</label>
+        
+        <div class="items-header">
+          <div>বিবরণ</div>
+          <div>পরিমাণ</div>
+          <div>মূল্য</div>
+          <div>মোট</div>
+          <div></div>
+        </div>
+        
+        <div id="itemsContainer"></div>
+        <button class="add-item-btn" onclick="addItem()">+ আইটেম যোগ করুন</button>
+
+        <!-- Discount & Summary -->
+        <div class="summary-section">
+          <div class="summary-line">
+            <span>সাবটোটাল:</span>
+            <span id="subtotalDisplay" style="font-weight:700;">৳০</span>
+          </div>
+          <div class="discount-row">
+            <label style="margin:0;font-size:13px;font-weight:700;">🎁 ডিসকাউন্ট:</label>
+            <input type="number" id="discountAmount" value="0" min="0" step="0.01" onchange="calculateTotal()" placeholder="০">
+            <select id="discountType" onchange="calculateTotal()">
+              <option value="amount">৳ টাকা</option>
+              <option value="percent">% শতাংশ</option>
+            </select>
+          </div>
+          <div class="summary-line discount">
+            <span>ডিসকাউন্ট:</span>
+            <span id="discountDisplay">-৳০</span>
+          </div>
+        </div>
+
+        <div class="total-box">
+          <div class="label">💰 সর্বমোট</div>
+          <div class="amount" id="grandTotal">৳০</div>
+        </div>
+
+        <!-- 3 Action Buttons -->
+        <div class="action-btns-3">
+          <button class="btn btn-whatsapp" onclick="saveAndWhatsApp()">📱 সেভ & WhatsApp</button>
+          <button class="btn btn-print" onclick="printCurrent()">🖨️ প্রিন্ট মেমো</button>
+          <button class="btn btn-reset" onclick="resetForm()">🔄 রিসেট</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Invoice List -->
+    <div>
+      <div class="card">
+        <div class="card-header">
+          <div class="icon-box">📋</div>
+          <h2>ইনভয়েস তালিকা</h2>
+        </div>
+        <div class="filter-row">
+          <input type="text" id="searchFilter" placeholder="🔍 নাম/ফোন/ইনভয়েস নং দিয়ে খুঁজুন..." oninput="renderInvoices()">
+          <input type="month" id="monthFilter" onchange="renderInvoices()">
+        </div>
+        <div class="invoice-list" id="invoiceList">
+          <div class="empty">
+            <div class="icon">📭</div>
+            <div>কোনো ইনভয়েস নেই</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal" id="settingsModal">
+  <div class="modal-content">
+    <h2>⚙️ সেটিংস</h2>
+    <div class="form-group">
+      <label>🔗 Google Apps Script URL</label>
+      <input type="text" id="sheetUrl" placeholder="https://script.google.com/macros/s/.../exec">
+      <small style="color:var(--gray-500);font-size:11px;margin-top:4px;display:block;">
+        আপনার Google Sheet এর Apps Script Web App URL দিন
+      </small>
+    </div>
+    <div class="form-group">
+      <label>📋 প্রি-সেট আইটেম (প্রতি লাইনে একটি করে)</label>
+      <textarea id="presetItems" style="min-height:120px;" placeholder="Photocopy&#10;ছবি তোলা&#10;কম্পিউটার ট্রেনিং&#10;গ্রাফিক ডিজাইন"></textarea>
+    </div>
+    <div class="action-btns-3">
+      <button class="btn btn-whatsapp" onclick="saveSettings()">💾 সেভ</button>
+      <button class="btn btn-print" onclick="testSheetConnection()">🧪 টেস্ট</button>
+      <button class="btn btn-reset" onclick="closeSettings()">বন্ধ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Invoice Detail Modal -->
+<div class="modal" id="invoiceModal">
+  <div class="modal-content">
+    <h2>🧾 ইনভয়েস বিবরণ</h2>
+    <div id="invoiceDetail"></div>
+    <div class="action-btns-3" style="margin-top:15px;">
+      <button class="btn btn-whatsapp" onclick="resendWhatsApp()">📱 WhatsApp</button>
+      <button class="btn btn-print" onclick="printInvoice(currentInvoiceId)">🖨️ প্রিন্ট</button>
+      <button class="btn btn-reset" onclick="closeInvoiceModal()">বন্ধ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Print Area -->
+<div class="print-area" id="printArea"></div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <div id="loadingText" style="font-weight:700;color:var(--dark);">অপেক্ষা করুন...</div>
+  </div>
+</div>
+
+<script>
+// ===== ব্যবসার স্থায়ী তথ্য =====
+const BUSINESS = {
+  name: "ABC COMPUTER",
+  tagline: "আপনার বিশ্বস্ত ডিজিটাল সেবা কেন্দ্র",
+  address: "বনগ্রাম স্কুল রোড, তেঘরিয়া, দক্ষিণ কেরানীগঞ্জ, ঢাকা।",
+  phone: "০১৮৭৭৯৮৭৫৮৭",
+  services: "কম্পিউটার ট্রেনিং | গ্রাফিক ডিজাইন | টাইপিং | ওয়েব ডিজাইন | আইনি সহায়তা",
+  website: "https://www.teamsabc.com/",
+  social: {
+    youtube: { handle: "@teamabccom", url: "https://www.youtube.com/@teamabccom" },
+    facebook: { handle: "teamabccom", url: "https://www.facebook.com/teamabccom/" },
+    tiktok: { handle: "@teamabccom", url: "https://www.tiktok.com/@teamabccom" },
+    instagram: { handle: "@teamabccom", url: "https://www.instagram.com/teamabccom" }
+  },
+  review: "https://share.google/KXGlETK8yzlJE6DeS"
+};
+
+// ===== ডাটা স্টোরেজ =====
+let invoices = JSON.parse(localStorage.getItem('pos_invoices') || '[]');
+let settings = JSON.parse(localStorage.getItem('pos_settings') || '{}');
+let currentInvoiceId = null;
+let nextInvoiceNumber = parseInt(localStorage.getItem('pos_next_inv_no') || '1');
+
+// ===== Google Sheets API URL =====
+function getSheetUrl() {
+  return settings.sheetUrl || '';
+}
+
+// ===== ইমোজি সাপোর্ট =====
+function supportsEmoji() {
+  try {
+    const c = document.createElement('canvas');
+    c.width = 20; c.height = 20;
+    const ctx = c.getContext('2d');
+    ctx.fillText('😀', 0, 15);
+    return ctx.getImageData(0, 0, 20, 20).data.some(d => d > 0);
+  } catch(e) { return false; }
+}
+const EMOJI_OK = supportsEmoji();
+function em(emoji, fallback='>>') { return EMOJI_OK ? emoji : fallback; }
+
+// ===== ইউটিলিটি ফাংশন =====
+function toBnNum(n) {
+  const bn = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
+  return n.toString().replace(/\d/g, d => bn[d]);
+}
+
+function formatMoney(n) {
+  return '৳' + toBnNum(Math.round(n).toLocaleString('en-IN'));
+}
+
+function formatDate(d) {
+  const date = new Date(d);
+  const months = ['জানু','ফেব্রু','মার্চ','এপ্রি','মে','জুন','জুলা','আগ','সেপ্টে','অক্টো','নভে','ডিসে'];
+  return toBnNum(date.getDate()) + ' ' + months[date.getMonth()] + ', ' + toBnNum(date.getFullYear());
+}
+
+function formatTime(d) {
+  const date = new Date(d);
+  let h = date.getHours(), m = date.getMinutes();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return toBnNum(h) + ':' + toBnNum(String(m).padStart(2,'0')) + ' ' + ampm;
+}
+
+function generateInvoiceNo(num) {
+  return 'ABC-' + String(num).padStart(4, '0');
+}
+
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type === 'error' ? ' error' : '') + (type === 'loading' ? ' loading' : '');
+  if (type !== 'loading') setTimeout(() => t.className = 'toast', 3000);
+}
+
+function showSyncWarning(message) {
+  const t = document.getElementById('toast');
+  t.textContent = message;
+  t.className = 'toast show error';
+  setTimeout(() => t.className = 'toast', 4000);
+}
+
+function showLoading(text='অপেক্ষা করুন...') {
+  document.getElementById('loadingText').textContent = text;
+  document.getElementById('loadingOverlay').classList.add('active');
+}
+
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('active');
+}
+
+// ===== Google Sheets API =====
+function buildSheetUrl(action, extraParams = {}) {
+  const baseUrl = getSheetUrl();
+  if (!baseUrl) return '';
+
+  const url = new URL(baseUrl);
+  url.searchParams.set('action', action);
+
+  Object.entries(extraParams).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      url.searchParams.set(key, String(value));
+    }
+  });
+
+  return url.toString();
+}
+
+function parseJsonResponse(response) {
+  return response.text().then(text => {
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      return { raw: text };
+    }
+  });
+}
+
+async function loadFromSheet() {
+  const url = getSheetUrl();
+  if (!url) {
+    console.log('Sheet URL not set, using localStorage');
+    return false;
+  }
+
+  try {
+    showLoading('শিট থেকে ডাটা লোড হচ্ছে...');
+
+    const month = new Date().toISOString().slice(0, 7);
+    const candidates = [
+      buildSheetUrl('getAll'),
+      buildSheetUrl('filterByMonth', { month }),
+      `${url}?action=filterByMonth&month=${month}`,
+      `${url}?action=test`
+    ];
+
+    let payload = null;
+    let sawCorsError = false;
+
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+
+      try {
+        const response = await fetch(candidate, {
+          method: 'GET',
+          mode: 'cors',
+          headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) continue;
+
+        const result = await parseJsonResponse(response);
+
+        if (result && result.success && Array.isArray(result.data)) {
+          payload = result;
+          break;
+        }
+
+        if (result && result.result === 'success' && Array.isArray(result.data)) {
+          payload = { success: true, data: result.data, nextNumber: 1 };
+          break;
+        }
+
+        if (result && result.result === 'found' && result.invoice) {
+          payload = { success: true, data: [result.invoice], nextNumber: 1 };
+          break;
+        }
+      } catch (error) {
+        sawCorsError = true;
+        continue;
+      }
+    }
+
+    if (!payload) {
+      if (sawCorsError) {
+        throw new Error('CORS ব্লক হচ্ছে। Apps Script URL এর deployment public ঠিক আছে কিনা দেখুন।');
+      }
+      throw new Error('Apps Script API বুঝতে পারছে না। Script-এ getAll / filterByMonth / test action লাগাতে হবে।');
+    }
+
+    const data = Array.isArray(payload.data) ? payload.data : [];
+    invoices = data.map(inv => {
+      if (inv.itemsSummary && !inv.items) {
+        return {
+          ...inv,
+          items: [{ name: inv.itemsSummary, qty: 1, price: Number(inv.total || 0), total: Number(inv.total || 0) }]
+        };
+      }
+      return inv;
+    });
+
+    localStorage.setItem('pos_invoices', JSON.stringify(invoices));
+    if (payload.nextNumber) {
+      nextInvoiceNumber = Number(payload.nextNumber);
+      localStorage.setItem('pos_next_inv_no', nextInvoiceNumber.toString());
+    }
+
+    hideLoading();
+    return true;
+  } catch (error) {
+    console.error('Load error:', error);
+    hideLoading();
+    showToast('শিট থেকে লোড করা যায়নি: ' + error.message, 'error');
+    return false;
+  }
+}
+
+async function saveToSheet(invoice) {
+  const url = getSheetUrl();
+  if (!url) {
+    return true;
+  }
+
+  const attempts = [
+    { action: 'saveInvoice', data: invoice },
+    { data: invoice },
+    invoice
+  ];
+
+  for (const payload of attempts) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) continue;
+
+      const result = await parseJsonResponse(response);
+      if (result && (result.success || result.result === 'success')) {
+        return true;
+      }
+    } catch (error) {
+      continue;
+    }
+  }
+
+  try {
+    const fallback = await fetch(url, {
+      method: 'POST',
+      mode: 'cors',
+      body: new URLSearchParams({ action: 'saveInvoice', data: JSON.stringify(invoice) })
+    });
+    if (fallback.ok) {
+      const text = await fallback.text();
+      const result = JSON.parse(text || '{}');
+      if (result && (result.success || result.result === 'success')) {
+        return true;
+      }
+    }
+  } catch (error) {
+    // ignore fallback failure and continue with false below
+  }
+
+  showToast('শিটে সেভ করা যায়নি: Apps Script response/status ঠিকভাবে এসেছে না', 'error');
+  return false;
+}
+
+async function deleteFromSheet(id) {
+  const url = getSheetUrl();
+  if (!url) return true;
+
+  const attempts = [
+    { action: 'deleteInvoice', id },
+    { id },
+    { action: 'deleteInvoice', receiptId: id }
+  ];
+
+  for (const payload of attempts) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) continue;
+      const result = await parseJsonResponse(response);
+      if (result && (result.success || result.result === 'success')) {
+        return true;
+      }
+    } catch (error) {
+      continue;
+    }
+  }
+
+  return false;
+}
+
+async function refreshFromSheet() {
+  const success = await loadFromSheet();
+  if (success) {
+    updateStats();
+    renderInvoices();
+    updateCurrentInvoiceNo();
+    showToast('✓ ডাটা রিফ্রেশ হয়েছে');
+  }
+}
+
+async function testSheetConnection() {
+  const url = document.getElementById('sheetUrl').value.trim();
+  if (!url) {
+    showToast('অনুগ্রহ করে URL দিন', 'error');
+    return;
+  }
+
+  showLoading('সংযোগ পরীক্ষা করা হচ্ছে...');
+
+  try {
+    const candidates = [
+      buildSheetUrl('test'),
+      `${url}?action=test`,
+      `${url}?action=filterByMonth&month=${new Date().toISOString().slice(0, 7)}`
+    ];
+
+    let result = null;
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      try {
+        const response = await fetch(candidate, {
+          method: 'GET',
+          mode: 'cors',
+          headers: { 'Accept': 'application/json' }
+        });
+        if (!response.ok) continue;
+        const json = await parseJsonResponse(response);
+        if ((json && json.success) || (json && json.result)) {
+          result = json;
+          break;
+        }
+      } catch (error) {
+        continue;
+      }
+    }
+
+    hideLoading();
+    if (result && (result.success || result.result === 'success' || result.result === 'found')) {
+      const count = Array.isArray(result.data) ? result.data.length : (result.count || 0);
+      showToast('✓ সংযোগ সফল! ' + count + ' টি ইনভয়েস পাওয়া গেছে');
+    } else {
+      showToast('সংযোগ ব্যর্থ: Apps Script এ test/getAll/filterByMonth action নেই', 'error');
+    }
+  } catch (error) {
+    hideLoading();
+    showToast('সংযোগ ব্যর্থ: ' + error.message, 'error');
+  }
+}
+
+// ===== Items Management =====
+function addItem(name='', qty=1, price=0) {
+  const container = document.getElementById('itemsContainer');
+  const presets = (settings.presetItems || '').split('\n').filter(x => x.trim());
+  const row = document.createElement('div');
+  row.className = 'item-row';
+  
+  let optionsHtml = '<option value="">-- বাছাই --</option>';
+  presets.forEach(p => {
+    optionsHtml += `<option value="${p}" ${p===name?'selected':''}>${p}</option>`;
+  });
+  
+  const isCustom = name && !presets.includes(name);
+  row.innerHTML = `
+    <select onchange="updateItem(this); calculateRowTotal(this.parentElement); calculateTotal()">
+      ${optionsHtml}
+      <option value="__custom__" ${isCustom?'selected':''}>✏️ কাস্টম...</option>
+    </select>
+    <input type="text" class="customName" placeholder="নাম" value="${isCustom ? name : ''}" style="display:${isCustom ? 'block':'none'}">
+    <input type="number" class="itemQty" value="${qty}" min="1" onchange="calculateRowTotal(this.parentElement); calculateTotal()" placeholder="পরিমাণ">
+    <input type="number" class="itemPrice" value="${price}" min="0" onchange="calculateRowTotal(this.parentElement); calculateTotal()" placeholder="মূল্য">
+    <div class="item-total-display">৳০</div>
+    <button class="remove-btn" onclick="this.parentElement.remove(); calculateTotal()">×</button>
+  `;
+  container.appendChild(row);
+  calculateRowTotal(row);
+  calculateTotal();
+}
+
+function updateItem(sel) {
+  const row = sel.parentElement;
+  const customInput = row.querySelector('.customName');
+  if (sel.value === '__custom__') {
+    customInput.style.display = 'block';
+    customInput.focus();
+  } else {
+    customInput.style.display = 'none';
+    customInput.value = '';
+  }
+}
+
+function calculateRowTotal(row) {
+  const qty = parseFloat(row.querySelector('.itemQty').value) || 0;
+  const price = parseFloat(row.querySelector('.itemPrice').value) || 0;
+  const total = qty * price;
+  const display = row.querySelector('.item-total-display');
+  if (display) display.textContent = formatMoney(total);
+  return total;
+}
+
+function calculateTotal() {
+  let subtotal = 0;
+  document.querySelectorAll('.item-row').forEach(row => {
+    subtotal += calculateRowTotal(row);
+  });
+  
+  const discountAmount = parseFloat(document.getElementById('discountAmount').value) || 0;
+  const discountType = document.getElementById('discountType').value;
+  
+  let discount = 0;
+  if (discountType === 'percent') {
+    discount = (subtotal * discountAmount) / 100;
+  } else {
+    discount = discountAmount;
+  }
+  
+  const total = Math.max(0, subtotal - discount);
+  
+  document.getElementById('subtotalDisplay').textContent = formatMoney(subtotal);
+  document.getElementById('discountDisplay').textContent = '-' + formatMoney(discount);
+  document.getElementById('grandTotal').textContent = formatMoney(total);
+  
+  return { subtotal, discount, total };
+}
+
+function getItems() {
+  const items = [];
+  document.querySelectorAll('.item-row').forEach(row => {
+    const sel = row.querySelector('select');
+    const customInput = row.querySelector('.customName');
+    const qty = parseFloat(row.querySelector('.itemQty').value) || 0;
+    const price = parseFloat(row.querySelector('.itemPrice').value) || 0;
+    let name = '';
+    if (sel.value === '__custom__') {
+      name = customInput.value.trim();
+    } else {
+      name = sel.value;
+    }
+    if (name && qty > 0 && price >= 0) {
+      items.push({ name, qty, price, total: qty * price });
+    }
+  });
+  return items;
+}
+
+function updateCurrentInvoiceNo() {
+  document.getElementById('currentInvNo').textContent = generateInvoiceNo(nextInvoiceNumber);
+}
+
+// ===== Save & WhatsApp =====
+async function saveAndWhatsApp() {
+  const name = document.getElementById('customerName').value.trim();
+  const phone = document.getElementById('customerPhone').value.trim();
+  const items = getItems();
+
+  if (!name) return showToast('কাস্টমারের নাম দিন', 'error');
+  if (items.length === 0) return showToast('কমপক্ষে একটি আইটেম যোগ করুন', 'error');
+  if (!phone) return showToast('ফোন নম্বর দিন', 'error');
+
+  const { subtotal, discount, total } = calculateTotal();
+  const discountAmount = parseFloat(document.getElementById('discountAmount').value) || 0;
+  const discountType = document.getElementById('discountType').value;
+
+  const invoiceNo = generateInvoiceNo(nextInvoiceNumber);
+
+  const invoice = {
+    id: Date.now(),
+    invoiceNo: invoiceNo,
+    customer: name,
+    phone: phone,
+    items: items,
+    subtotal: subtotal,
+    discount: discount,
+    discountAmount: discountAmount,
+    discountType: discountType,
+    total: total,
+    date: new Date().toISOString()
+  };
+
+  showLoading('সেভ করা হচ্ছে...');
+
+  const sheetSuccess = await saveToSheet(invoice);
+
+  if (!sheetSuccess) {
+    hideLoading();
+    const pending = JSON.parse(localStorage.getItem('pos_unsent_invoices') || '[]');
+    pending.push(invoice);
+    localStorage.setItem('pos_unsent_invoices', JSON.stringify(pending));
+    showToast('❌ ডাটা Google Sheet-এ দেওয়া যায়নি। WhatsApp পাঠানো হয়নি।', 'error');
+    return;
+  }
+
+  invoices.unshift(invoice);
+  localStorage.setItem('pos_invoices', JSON.stringify(invoices));
+
+  const pending = JSON.parse(localStorage.getItem('pos_unsent_invoices') || '[]');
+  const remaining = pending.filter(item => item.id !== invoice.id);
+  localStorage.setItem('pos_unsent_invoices', JSON.stringify(remaining));
+
+  nextInvoiceNumber++;
+  localStorage.setItem('pos_next_inv_no', nextInvoiceNumber.toString());
+
+  hideLoading();
+  showToast('✓ ইনভয়েস শিটে সেভ হয়েছে: ' + invoiceNo);
+
+  sendWhatsAppMessage(invoice);
+
+  resetForm();
+  updateStats();
+  renderInvoices();
+  updateCurrentInvoiceNo();
+}
+
+function sendWhatsAppMessage(inv) {
+  const E = EMOJI_OK;
+  const msg = generateWhatsAppMessage(inv);
+  
+  let waPhone = inv.phone.replace(/\D/g, '');
+  if (waPhone.startsWith('0')) waPhone = '880' + waPhone.substring(1);
+  
+  const url = `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
+}
+
+function generateWhatsAppMessage(inv) {
+  const E = EMOJI_OK;
+  
+  let msg = `${E?'🧾':'>>'} *ইনভয়েস নং: ${inv.invoiceNo}*\n\n`;
+  msg += `${E?'👤':'>>'} জনাব/জনাবা, *${inv.customer}* আপনার *ABC COMPUTER*-এর কাজের বিলের পরিমাণ নিম্নরূপ:\n\n`;
+  
+  inv.items.forEach((item, i) => {
+    msg += `${E?'▸':'>>'} ${item.name}\n`;
+    msg += `   ${E?'➜':'>>'} ${toBnNum(item.qty)} × ৳${toBnNum(item.price)} = *৳${toBnNum(item.total)}*\n\n`;
+  });
+  
+  msg += `━━━━━━━━━━━━━━━━━━\n`;
+  if (inv.subtotal && inv.subtotal !== inv.total) {
+    msg += `সাবটোটাল: ৳${toBnNum(inv.subtotal)}\n`;
+    msg += `ডিসকাউন্ট: ৳${toBnNum(inv.discount)}\n`;
+    msg += `━━━━━━━━━━━━━━━━━━\n`;
+  }
+  msg += `*মোট টাকার পরিমাণ = ৳${toBnNum(inv.total)} টাকা*\n`;
+  msg += `━━━━━━━━━━━━━━━━━━\n\n`;
+  
+  msg += `╔════════════════════╗\n`;
+  msg += `    আমাদের সাথে যুক্ত থাকতে পারেন:\n`;
+  msg += `╚════════════════════╝\n`;
+  msg += `${E?'➜':'>>'}${BUSINESS.social.youtube.url}\n`;
+  msg += `${E?'➜':'>>'}${BUSINESS.social.facebook.url}\n`;
+  msg += `${E?'➜':'>>'}${BUSINESS.social.tiktok.url}\n`;
+  msg += `${E?'➜':'>>'}${BUSINESS.social.instagram.url}\n\n`;
+  
+  msg += `${E?'➜':'>>'} আমাদের সেবা সম্পর্কে জানাতে: ${BUSINESS.review}\n\n`;
+  
+  msg += `━━━━━━━━━━━━━━━━━━\n`;
+  msg += `*${BUSINESS.name}* - ${BUSINESS.tagline}`;
+  
+  return msg;
+}
+
+function resendWhatsApp() {
+  if (!currentInvoiceId) return;
+  const inv = invoices.find(i => i.id === currentInvoiceId);
+  if (!inv) return;
+  sendWhatsAppMessage(inv);
+}
+
+// ===== Reset =====
+function resetForm() {
+  document.getElementById('customerName').value = '';
+  document.getElementById('customerPhone').value = '';
+  document.getElementById('itemsContainer').innerHTML = '';
+  document.getElementById('discountAmount').value = '0';
+  document.getElementById('discountType').value = 'amount';
+  addItem();
+  calculateTotal();
+  updateCurrentInvoiceNo();
+}
+
+// ===== Print =====
+function generatePrintHTML(inv) {
+  const isSmallBill = inv.items.length <= 4;
+  
+  let itemsHtml = inv.items.map((item, i) => `
+    <tr>
+      <td class="text-center">${toBnNum(i+1)}</td>
+      <td>${item.name}</td>
+      <td class="text-center">${toBnNum(item.qty)}</td>
+      <td class="text-right">৳${toBnNum(item.price)}</td>
+      <td class="text-right">৳${toBnNum(item.total)}</td>
+    </tr>
+  `).join('');
+
+  let totalsHtml = '';
+  if (inv.subtotal && inv.subtotal !== inv.total) {
+    totalsHtml += `<div class="line"><span>সাবটোটাল:</span><span>৳${toBnNum(inv.subtotal)}</span></div>`;
+    totalsHtml += `<div class="line discount"><span>ডিসকাউন্ট:</span><span>-৳${toBnNum(inv.discount)}</span></div>`;
+  }
+
+  return `
+    <div class="print-header">
+      <div class="biz-name">${em('🖥️','>>')} ABC COMPUTER</div>
+      <div class="biz-tag">${BUSINESS.tagline}</div>
+      <div class="biz-addr">${em('📍','>>')} ${BUSINESS.address}</div>
+      <div class="biz-addr">${em('📞','>>')} ${BUSINESS.phone} | ${em('🌐','>>')} ${BUSINESS.website}</div>
+      <div class="biz-services">✦ ${BUSINESS.services} ✦</div>
+    </div>
+
+    <div class="print-inv-no">ইনভয়েস নং: ${inv.invoiceNo || 'N/A'}</div>
+
+    <div class="print-meta">
+      <div><span>তারিখ:</span> ${formatDate(inv.date)}</div>
+      <div><span>সময়:</span> ${formatTime(inv.date)}</div>
+    </div>
+    <div class="print-meta" style="margin-top:-4px;">
+      <div><span>কাস্টমার:</span> ${inv.customer}</div>
+      ${inv.phone ? `<div><span>ফোন:</span> ${inv.phone}</div>` : ''}
+    </div>
+
+    <table class="print-table">
+      <thead>
+        <tr>
+          <th style="width:8%;">#</th>
+          <th style="width:42%;">বিবরণ</th>
+          <th style="width:12%;" class="text-center">পরিমাণ</th>
+          <th style="width:18%;" class="text-right">দাম</th>
+          <th style="width:20%;" class="text-right">মোট</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsHtml}
+      </tbody>
+    </table>
+
+    <div class="print-totals">
+      ${totalsHtml}
+      <div class="final-total">সর্বমোট: ৳${toBnNum(inv.total)}</div>
+    </div>
+
+    <div class="print-footer">
+      <div class="thanks">${em('🙏','>>')} আমাদের সেবার জন্য ধন্যবাদ!</div>
+      
+      <div class="print-footer-content ${isSmallBill ? 'small-bill' : 'large-bill'}">
+        <div class="print-social-text">
+          <div style="font-weight:700;margin-bottom:4px;">${em('📲','>>')} আমাদের সাথে যুক্ত থাকুন:</div>
+          <div class="print-social-row">
+            <span>${em('▶️','>>')} / ${BUSINESS.social.youtube.handle}</span>
+            <span>${em('📘','>>')} / ${BUSINESS.social.facebook.handle}</span>
+            <span>${em('🎵','>>')} / ${BUSINESS.social.tiktok.handle}</span>
+            <span>${em('📸','>>')} / ${BUSINESS.social.instagram.handle}</span>
+          </div>
+          <div class="review-line">${em('⭐','>>')} স্ক্যান করে রিভিউ দিন</div>
+        </div>
+        
+        <img src="QR.PNG" class="print-qr-img ${isSmallBill ? 'large' : ''}" alt="QR Code">
+      </div>
+      
+      <div class="print-computer-gen">এটি একটি কম্পিউটার জেনারেটেড ইনভয়েস</div>
+    </div>
+  `;
+}
+
+function printInvoice(id) {
+  const inv = invoices.find(i => i.id === id);
+  if (!inv) return;
+  showToast('প্রিন্ট প্রস্তুত হচ্ছে...', 'loading');
+  const printArea = document.getElementById('printArea');
+  printArea.innerHTML = generatePrintHTML(inv);
+  const qrImage = printArea.querySelector('.print-qr-img');
+  const startPrint = () => {
+    window.print();
+    document.getElementById('toast').className = 'toast';
+  };
+  if (qrImage && !qrImage.complete) {
+    qrImage.addEventListener('load', startPrint, { once: true });
+    qrImage.addEventListener('error', startPrint, { once: true });
+  } else {
+    setTimeout(startPrint, 100);
+  }
+}
+
+function printCurrent() {
+  const name = document.getElementById('customerName').value.trim();
+  const phone = document.getElementById('customerPhone').value.trim();
+  const items = getItems();
+  if (!name || items.length === 0) return showToast('প্রথমে বিল তৈরি করুন', 'error');
+  
+  const { subtotal, discount, total } = calculateTotal();
+  const inv = {
+    invoiceNo: generateInvoiceNo(nextInvoiceNumber),
+    customer: name,
+    phone,
+    items,
+    subtotal,
+    discount,
+    total,
+    date: new Date().toISOString()
+  };
+  
+  showToast('প্রিন্ট প্রস্তুত হচ্ছে...', 'loading');
+  const printArea = document.getElementById('printArea');
+  printArea.innerHTML = generatePrintHTML(inv);
+  const qrImage = printArea.querySelector('.print-qr-img');
+  const startPrint = () => {
+    window.print();
+    document.getElementById('toast').className = 'toast';
+  };
+  if (qrImage && !qrImage.complete) {
+    qrImage.addEventListener('load', startPrint, { once: true });
+    qrImage.addEventListener('error', startPrint, { once: true });
+  } else {
+    setTimeout(startPrint, 100);
+  }
+}
+
+// ===== Stats =====
+function updateStats() {
+  const today = new Date().toDateString();
+  const now = new Date();
+  const thisMonth = now.getMonth();
+  const thisYear = now.getFullYear();
+  
+  let todayTotal = 0, monthTotal = 0, allTotal = 0, monthDiscount = 0;
+  invoices.forEach(inv => {
+    const d = new Date(inv.date);
+    allTotal += inv.total;
+    if (d.toDateString() === today) todayTotal += inv.total;
+    if (d.getMonth() === thisMonth && d.getFullYear() === thisYear) {
+      monthTotal += inv.total;
+      monthDiscount += inv.discount || 0;
+    }
+  });
+  
+  document.getElementById('todaySales').textContent = formatMoney(todayTotal);
+  document.getElementById('monthSales').textContent = formatMoney(monthTotal);
+  document.getElementById('totalSales').textContent = formatMoney(allTotal);
+  document.getElementById('monthDiscount').textContent = formatMoney(monthDiscount);
+  document.getElementById('totalCount').textContent = toBnNum(invoices.length);
+}
+
+// ===== Render Invoices =====
+function renderInvoices() {
+  const list = document.getElementById('invoiceList');
+  const monthFilter = document.getElementById('monthFilter').value;
+  const search = document.getElementById('searchFilter').value.toLowerCase();
+  
+  let filtered = invoices.filter(inv => {
+    if (monthFilter) {
+      const d = new Date(inv.date);
+      const ym = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+      if (ym !== monthFilter) return false;
+    }
+    if (search) {
+      const invNo = (inv.invoiceNo || '').toLowerCase();
+      const customer = (inv.customer || '').toLowerCase();
+      const phone = (inv.phone || '');
+      if (!customer.includes(search) && !phone.includes(search) && !invNo.includes(search)) return false;
+    }
+    return true;
+  });
+  
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="icon">📭</div><div>কোনো ইনভয়েস নেই</div></div>';
+    return;
+  }
+  
+  list.innerHTML = filtered.map(inv => `
+    <div class="invoice-item" onclick="viewInvoice(${inv.id})">
+      <div class="top">
+        <div>
+          <div class="inv-no">${inv.invoiceNo || 'N/A'}</div>
+          <div class="customer" style="margin-top:4px;">👤 ${inv.customer}</div>
+        </div>
+        <div class="amount">${formatMoney(inv.total)}</div>
+      </div>
+      <div class="meta">${formatDate(inv.date)} ${inv.phone ? '• 📱 '+inv.phone : ''}</div>
+      <div class="actions" onclick="event.stopPropagation()">
+        <button style="background:#25d366;color:white;" onclick="quickResend(${inv.id})">📱 WhatsApp</button>
+        <button style="background:#3b82f6;color:white;" onclick="printInvoice(${inv.id})">🖨️ প্রিন্ট</button>
+        <button style="background:#ef4444;color:white;" onclick="deleteInvoice(${inv.id})">🗑️</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function quickResend(id) {
+  currentInvoiceId = id;
+  resendWhatsApp();
+}
+
+function viewInvoice(id) {
+  const inv = invoices.find(i => i.id === id);
+  if (!inv) return;
+  currentInvoiceId = id;
+  const detail = document.getElementById('invoiceDetail');
+  detail.innerHTML = `
+    <div style="background:linear-gradient(135deg,var(--dark),var(--dark-2));color:white;padding:12px 16px;border-radius:10px;margin-bottom:12px;text-align:center;">
+      <div style="font-size:11px;opacity:0.8;">ইনভয়েস নম্বর</div>
+      <div style="font-size:22px;font-weight:700;color:var(--primary);letter-spacing:1px;">${inv.invoiceNo || 'N/A'}</div>
+    </div>
+    <div style="background:var(--gray-50);padding:15px;border-radius:10px;">
+      <h3 style="color:var(--dark);">👤 ${inv.customer}</h3>
+      ${inv.phone ? `<p style="color:var(--gray-500);font-size:13px;">📱 ${inv.phone}</p>` : ''}
+      <p style="color:#94a3b8;font-size:12px;margin:5px 0;">📅 ${formatDate(inv.date)} • ⏰ ${formatTime(inv.date)}</p>
+      <hr style="margin:10px 0;border:none;border-top:1px dashed #cbd5e1;">
+      ${inv.items.map(i => `
+        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--gray-100);">
+          <span>${i.name} × ${toBnNum(i.qty)}</span>
+          <span style="font-weight:700;">${formatMoney(i.total)}</span>
+        </div>
+      `).join('')}
+      ${inv.subtotal && inv.subtotal !== inv.total ? `
+        <div style="display:flex;justify-content:space-between;padding:5px 0;color:var(--gray-500);">
+          <span>সাবটোটাল</span>
+          <span>${formatMoney(inv.subtotal)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:5px 0;color:var(--danger);">
+          <span>ডিসকাউন্ট</span>
+          <span>-${formatMoney(inv.discount)}</span>
+        </div>
+      ` : ''}
+      <div style="display:flex;justify-content:space-between;padding:10px 0;margin-top:8px;border-top:2px solid var(--primary);font-size:18px;font-weight:700;color:var(--success);">
+        <span>সর্বমোট</span>
+        <span>${formatMoney(inv.total)}</span>
+      </div>
+    </div>
+  `;
+  document.getElementById('invoiceModal').classList.add('active');
+}
+
+function closeInvoiceModal() {
+  document.getElementById('invoiceModal').classList.remove('active');
+}
+
+async function deleteInvoice(id) {
+  if (!confirm('এই ইনভয়েসটি মুছে ফেলবেন?')) return;
+  
+  showLoading('মুছে ফেলা হচ্ছে...');
+  await deleteFromSheet(id);
+  
+  invoices = invoices.filter(i => i.id !== id);
+  localStorage.setItem('pos_invoices', JSON.stringify(invoices));
+  
+  hideLoading();
+  updateStats();
+  renderInvoices();
+  showToast('✓ ইনভয়েস মুছে ফেলা হয়েছে');
+}
+
+// ===== Settings =====
+function openSettings() {
+  document.getElementById('sheetUrl').value = settings.sheetUrl || '';
+  document.getElementById('presetItems').value = settings.presetItems || '';
+  document.getElementById('settingsModal').classList.add('active');
+}
+
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('active');
+}
+
+function saveSettings() {
+  settings.sheetUrl = document.getElementById('sheetUrl').value.trim();
+  settings.presetItems = document.getElementById('presetItems').value;
+  localStorage.setItem('pos_settings', JSON.stringify(settings));
+  closeSettings();
+  showToast('✓ সেটিংস সেভ হয়েছে');
+  document.getElementById('itemsContainer').innerHTML = '';
+  addItem();
+}
+
+function exportData() {
+  const data = { business: BUSINESS, invoices, settings, exportDate: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `abc-computer-backup-${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  showToast('✓ ব্যাকআপ ডাউনলোড হয়েছে');
+}
+
+// ===== Initialize =====
+document.getElementById('itemsContainer').innerHTML = '';
+addItem();
+updateStats();
+renderInvoices();
+updateCurrentInvoiceNo();
+const now = new Date();
+document.getElementById('monthFilter').value = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+
+// Auto-load from sheet on startup
+if (getSheetUrl()) {
+  setTimeout(() => {
+    loadFromSheet().then(success => {
+      if (success) {
+        updateStats();
+        renderInvoices();
+        updateCurrentInvoiceNo();
+      }
+    });
+  }, 500);
+}
+</script>
+</body>
+</html>
+
+
+              <script>
+                              const SHEET_NAME = 'Sheet1'; // আপনার শিটের নাম
+
+function doPost(e) {
+  return handleRequest(e);
+}
+
+function doGet(e) {
+  const action = e.parameter.action || 'getAll';
+
+  if (action === 'test') {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+    const data = sheet.getDataRange().getValues();
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      message: 'সংযোগ সফল',
+      count: Math.max(0, data.length - 1)
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (action === 'getAll') {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+    const data = sheet.getDataRange().getValues();
+
+    if (data.length <= 1) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        data: [],
+        nextNumber: 1
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    const invoices = [];
+    let maxNum = 0;
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const inv = {
+        id: row[0],
+        invoiceNo: row[1],
+        date: row[2],
+        customer: row[3],
+        phone: row[4],
+        items: safeJsonParse(row[5], []),
+        subtotal: row[6],
+        discount: row[7],
+        total: row[8]
+      };
+      invoices.push(inv);
+
+      const match = String(row[1] || '').match(/ABC-(\d+)/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      data: invoices,
+      nextNumber: maxNum + 1
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: false,
+    message: 'অজানা action'
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function safeJsonParse(value, fallback) {
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function handleRequest(e) {
+  try {
+    let data;
+
+    if (e.postData && e.postData.contents) {
+      const contentType = (e.postData.type || '').toLowerCase();
+      if (contentType.includes('application/json')) {
+        data = JSON.parse(e.postData.contents);
+      } else if (contentType.includes('application/x-www-form-urlencoded')) {
+        data = e.parameter;
+      } else {
+        try {
+          data = JSON.parse(e.postData.contents);
+        } catch (error) {
+          data = e.parameter;
+        }
+      }
+    } else {
+      data = e.parameter;
+    }
+
+    const action = data.action;
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+
+    if (action === 'saveInvoice') {
+      const inv = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+
+      sheet.appendRow([
+        inv.id,
+        inv.invoiceNo,
+        inv.date,
+        inv.customer,
+        inv.phone,
+        JSON.stringify(inv.items || []),
+        inv.subtotal,
+        inv.discount,
+        inv.total
+      ]);
+
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        message: 'সেভ হয়েছে'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'deleteInvoice') {
+      const id = data.id;
+      const dataRange = sheet.getDataRange();
+      const values = dataRange.getValues();
+
+      for (let i = 1; i < values.length; i++) {
+        if (String(values[i][0]) === String(id)) {
+          sheet.deleteRow(i + 1);
+          break;
+        }
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        message: 'মুছে ফেলা হয়েছে'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      message: 'ভুল action'
+    })).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      message: error.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+
+              </script>
+                        </body>
+                        </html>
+                    
