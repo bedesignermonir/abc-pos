@@ -1,19 +1,4 @@
-
-                        <!DOCTYPE html>
-                        <html lang="en">
-                        <head>
-                            <meta charset="UTF-8">
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <style>
-                body {
-                  background-color: white; /* Ensure the iframe has a white background */
-                }
-
-                
-              </style>
-                        </head>
-                        <body>
-                            <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="bn">
 <head>
 <meta charset="UTF-8">
@@ -131,6 +116,9 @@ body {
 .stat-card.total::before { background: var(--accent); }
 .stat-card.discount::before { background: #8b5cf6; }
 .stat-card.count::before { background: var(--danger); }
+.stat-card.myshare::before { background: var(--success); }
+.stat-card.partnershare::before { background: #f59e0b; }
+.stat-card .sublabel { color: var(--gray-500); font-size: 11px; margin-top: 5px; font-weight: 600; }
 .stat-card .icon {
   position: absolute;
   top: 12px; right: 15px;
@@ -762,6 +750,18 @@ body {
       <div class="label">মোট ইনভয়েস</div>
       <div class="value" id="totalCount">০</div>
     </div>
+    <div class="stat-card myshare">
+      <div class="icon">👤</div>
+      <div class="label">আমার অংশ (কস্ট + ৬০% লাভ)</div>
+      <div class="value" id="myShareTotal">৳০</div>
+      <div class="sublabel" id="myShareBreakdown">কস্ট ৳০ + লাভের অংশ ৳০</div>
+    </div>
+    <div class="stat-card partnershare">
+      <div class="icon">🤝</div>
+      <div class="label">পার্টনারের অংশ (৪০% লাভ)</div>
+      <div class="value" id="partnerShareTotal">৳০</div>
+      <div class="sublabel" id="partnerShareBreakdown">মোট নিট লাভ ৳০</div>
+    </div>
   </div>
 
   <!-- Main Grid -->
@@ -1090,8 +1090,8 @@ function jsonpRequest(requestUrl, timeoutMs = SHEET_REQUEST_TIMEOUT_MS) {
       if (finished) return;
       finished = true;
       clearTimeout(timer);
-      delete window[callbackName];
-      script.remove();
+      try { delete window[callbackName]; } catch (cleanupError) { window[callbackName] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
       if (error) reject(error);
       else resolve(result);
     };
@@ -1101,13 +1101,17 @@ function jsonpRequest(requestUrl, timeoutMs = SHEET_REQUEST_TIMEOUT_MS) {
     }, timeoutMs);
 
     window[callbackName] = result => finish(null, result);
-    script.onerror = () => finish(new Error('Apps Script উত্তর পাওয়া যায়নি। Web App-টি Execute as: Me, access: Anyone দিয়ে deploy করে সর্বশেষ deployment-এর /exec URL ব্যবহার করুন।'));
+    script.onerror = () => finish(new Error('Apps Script উত্তর পাওয়া যায়নি। Web App-টি "Execute as: Me" ও "Access: Anyone" দিয়ে নতুন করে deploy (New deployment) করে সর্বশেষ /exec URL Settings-এ সংরক্ষণ করুন।'));
+    script.async = true;
     script.src = url.toString();
     document.head.appendChild(script);
   });
 }
 
 async function postSheetData(payload) {
+  // ক্রস-অরিজিন POST-এ Apps Script-এর redirect-chain ও opaque-response সীমাবদ্ধতার
+  // কারণে fetch-এর ফলাফল নির্ভরযোগ্য নয়। তাই এখানে চূড়ান্ত সাফল্য ধরা হয় না —
+  // পরবর্তীতে JSONP (verifyInvoice/verifyDelete) দিয়ে লাইভ শিটে যাচাই করা হয়।
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SHEET_REQUEST_TIMEOUT_MS);
   try {
@@ -1220,7 +1224,9 @@ async function loadFromSheet() {
   } catch (error) {
     console.error('Load error:', error);
     hideLoading();
-    showToast('শিট থেকে লোড করা যায়নি: ' + error.message, 'error');
+    // সংযোগ ব্যর্থ হলেও অ্যাপ localStorage-এর ডাটা দিয়ে চলবে — শুধু সতর্কবার্তা দেখানো হয়
+    console.warn('Google Sheets থেকে লোড ব্যর্থ:', error);
+    showToast('⚠ Google Sheet-এর সাথে সংযোগ হয়নি: ' + error.message, 'error');
     return false;
   }
 }
@@ -1231,11 +1237,18 @@ async function saveToSheet(invoice) {
     return true;
   }
 
+  // POST (no-cors) সফল হলেও response opaque থাকে, তাই ব্যর্থ হলে ১ বার
+  // রিট্রাই করা নিরাপদ (সার্ভারে upsert হয়); চূড়ান্ত সাফল্য JSONP verify দিয়ে নির্ধারিত।
   let postError = '';
-  try {
-    await postSheetData({ action: 'saveInvoice', data: invoice });
-  } catch (error) {
-    postError = error.message;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await postSheetData({ action: 'saveInvoice', data: invoice });
+      postError = '';
+      break;
+    } catch (error) {
+      postError = error.message;
+      await new Promise(resolve => setTimeout(resolve, 800));
+    }
   }
 
   try {
@@ -1253,15 +1266,23 @@ async function deleteFromSheet(id) {
   const url = getSheetUrl();
   if (!url) return true;
 
-  try {
-    await postSheetData({ action: 'deleteInvoice', id });
-  } catch (error) {
-    console.error('Sheet delete request error:', error);
+  let postError = '';
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await postSheetData({ action: 'deleteInvoice', id });
+      postError = '';
+      break;
+    } catch (error) {
+      postError = error.message;
+      await new Promise(resolve => setTimeout(resolve, 800));
+    }
   }
 
   try {
     const result = await jsonpRequest(buildSheetUrl('verifyDelete', { id }));
-    return result.success && !result.inSales && !result.inProfit;
+    if (result.success && !result.inSales && !result.inProfit) return true;
+    if (postError) showToast('মুছে ফেলার অনুরোধে সমস্যা: ' + postError, 'error');
+    return false;
   } catch (error) {
     showToast('Google Sheet-এ মুছে ফেলা যাচাই করা যায়নি: ' + error.message, 'error');
     return false;
@@ -1768,6 +1789,51 @@ function printCurrent() {
 }
 
 // ===== Stats =====
+function getInvoiceCostTotal(inv) {
+  if (Number.isFinite(Number(inv.costTotal))) return Number(inv.costTotal);
+  let cost = 0;
+  (inv.items || []).forEach(item => {
+    const qty = Number(item.qty) || 0;
+    const unitCost = Number.isFinite(Number(item.costPrice)) ? Number(item.costPrice) : 0;
+    cost += qty * unitCost;
+  });
+  return Number(cost.toFixed(2));
+}
+
+function computeDashboardShares() {
+  // Net Profit = Total Sale - Total Cost Price (per invoice, discount already reflected in total)
+  let totalSale = 0, totalCost = 0;
+  invoices.forEach(inv => {
+    totalSale += Number(inv.total) || 0;
+    totalCost += getInvoiceCostTotal(inv);
+  });
+  const netProfit = Number((totalSale - totalCost).toFixed(2));
+
+  // Business rules: My Share = Total Cost Price + (Net Profit x my configured %, default 60%)
+  // Partner's Share = Net Profit x partner % (default 40%), excluding cost price.
+  const shares = getConfiguredProfitShares();
+  const myShareCfg = shares.find(s => /আমার|my|i'?m\s*me|owner/i.test(s.name)) || shares[0];
+  const myPct = Number(myShareCfg && myShareCfg.percentage) || 60;
+  const myProfitCents = Math.round(netProfit * 100 * myPct / 100);
+  const allProfitCents = Math.round(netProfit * 100);
+  const partnerProfitCents = allProfitCents - myProfitCents;
+
+  const myProfitShare = myProfitCents / 100;
+  const partnerShare = partnerProfitCents / 100;
+  const myShare = Number(totalCost + myProfitShare);
+
+  return {
+    totalSale: Number(totalSale.toFixed(2)),
+    totalCost: Number(totalCost.toFixed(2)),
+    netProfit,
+    myPct,
+    partnerPct: Number((100 - myPct).toFixed(2)),
+    myProfitShare: Number(myProfitShare.toFixed(2)),
+    myShare: Number(myShare.toFixed(2)),
+    partnerShare: Number(partnerShare.toFixed(2))
+  };
+}
+
 function updateStats() {
   const today = new Date().toDateString();
   const now = new Date();
@@ -1790,6 +1856,15 @@ function updateStats() {
   document.getElementById('totalSales').textContent = formatMoney(allTotal);
   document.getElementById('monthDiscount').textContent = formatMoney(monthDiscount);
   document.getElementById('totalCount').textContent = toBnNum(invoices.length);
+
+  // Profit sharing dashboard cards
+  const s = computeDashboardShares();
+  document.getElementById('myShareTotal').textContent = formatMoney(s.myShare);
+  document.getElementById('myShareBreakdown').textContent =
+    'কস্ট ' + formatMoney(s.totalCost) + ' + লাভের ' + toBnNum(s.myPct) + '% (' + formatMoney(s.myProfitShare) + ')';
+  document.getElementById('partnerShareTotal').textContent = formatMoney(s.partnerShare);
+  document.getElementById('partnerShareBreakdown').textContent =
+    'মোট নিট লাভ ' + formatMoney(s.netProfit) + ' → পার্টনারের ' + toBnNum(s.partnerPct) + '%';
 }
 
 // ===== Render Invoices =====
@@ -2181,9 +2256,3 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 </script>
 </body>
 </html>
-
-
-<!-- Apps Script backend is maintained in code.gs. -->
-                        </body>
-                        </html>
-                    

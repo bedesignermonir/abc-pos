@@ -52,13 +52,44 @@ function getProfitSheet() {
 function createRequestResponse(e, data) {
   const callback = e && e.parameter && e.parameter.callback;
   if (callback) {
-    if (!/^__posJsonp_[A-Za-z0-9_]+$/.test(callback)) {
-      return createJsonResponse({ success: false, message: 'অবৈধ JSONP callback' });
-    }
-    return ContentService.createTextOutput(callback + '(' + JSON.stringify(data) + ');')
-      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+    // কলব্যাক নামে অবৈধ অক্ষর থাকলেও যেন স্ক্রিপ্ট লোড হয় ও উত্তর পাওয়া যায়,
+    // তাই সবসময় JSON.stringify দিয়ে নিরাপদভাবে র‍্যাপ করা হয়।
+    return ContentService.createTextOutput(
+      String(callback) + '(' + JSON.stringify(data) + ');'
+    ).setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
   return createJsonResponse(data);
+}
+
+// POST রিকোয়েস্টের জন্যও JSONP সাপোর্ট: ফ্রন্টএন্ড POST-এর পর এই GET URL দিয়ে
+// লাইভ যাচাই (verify) করে — Apps Script-এর opaque redirect/CORS সমস্যা এড়ানো যায়।
+function doGetPostVerify(e) {
+  try {
+    const params = e && e.parameter ? e.parameter : {};
+    let payload = {};
+    if (params.payload) {
+      payload = safeJsonParse(params.payload, {});
+    }
+    const action = String(payload.action || params.action || '');
+
+    if (action === 'verifyInvoice' || action === 'verifyDelete') {
+      const id = String(payload.id || params.id || '');
+      const salesRow = findInvoiceRow(getInvoiceSheet(), id);
+      const profitRow = findInvoiceRow(getProfitSheet(), id);
+      return createRequestResponse(e, {
+        success: true,
+        inSales: salesRow !== -1,
+        inProfit: profitRow !== -1
+      });
+    }
+
+    return createRequestResponse(e, {
+      success: false,
+      message: 'ভুল doPost verify action: ' + action
+    });
+  } catch (error) {
+    return createRequestResponse(e, { success: false, message: error.toString() });
+  }
 }
 
 function getInvoiceFromRow(row) {
@@ -139,14 +170,7 @@ function doGet(e) {
     }
 
     if (action === 'verifyInvoice' || action === 'verifyDelete') {
-      const id = String(params.id || '');
-      const salesRow = findInvoiceRow(getInvoiceSheet(), id);
-      const profitRow = findInvoiceRow(getProfitSheet(), id);
-      return createRequestResponse(e, {
-        success: true,
-        inSales: salesRow !== -1,
-        inProfit: profitRow !== -1
-      });
+      return doGetPostVerify(e);
     }
 
     if (action === 'getAll' || action === 'searchReceiptFromSheet' || action === 'search' ||
@@ -209,10 +233,15 @@ function handleRequest(e) {
     }
 
     if (data && typeof data.payload === 'string') {
+      let parsedPayload = null;
       try {
-        data = JSON.parse(data.payload);
-      } catch (error) {
-        return createJsonResponse({ success: false, message: 'POST payload JSON সঠিক নয়' });
+        parsedPayload = JSON.parse(data.payload);
+      } catch (payloadParseError) {
+        // payload JSON না হলে সাধারণ ফর্ম-প্যারামিটার হিসেবে কাজ করবে
+        parsedPayload = null;
+      }
+      if (parsedPayload && typeof parsedPayload === 'object') {
+        data = parsedPayload;
       }
     }
 
