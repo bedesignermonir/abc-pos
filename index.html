@@ -720,16 +720,27 @@ body {
     </div>
   </div>
 
+  <!-- Date Filter (dashboard stats period) -->
+  <div class="filter-row" style="margin-bottom:12px;">
+    <select id="periodSelect" onchange="onPeriodChange()" style="padding:9px 12px;border:2px solid var(--gray-200);border-radius:10px;font-size:13px;flex:1;min-width:130px;background:#fff;">
+      <option value="today" selected>📅 আজকে</option>
+      <option value="custom">🗓️ নির্দিষ্ট তারিখ</option>
+      <option value="month">🗂️ এই মাসের</option>
+      <option value="all">🌐 সব</option>
+    </select>
+    <input type="date" id="periodDate" onchange="onPeriodDateChange()" style="padding:9px 12px;border:2px solid var(--gray-200);border-radius:10px;font-size:13px;flex:1;min-width:130px;display:none;">
+  </div>
+
   <!-- Stats -->
   <div class="stats">
     <div class="stat-card today">
       <div class="icon">📅</div>
-      <div class="label">আজকের বিক্রি</div>
+      <div class="label" id="salesCardLabel">আজকের বিক্রি</div>
       <div class="value" id="todaySales">৳০</div>
     </div>
     <div class="stat-card count">
       <div class="icon">🧾</div>
-      <div class="label">মোট ইনভয়েস</div>
+      <div class="label" id="countCardLabel">মোট ইনভয়েস</div>
       <div class="value" id="totalCount">০</div>
     </div>
     <div class="stat-card myshare">
@@ -1782,10 +1793,43 @@ function getInvoiceCostTotal(inv) {
   return Number(cost.toFixed(2));
 }
 
-function computeDashboardShares() {
+// ===== Stats Date Period Filter =====
+function currentPeriodInfo() {
+  const sel = document.getElementById('periodSelect');
+  const mode = sel ? sel.value : 'today';
+  const now = new Date();
+  if (mode === 'all') {
+    return { mode, label: 'সব', start: null, end: null };
+  }
+  if (mode === 'month') {
+    return { mode, label: 'এই মাসের', start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth() + 1, 1) };
+  }
+  let day;
+  if (mode === 'custom') {
+    const v = (document.getElementById('periodDate') || {}).value;
+    day = v ? new Date(v + 'T00:00:00') : now;
+    if (isNaN(day.getTime())) day = now;
+  } else {
+    day = now; // 'today' — recomputed on every call, so after midnight it resets automatically
+  }
+  const start = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+  const end = new Date(start); end.setDate(end.getDate() + 1);
+  const isToday = start.getTime() === new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return { mode, label: isToday ? 'আজকের' : formatDate(start) + ' এর', start, end };
+}
+
+function isInPeriod(inv, p) {
+  if (!p || !p.start) return true; // 'all'
+  const d = new Date(inv.date);
+  if (isNaN(d.getTime())) return false;
+  return d >= p.start && d < p.end;
+}
+
+function computeDashboardShares(list) {
   // Net Profit = Total Sale - Total Cost Price (per invoice, discount already reflected in total)
+  const invs = list || invoices;
   let totalSale = 0, totalCost = 0;
-  invoices.forEach(inv => {
+  invs.forEach(inv => {
     totalSale += Number(inv.total) || 0;
     totalCost += getInvoiceCostTotal(inv);
   });
@@ -1817,22 +1861,21 @@ function computeDashboardShares() {
 }
 
 function updateStats() {
-  const today = new Date().toDateString();
-  const now = new Date();
-  const thisMonth = now.getMonth();
-  const thisYear = now.getFullYear();
-  
-  let todayTotal = 0;
-  invoices.forEach(inv => {
-    const d = new Date(inv.date);
-    if (d.toDateString() === today) todayTotal += inv.total;
-  });
-  
-  document.getElementById('todaySales').textContent = formatMoney(todayTotal);
-  document.getElementById('totalCount').textContent = toBnNum(invoices.length);
+  const p = currentPeriodInfo();
+  const periodInvoices = invoices.filter(inv => isInPeriod(inv, p));
 
-  // Profit sharing dashboard cards
-  const s = computeDashboardShares();
+  let periodSales = 0;
+  periodInvoices.forEach(inv => { periodSales += Number(inv.total) || 0; });
+
+  document.getElementById('todaySales').textContent = formatMoney(periodSales);
+  document.getElementById('totalCount').textContent = toBnNum(periodInvoices.length);
+
+  // Dynamic card labels based on selected period
+  document.getElementById('salesCardLabel').textContent = (p.mode === 'all' ? 'সব সময়ের' : p.label) + ' বিক্রি';
+  document.getElementById('countCardLabel').textContent = p.mode === 'all' ? 'মোট ইনভয়েস (সব)' : p.label + ' ইনভয়েস';
+
+  // Profit sharing dashboard cards — strictly for the selected date period
+  const s = computeDashboardShares(periodInvoices);
   document.getElementById('myShareTotal').textContent = formatMoney(s.myShare);
   document.getElementById('myShareBreakdown').textContent =
     'কস্ট ' + formatMoney(s.totalCost) + ' + লাভের ' + toBnNum(s.myPct) + '% (' + formatMoney(s.myProfitShare) + ')';
@@ -1840,6 +1883,34 @@ function updateStats() {
   document.getElementById('partnerShareBreakdown').textContent =
     'মোট নিট লাভ ' + formatMoney(s.netProfit) + ' → পার্টনারের ' + toBnNum(s.partnerPct) + '%';
 }
+
+function onPeriodChange() {
+  const mode = document.getElementById('periodSelect').value;
+  const dateInput = document.getElementById('periodDate');
+  if (mode === 'custom') {
+    if (!dateInput.value) {
+      const n = new Date();
+      dateInput.value = n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
+    }
+    dateInput.style.display = '';
+  } else {
+    dateInput.style.display = 'none';
+  }
+  updateStats();
+}
+
+function onPeriodDateChange() { updateStats(); }
+
+// Auto-reset at midnight: when the day rolls over while in "আজকে" mode, cards reset to the new day
+(function scheduleMidnightReset() {
+  const now = new Date();
+  const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
+  setTimeout(function tick() {
+    updateStats();
+    renderInvoices();
+    setTimeout(tick, 24 * 60 * 60 * 1000);
+  }, nextMidnight - now);
+})();
 
 // ===== Render Invoices =====
 function renderInvoices() {
@@ -1884,6 +1955,9 @@ function renderInvoices() {
       </div>
     </div>
   `).join('');
+
+  // Keep dashboard cards (sales / invoices / my share / partner share) in sync with the selected date period
+  updateStats();
 }
 
 function quickResend(id) {
