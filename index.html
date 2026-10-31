@@ -779,11 +779,11 @@ body {
         <div class="form-row">
           <div class="form-group" style="margin:0;">
             <label>👤 কাস্টমারের নাম</label>
-            <input type="text" id="customerName" placeholder="যেমনঃ রহিম সাহেব">
+            <input type="text" id="customerName" value="ABC Computer (Walk-in)" placeholder="যেমনঃ রহিম সাহেব">
           </div>
           <div class="form-group" style="margin:0;">
             <label>📱 ফোন (WhatsApp)</label>
-            <input type="text" id="customerPhone" placeholder="০১৭XXXXXXXX">
+            <input type="text" id="customerPhone" value="01877987587" placeholder="০১৭XXXXXXXX">
           </div>
         </div>
 
@@ -1635,8 +1635,8 @@ function resendWhatsApp() {
 
 // ===== Reset =====
 function resetForm() {
-  document.getElementById('customerName').value = '';
-  document.getElementById('customerPhone').value = '';
+  document.getElementById('customerName').value = 'ABC Computer (Walk-in)';
+  document.getElementById('customerPhone').value = '01877987587';
   document.getElementById('itemsContainer').innerHTML = '';
   document.getElementById('discountAmount').value = '0';
   document.getElementById('discountType').value = 'amount';
