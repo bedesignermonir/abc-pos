@@ -1,19 +1,4 @@
-
-                        <!DOCTYPE html>
-                        <html lang="en">
-                        <head>
-                            <meta charset="UTF-8">
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <style>
-                body {
-                  background-color: white; /* Ensure the iframe has a white background */
-                }
-
-                
-              </style>
-                        </head>
-                        <body>
-                            <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="bn">
 <head>
 <meta charset="UTF-8">
@@ -1090,8 +1075,8 @@ function jsonpRequest(requestUrl, timeoutMs = SHEET_REQUEST_TIMEOUT_MS) {
       if (finished) return;
       finished = true;
       clearTimeout(timer);
-      delete window[callbackName];
-      script.remove();
+      try { delete window[callbackName]; } catch (cleanupError) { window[callbackName] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
       if (error) reject(error);
       else resolve(result);
     };
@@ -1101,13 +1086,17 @@ function jsonpRequest(requestUrl, timeoutMs = SHEET_REQUEST_TIMEOUT_MS) {
     }, timeoutMs);
 
     window[callbackName] = result => finish(null, result);
-    script.onerror = () => finish(new Error('Apps Script উত্তর পাওয়া যায়নি। Web App-টি Execute as: Me, access: Anyone দিয়ে deploy করে সর্বশেষ deployment-এর /exec URL ব্যবহার করুন।'));
+    script.onerror = () => finish(new Error('Apps Script উত্তর পাওয়া যায়নি। Web App-টি "Execute as: Me" ও "Access: Anyone" দিয়ে নতুন করে deploy (New deployment) করে সর্বশেষ /exec URL Settings-এ সংরক্ষণ করুন।'));
+    script.async = true;
     script.src = url.toString();
     document.head.appendChild(script);
   });
 }
 
 async function postSheetData(payload) {
+  // ক্রস-অরিজিন POST-এ Apps Script-এর redirect-chain ও opaque-response সীমাবদ্ধতার
+  // কারণে fetch-এর ফলাফল নির্ভরযোগ্য নয়। তাই এখানে চূড়ান্ত সাফল্য ধরা হয় না —
+  // পরবর্তীতে JSONP (verifyInvoice/verifyDelete) দিয়ে লাইভ শিটে যাচাই করা হয়।
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SHEET_REQUEST_TIMEOUT_MS);
   try {
@@ -1220,7 +1209,9 @@ async function loadFromSheet() {
   } catch (error) {
     console.error('Load error:', error);
     hideLoading();
-    showToast('শিট থেকে লোড করা যায়নি: ' + error.message, 'error');
+    // সংযোগ ব্যর্থ হলেও অ্যাপ localStorage-এর ডাটা দিয়ে চলবে — শুধু সতর্কবার্তা দেখানো হয়
+    console.warn('Google Sheets থেকে লোড ব্যর্থ:', error);
+    showToast('⚠ Google Sheet-এর সাথে সংযোগ হয়নি: ' + error.message, 'error');
     return false;
   }
 }
@@ -1231,11 +1222,18 @@ async function saveToSheet(invoice) {
     return true;
   }
 
+  // POST (no-cors) সফল হলেও response opaque থাকে, তাই ব্যর্থ হলে ১ বার
+  // রিট্রাই করা নিরাপদ (সার্ভারে upsert হয়); চূড়ান্ত সাফল্য JSONP verify দিয়ে নির্ধারিত।
   let postError = '';
-  try {
-    await postSheetData({ action: 'saveInvoice', data: invoice });
-  } catch (error) {
-    postError = error.message;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await postSheetData({ action: 'saveInvoice', data: invoice });
+      postError = '';
+      break;
+    } catch (error) {
+      postError = error.message;
+      await new Promise(resolve => setTimeout(resolve, 800));
+    }
   }
 
   try {
@@ -1253,15 +1251,23 @@ async function deleteFromSheet(id) {
   const url = getSheetUrl();
   if (!url) return true;
 
-  try {
-    await postSheetData({ action: 'deleteInvoice', id });
-  } catch (error) {
-    console.error('Sheet delete request error:', error);
+  let postError = '';
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await postSheetData({ action: 'deleteInvoice', id });
+      postError = '';
+      break;
+    } catch (error) {
+      postError = error.message;
+      await new Promise(resolve => setTimeout(resolve, 800));
+    }
   }
 
   try {
     const result = await jsonpRequest(buildSheetUrl('verifyDelete', { id }));
-    return result.success && !result.inSales && !result.inProfit;
+    if (result.success && !result.inSales && !result.inProfit) return true;
+    if (postError) showToast('মুছে ফেলার অনুরোধে সমস্যা: ' + postError, 'error');
+    return false;
   } catch (error) {
     showToast('Google Sheet-এ মুছে ফেলা যাচাই করা যায়নি: ' + error.message, 'error');
     return false;
@@ -2181,9 +2187,3 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 </script>
 </body>
 </html>
-
-
-<!-- Apps Script backend is maintained in code.gs. -->
-                        </body>
-                        </html>
-                    
