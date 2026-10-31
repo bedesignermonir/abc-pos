@@ -973,6 +973,25 @@ function getSheetUrl() {
   return settings.sheetUrl || '';
 }
 
+function normalizeSheetUrl(value) {
+  let url;
+  try {
+    url = new URL(String(value || '').trim());
+  } catch (error) {
+    throw new Error('Google Apps Script-এর সম্পূর্ণ Web App URL দিন। URL অবশ্যই /exec দিয়ে শেষ হতে হবে।');
+  }
+
+  const validPath = /^\/(?:a\/macros\/[^/]+\/|macros\/(?:u\/\d+\/)?)s\/[A-Za-z0-9_-]+\/exec\/?$/.test(url.pathname);
+  if (url.protocol !== 'https:' || url.hostname !== 'script.google.com' ||
+      url.username || url.password || !validPath) {
+    throw new Error('সঠিক Apps Script Web App URL দিন: https://script.google.com/macros/s/DEPLOYMENT_ID/exec');
+  }
+
+  url.search = '';
+  url.hash = '';
+  return url.toString().replace(/\/$/, '');
+}
+
 // ===== ইমোজি সাপোর্ট =====
 function supportsEmoji() {
   try {
@@ -1044,7 +1063,7 @@ function hideLoading() {
 function buildSheetUrl(action, extraParams = {}, baseUrl = getSheetUrl()) {
   if (!baseUrl) return '';
 
-  const url = new URL(baseUrl);
+  const url = new URL(normalizeSheetUrl(baseUrl));
   url.searchParams.set('action', action);
 
   Object.entries(extraParams).forEach(([key, value]) => {
@@ -1056,7 +1075,7 @@ function buildSheetUrl(action, extraParams = {}, baseUrl = getSheetUrl()) {
   return url.toString();
 }
 
-const SHEET_REQUEST_TIMEOUT_MS = 15000;
+const SHEET_REQUEST_TIMEOUT_MS = 45000;
 
 function jsonpRequest(requestUrl, timeoutMs = SHEET_REQUEST_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
@@ -1078,7 +1097,7 @@ function jsonpRequest(requestUrl, timeoutMs = SHEET_REQUEST_TIMEOUT_MS) {
     };
 
     const timer = setTimeout(() => {
-      finish(new Error('সংযোগে ১৫ সেকেন্ডের মধ্যে উত্তর আসেনি। URL, ইন্টারনেট এবং Apps Script deployment পরীক্ষা করুন।'));
+      finish(new Error('সংযোগে ৪৫ সেকেন্ডের মধ্যে উত্তর আসেনি। ইন্টারনেট এবং Apps Script deployment পরীক্ষা করুন।'));
     }, timeoutMs);
 
     window[callbackName] = result => finish(null, result);
@@ -1092,7 +1111,7 @@ async function postSheetData(payload) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SHEET_REQUEST_TIMEOUT_MS);
   try {
-    return await fetch(getSheetUrl(), {
+    return await fetch(normalizeSheetUrl(getSheetUrl()), {
       method: 'POST',
       mode: 'no-cors',
       credentials: 'omit',
@@ -1101,6 +1120,11 @@ async function postSheetData(payload) {
       body: JSON.stringify(payload),
       signal: controller.signal
     });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('Apps Script-এ POST অনুরোধ ৪৫ সেকেন্ডে সম্পন্ন হয়নি। Deployment ও ইন্টারনেট সংযোগ পরীক্ষা করুন।');
+    }
+    throw new Error('Apps Script-এ সংযোগ করা যায়নি: ' + error.message);
   } finally {
     clearTimeout(timeout);
   }
@@ -1253,6 +1277,13 @@ async function testSheetConnection() {
   const url = document.getElementById('sheetUrl').value.trim();
   if (!url) {
     showToast('অনুগ্রহ করে URL দিন', 'error');
+    return;
+  }
+
+  try {
+    normalizeSheetUrl(url);
+  } catch (error) {
+    showToast(error.message, 'error');
     return;
   }
 
@@ -2056,7 +2087,16 @@ async function saveSettings() {
     return showToast('কস্ট ও বিক্রয়মূল্য শূন্য বা তার বেশি সংখ্যা হতে হবে', 'error');
   }
 
-  settings.sheetUrl = document.getElementById('sheetUrl').value.trim();
+  const sheetUrl = document.getElementById('sheetUrl').value.trim();
+  if (sheetUrl) {
+    try {
+      settings.sheetUrl = normalizeSheetUrl(sheetUrl);
+    } catch (error) {
+      return showToast(error.message, 'error');
+    }
+  } else {
+    settings.sheetUrl = '';
+  }
   settings.presetItems = document.getElementById('presetItems').value;
   settings.costPrices = costPrices;
   settings.sellingPrices = sellingPrices;

@@ -117,7 +117,8 @@ function doPost(e) {
 
 function doGet(e) {
   try {
-    const action = e.parameter.action || 'getAll';
+    const params = e && e.parameter ? e.parameter : {};
+    const action = params.action || 'getAll';
     const sheet = getInvoiceSheet();
 
     if (action === 'test') {
@@ -131,14 +132,14 @@ function doGet(e) {
     }
 
     if (action === 'getSettings') {
-      if (String(e.parameter.pin || '') !== SETTINGS_PIN) {
+      if (String(params.pin || '') !== SETTINGS_PIN) {
         return createRequestResponse(e, { success: false, message: 'সেটিংস PIN সঠিক নয়' });
       }
       return createRequestResponse(e, { success: true, settings: getSettings() });
     }
 
     if (action === 'verifyInvoice' || action === 'verifyDelete') {
-      const id = String(e.parameter.id || '');
+      const id = String(params.id || '');
       const salesRow = findInvoiceRow(getInvoiceSheet(), id);
       const profitRow = findInvoiceRow(getProfitSheet(), id);
       return createRequestResponse(e, {
@@ -153,7 +154,7 @@ function doGet(e) {
       const data = sheet.getDataRange().getValues();
       const invoices = [];
       let maxNum = 0;
-      const month = e.parameter.month || '';
+      const month = params.month || '';
       const filterMonth = action === 'filterByMonth' || action === 'filterInvoicesByMonth';
 
       for (let i = 1; i < data.length; i++) {
