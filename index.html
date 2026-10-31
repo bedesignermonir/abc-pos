@@ -112,9 +112,6 @@ body {
   width: 5px; height: 100%;
 }
 .stat-card.today::before { background: var(--success); }
-.stat-card.month::before { background: #3b82f6; }
-.stat-card.total::before { background: var(--accent); }
-.stat-card.discount::before { background: #8b5cf6; }
 .stat-card.count::before { background: var(--danger); }
 .stat-card.myshare::before { background: var(--success); }
 .stat-card.partnershare::before { background: #f59e0b; }
@@ -729,21 +726,6 @@ body {
       <div class="icon">📅</div>
       <div class="label">আজকের বিক্রি</div>
       <div class="value" id="todaySales">৳০</div>
-    </div>
-    <div class="stat-card month">
-      <div class="icon">📊</div>
-      <div class="label">এই মাসের বিক্রি</div>
-      <div class="value" id="monthSales">৳০</div>
-    </div>
-    <div class="stat-card total">
-      <div class="icon">💰</div>
-      <div class="label">মোট বিক্রি</div>
-      <div class="value" id="totalSales">৳০</div>
-    </div>
-    <div class="stat-card discount">
-      <div class="icon">🎁</div>
-      <div class="label">এই মাসের ডিসকাউন্ট</div>
-      <div class="value" id="monthDiscount">৳০</div>
     </div>
     <div class="stat-card count">
       <div class="icon">🧾</div>
@@ -1840,21 +1822,13 @@ function updateStats() {
   const thisMonth = now.getMonth();
   const thisYear = now.getFullYear();
   
-  let todayTotal = 0, monthTotal = 0, allTotal = 0, monthDiscount = 0;
+  let todayTotal = 0;
   invoices.forEach(inv => {
     const d = new Date(inv.date);
-    allTotal += inv.total;
     if (d.toDateString() === today) todayTotal += inv.total;
-    if (d.getMonth() === thisMonth && d.getFullYear() === thisYear) {
-      monthTotal += inv.total;
-      monthDiscount += inv.discount || 0;
-    }
   });
   
   document.getElementById('todaySales').textContent = formatMoney(todayTotal);
-  document.getElementById('monthSales').textContent = formatMoney(monthTotal);
-  document.getElementById('totalSales').textContent = formatMoney(allTotal);
-  document.getElementById('monthDiscount').textContent = formatMoney(monthDiscount);
   document.getElementById('totalCount').textContent = toBnNum(invoices.length);
 
   // Profit sharing dashboard cards
