@@ -1584,16 +1584,30 @@ async function saveInvoiceOnly() {
 function sendWhatsAppMessage(inv, whatsappWindow = null) {
   const E = EMOJI_OK;
   const msg = generateWhatsAppMessage(inv);
-  
-  let waPhone = inv.phone.replace(/\D/g, '');
-  if (waPhone.startsWith('0')) waPhone = '880' + waPhone.substring(1);
-  
-  const url = `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
-  if (whatsappWindow && !whatsappWindow.closed) {
-    whatsappWindow.location.href = url;
-    return;
+
+  // Safely coerce phone to string (may arrive as number from Google Sheet); fallback to default business phone
+  const DEFAULT_PHONE = '01877987587';
+  let rawPhone = (inv && inv.phone != null && String(inv.phone).trim() !== '') ? String(inv.phone) : DEFAULT_PHONE;
+  // Convert Bengali digits (e.g. "০১৮৭৭৯৮৭৫৮৭") to ASCII before stripping non-digits
+  const BN_DIGITS = {'\u09e6':'0','\u09e7':'1','\u09e8':'2','\u09e9':'3','\u09ea':'4','\u09eb':'5','\u09ec':'6','\u09ed':'7','\u09ee':'8','\u09ef':'9'};
+  let waPhone = rawPhone.replace(/[\u09e6-\u09ef]/g, d => BN_DIGITS[d]).replace(/\D/g, '');
+  // Normalize: add country code whether stored with leading 0 or without (numeric Sheet values drop the 0)
+  if (waPhone.startsWith('880')) { /* already has country code */ }
+  else if (waPhone.startsWith('0')) waPhone = '880' + waPhone.substring(1);
+  else if (waPhone.length === 10) waPhone = '880' + waPhone; // numeric Sheet value lost the leading 0
+  if (!waPhone) waPhone = DEFAULT_PHONE.replace(/^0/, '880');
+
+  try {
+    const url = `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
+    if (whatsappWindow && !whatsappWindow.closed) {
+      whatsappWindow.location.href = url;
+      return;
+    }
+    if (!window.open(url, '_blank')) window.location.href = url;
+  } catch (err) {
+    console.error('sendWhatsAppMessage error:', err);
+    showToast('WhatsApp \u0996\u09cb\u09b2\u09be \u09af\u09be\u09df\u09be\u09a8\u09bf', 'error');
   }
-  if (!window.open(url, '_blank')) window.location.href = url;
 }
 
 function generateWhatsAppMessage(inv) {
@@ -1735,23 +1749,51 @@ function generatePrintHTML(inv) {
   `;
 }
 
-function printInvoice(id) {
-  const inv = invoices.find(i => i.id === id);
-  if (!inv) return;
-  showToast('প্রিন্ট প্রস্তুত হচ্ছে...', 'loading');
-  const printArea = document.getElementById('printArea');
-  printArea.innerHTML = generatePrintHTML(inv);
-  const qrImage = printArea.querySelector('.print-qr-img');
-  const startPrint = () => {
-    window.print();
-    document.getElementById('toast').className = 'toast';
-  };
-  if (qrImage && !qrImage.complete) {
-    qrImage.addEventListener('load', startPrint, { once: true });
-    qrImage.addEventListener('error', startPrint, { once: true });
-  } else {
-    setTimeout(startPrint, 100);
+// ===== Shared robust print routine (guards missing elements & blocked print dialogs) =====
+function runPrint(buildHtml, inv, callerName) {
+  try {
+    showToast('\u09aa\u09cd\u09b0\u09bf\u09a8\u09cd\u099f \u09aa\u09cd\u09b0\u09b8\u09cd\u09a4\u09c1\u09a4 \u09b9\u099a\u09cd\u099b\u09c7...', 'loading');
+    const printArea = document.getElementById('printArea');
+    if (!printArea) {
+      console.error(callerName + ': #printArea element not found');
+      return showToast('\u09aa\u09cd\u09b0\u09bf\u09a8\u09cd\u099f \u098f\u09b0\u09bf\u09df\u09be \u09aa\u09be\u0993\u09df\u09be \u09af\u09be\u09df\u09a8\u09bf', 'error');
+    }
+    printArea.innerHTML = buildHtml(inv);
+    const hideToast = () => {
+      const t = document.getElementById('toast');
+      if (t) t.className = 'toast';
+    };
+    let printed = false;
+    const startPrint = () => {
+      if (printed) return;
+      printed = true;
+      try {
+        window.print();
+      } catch (err) {
+        console.error(callerName + ': window.print() failed', err);
+      } finally {
+        hideToast();
+      }
+    };
+    const qrImage = printArea.querySelector('.print-qr-img');
+    if (qrImage && !qrImage.complete) {
+      qrImage.addEventListener('load', startPrint, { once: true });
+      qrImage.addEventListener('error', startPrint, { once: true });
+      setTimeout(startPrint, 2500); // safety net if neither event fires
+    } else {
+      setTimeout(startPrint, 100);
+    }
+  } catch (err) {
+    console.error(callerName + ' error:', err);
+    showToast('\u09aa\u09cd\u09b0\u09bf\u09a8\u09cd\u099f \u0995\u09b0\u09be \u09af\u09be\u09df\u09a8\u09bf', 'error');
   }
+}
+
+function printInvoice(id) {
+  // Coerce id (may come as string or number depending on source: DOM attr vs Sheet)
+  const inv = invoices.find(i => String(i.id) === String(id));
+  if (!inv) return showToast('\u0987\u09a8\u09ad\u09df\u09c7\u09b8 \u0996\u09c1\u0981\u099c\u09c7 \u09aa\u09be\u0993\u09df\u09be \u09af\u09be\u09df\u09a8\u09bf', 'error');
+  runPrint(i => generatePrintHTML(i), inv, 'printInvoice');
 }
 
 function printCurrent() {
@@ -1773,20 +1815,7 @@ function printCurrent() {
     date: editing && editing.date ? editing.date : new Date().toISOString()
   };
   
-  showToast('প্রিন্ট প্রস্তুত হচ্ছে...', 'loading');
-  const printArea = document.getElementById('printArea');
-  printArea.innerHTML = generatePrintHTML(inv);
-  const qrImage = printArea.querySelector('.print-qr-img');
-  const startPrint = () => {
-    window.print();
-    document.getElementById('toast').className = 'toast';
-  };
-  if (qrImage && !qrImage.complete) {
-    qrImage.addEventListener('load', startPrint, { once: true });
-    qrImage.addEventListener('error', startPrint, { once: true });
-  } else {
-    setTimeout(startPrint, 100);
-  }
+  runPrint(i => generatePrintHTML(i), inv, 'printCurrent');
 }
 
 // ===== Stats =====
