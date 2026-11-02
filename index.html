@@ -1110,11 +1110,31 @@ const BUSINESS = {
   review: "https://share.google/KXGlETK8yzlJE6DeS"
 };
 
+const CASH_DENOMS = [10, 20, 50, 100, 200, 500, 1000];
+const BALANCE_ACCOUNTS = [
+  { key: 'bkash',        label: 'বিকাশ (Business/Main)' },
+  { key: 'nagad',        label: 'নগদ' },
+  { key: 'rocket',       label: 'রকেট' },
+  { key: 'gp',           label: 'জিপি রিচার্জ' },
+  { key: 'banglalink',   label: 'বাংলালিংক রিচার্জ' },
+  { key: 'robi',         label: 'রবি রিচার্জ' },
+  { key: 'airtel',       label: 'এয়ারটেল রিচার্জ' },
+  { key: 'bank',         label: 'ব্যাংক অ্যাকাউন্ট' },
+  { key: 'bkashSaving',  label: 'বিকাশ সেভিংস' },
+  { key: 'personalMfs',  label: 'বিকাশ/নগদ পার্সোনাল' }
+];
+
 // ===== ডাটা স্টোরেজ =====
 let invoices = JSON.parse(localStorage.getItem('pos_invoices') || '[]');
 let settings = JSON.parse(localStorage.getItem('pos_settings') || '{}');
 let currentInvoiceId = null;
 let nextInvoiceNumber = parseInt(localStorage.getItem('pos_next_inv_no') || '1');
+let creditors = [];
+let expenses = [];
+try { creditors = JSON.parse(localStorage.getItem('pos_creditors') || '[]'); } catch (e) { creditors = []; }
+try { expenses = JSON.parse(localStorage.getItem('pos_expenses') || '[]'); } catch (e) { expenses = []; }
+if (!Array.isArray(creditors)) creditors = [];
+if (!Array.isArray(expenses)) expenses = [];
 
 // ===== Google Sheets API URL =====
 function getSheetUrl() {
@@ -2555,20 +2575,6 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 
 // ===== দৈনিক ক্যাশ ও ব্যালেন্স রেজিস্টার =====
-const CASH_DENOMS = [10, 20, 50, 100, 200, 500, 1000];
-const BALANCE_ACCOUNTS = [
-  { key: 'bkash',        label: 'বিকাশ (Business/Main)' },
-  { key: 'nagad',        label: 'নগদ' },
-  { key: 'rocket',       label: 'রকেট' },
-  { key: 'gp',           label: 'জিপি রিচার্জ' },
-  { key: 'banglalink',   label: 'বাংলালিংক রিচার্জ' },
-  { key: 'robi',         label: 'রবি রিচার্জ' },
-  { key: 'airtel',       label: 'এয়ারটেল রিচার্জ' },
-  { key: 'bank',         label: 'ব্যাংক অ্যাকাউন্ট' },
-  { key: 'bkashSaving',  label: 'বিকাশ সেভিংস' },
-  { key: 'personalMfs',  label: 'বিকাশ/নগদ পার্সোনাল' }
-];
-
 function buildRegisterUI() {
   const denomGrid = document.getElementById('cashDenomGrid');
   const balGrid = document.getElementById('balanceInputGrid');
@@ -2619,9 +2625,14 @@ function updateRegisterTotals() {
   }
 }
 
-function saveRegister() {
+async function saveRegister() {
+  let localSaved = false;
   try {
-    const data = { date: new Date().toISOString().slice(0, 10), denominations: {}, balances: {} };
+    const data = {
+      date: new Date().toISOString().slice(0, 10),
+      denominations: {},
+      balances: {}
+    };
     CASH_DENOMS.forEach(d => {
       const el = document.getElementById('denom_' + d);
       data.denominations[d] = Math.max(0, safeNum(el ? el.value : 0));
@@ -2630,10 +2641,32 @@ function saveRegister() {
       const el = document.getElementById('bal_' + a.key);
       data.balances[a.key] = Math.max(0, safeNum(el ? el.value : 0));
     });
+    data.id = 'cash-' + data.date;
+    data.cashTotal = CASH_DENOMS.reduce((sum, denomination) =>
+      sum + denomination * data.denominations[denomination], 0);
+    data.digitalTotal = BALANCE_ACCOUNTS.reduce((sum, account) =>
+      sum + data.balances[account.key], 0);
+    data.grandTotal = data.cashTotal + data.digitalTotal;
     localStorage.setItem('pos_cash_register', JSON.stringify(data));
-    showToast('✅ ক্যাশ ও ব্যালেন্স হিসাব সেভ হয়েছে (' + toBnNum(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })) + ')');
+    localSaved = true;
+    if (getSheetUrl()) {
+      await postSheetData({ action: 'saveCashRegister', record: data });
+      const result = await jsonpRequest(buildSheetUrl('verifyRecord', {
+        kind: 'cash',
+        id: data.id
+      }));
+      if (!result.success || !result.found) {
+        throw new Error('Google Sheet-এ ক্যাশ রেকর্ড যাচাই করা যায়নি');
+      }
+      showToast('✅ ক্যাশ ও ব্যালেন্স লোকালি এবং Google Sheet-এ সেভ হয়েছে');
+    } else {
+      showToast('✅ ক্যাশ ও ব্যালেন্স লোকালি সেভ হয়েছে (Google Sheet URL সেট করা নেই)');
+    }
   } catch (error) {
-    showToast('সেভ করা যায়নি: ' + error.message, 'error');
+    console.error('ক্যাশ রেজিস্টার সেভ ত্রুটি:', error);
+    showToast((localSaved
+      ? 'লোকালি সেভ হয়েছে, কিন্তু Google Sheet-এ সিঙ্ক হয়নি: '
+      : 'সেভ করা যায়নি: ') + error.message, 'error');
   }
 }
 
@@ -2674,12 +2707,6 @@ updateRegisterTotals();
 
 // ===== পাওনাদার / খরচ / আর্থিক সারসংক্ষেপ (Creditors, Expenses & Summary) =====
 const DEFAULT_EXPENSE_CATEGORIES = ['বাজার খরচ', 'দোকান ভাড়া', 'বিদ্যুৎ বিল', 'ইন্টারনেট বিল', 'কর্মচারীর বেতন', 'পরিবহন খরচ'];
-let creditors = [];   // [{id, name, taken, paid, date}]
-let expenses  = [];   // [{id, category, amount, source, sourceLabel, date}]
-try { creditors = JSON.parse(localStorage.getItem('pos_creditors') || '[]'); } catch (e) { creditors = []; }
-try { expenses  = JSON.parse(localStorage.getItem('pos_expenses')  || '[]'); } catch (e) { expenses  = []; }
-if (!Array.isArray(creditors)) creditors = [];
-if (!Array.isArray(expenses)) expenses = [];
 
 function saveCreditors() { try { localStorage.setItem('pos_creditors', JSON.stringify(creditors)); } catch (e) {} }
 function saveExpenses()  { try { localStorage.setItem('pos_expenses',  JSON.stringify(expenses));  } catch (e) {} }
@@ -2698,8 +2725,14 @@ async function removeCreditorFromSheet(id) {
 }
 async function backupExpenseToSheet(e) {
   if (!getSheetUrl()) return;
-  try { await postSheetData({ action: 'saveExpense', expense: e }); }
-  catch (error) { console.warn('খরচ শিট ব্যাকআপ হয়নি:', error.message); }
+  try {
+    await postSheetData({ action: 'saveExpense', expense: e });
+    const result = await jsonpRequest(buildSheetUrl('verifyRecord', { kind: 'expense', id: e.id }));
+    if (!result.success || !result.found) throw new Error('Google Sheet-এ খরচের রেকর্ড যাচাই করা যায়নি');
+  } catch (error) {
+    console.error('খরচ শিট ব্যাকআপ হয়নি:', error);
+    showSyncWarning('লোকালি খরচ সেভ হয়েছে, কিন্তু Google Sheet-এ সিঙ্ক হয়নি: ' + error.message);
+  }
 }
 async function removeExpenseFromSheet(id) {
   if (!getSheetUrl()) return;
