@@ -368,6 +368,10 @@ body {
   background: linear-gradient(135deg, #64748b, #334155);
   color: white;
 }
+.btn-save {
+  background: linear-gradient(135deg, #10b981, #047857);
+  color: white;
+}
 
 /* ===== Invoice List ===== */
 .filter-row {
@@ -825,10 +829,9 @@ body {
           <div class="amount" id="grandTotal">৳০</div>
         </div>
 
-        <!-- 3 Action Buttons -->
+        <!-- 2 Action Buttons: Save & Reset (WhatsApp/Print/Delete are in the invoice list) -->
         <div class="action-btns-3">
-          <button class="btn btn-whatsapp" onclick="saveAndWhatsApp()">📱 সেভ & WhatsApp</button>
-          <button class="btn btn-print" onclick="printCurrent()">🖨️ প্রিন্ট মেমো</button>
+          <button class="btn btn-save" onclick="saveInvoiceOnly()">💾 সেভ</button>
           <button class="btn btn-reset" onclick="resetForm()">🔄 রিসেট</button>
         </div>
       </div>
@@ -1331,8 +1334,9 @@ function addItem(name='', qty=1, price=0) {
   row.className = 'item-row';
   
   let optionsHtml = '<option value="">-- বাছাই --</option>';
+  const escAttr = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
   presets.forEach(p => {
-    optionsHtml += `<option value="${p}" ${p===name?'selected':''}>${p}</option>`;
+    optionsHtml += `<option value="${escAttr(p)}" ${p===name?'selected':''}>${p}</option>`;
   });
   
   const isCustom = name && !presets.includes(name);
@@ -1344,7 +1348,7 @@ function addItem(name='', qty=1, price=0) {
       ${optionsHtml}
       <option value="__custom__" ${isCustom?'selected':''}>✏️ কাস্টম...</option>
       </select>
-      <input type="text" class="customName" placeholder="নাম" value="${isCustom ? name : ''}" style="display:${isCustom ? 'block':'none'}">
+      <input type="text" class="customName" placeholder="নাম" value="${isCustom ? escAttr(name) : ''}" style="display:${isCustom ? 'block':'none'}">
       <div class="item-cost-display">ক্রয়: ${formatMoney(initialCost)} / ইউনিট</div>
       <input type="hidden" class="itemCostPrice" value="${initialCost}">
     </div>
@@ -1502,8 +1506,10 @@ function updateCurrentInvoiceNo() {
   document.getElementById('currentInvNo').textContent = generateInvoiceNo(nextInvoiceNumber);
 }
 
-// ===== Save & WhatsApp =====
-async function saveAndWhatsApp() {
+// ===== Save (invoice form: only Save & Reset; WhatsApp/Print live in the invoice list) =====
+let editingInvoiceId = null;
+
+async function saveInvoiceOnly() {
   const name = document.getElementById('customerName').value.trim();
   const phone = document.getElementById('customerPhone').value.trim();
   const items = getItems();
@@ -1516,11 +1522,12 @@ async function saveAndWhatsApp() {
   const discountAmount = parseFloat(document.getElementById('discountAmount').value) || 0;
   const discountType = document.getElementById('discountType').value;
 
-  const invoiceNo = generateInvoiceNo(nextInvoiceNumber);
+  const isEdit = Boolean(editingInvoiceId);
+  const existing = isEdit ? invoices.find(i => i.id === editingInvoiceId) : null;
 
   const invoice = {
-    id: Date.now(),
-    invoiceNo: invoiceNo,
+    id: isEdit ? editingInvoiceId : Date.now(),
+    invoiceNo: isEdit && existing && existing.invoiceNo ? existing.invoiceNo : generateInvoiceNo(nextInvoiceNumber),
     customer: name,
     phone: phone,
     items: items,
@@ -1528,8 +1535,7 @@ async function saveAndWhatsApp() {
     discount: discount,
     discountAmount: discountAmount,
     discountType: discountType,
-    total: total,
-    date: new Date().toISOString()
+    date: isEdit && existing && existing.date ? existing.date : new Date().toISOString()
   };
 
   const profitResult = calculateInvoiceProfit(invoice);
@@ -1537,37 +1543,37 @@ async function saveAndWhatsApp() {
     return showToast('সেটিংসে কস্টিং প্রাইস সেট করুন: ' + profitResult.missingCostItems.join(', '), 'error');
   }
 
-  const whatsappWindow = window.open('about:blank', '_blank');
-  if (whatsappWindow) whatsappWindow.opener = null;
-  showLoading('সেভ করা হচ্ছে...');
+  showLoading(isEdit ? 'আপডেট করা হচ্ছে...' : 'সেভ করা হচ্ছে...');
 
   const hasSheetUrl = Boolean(getSheetUrl());
   const sheetSuccess = await saveToSheet(invoice);
 
   if (!sheetSuccess) {
     hideLoading();
-    if (whatsappWindow && !whatsappWindow.closed) whatsappWindow.close();
-    const pending = JSON.parse(localStorage.getItem('pos_unsent_invoices') || '[]');
-    pending.push(invoice);
-    localStorage.setItem('pos_unsent_invoices', JSON.stringify(pending));
-    showToast('❌ ডাটা Google Sheet-এ দেওয়া যায়নি। WhatsApp পাঠানো হয়নি।', 'error');
+    if (!isEdit) {
+      const pending = JSON.parse(localStorage.getItem('pos_unsent_invoices') || '[]');
+      pending.push(invoice);
+      localStorage.setItem('pos_unsent_invoices', JSON.stringify(pending));
+    }
+    showToast('❌ ডাটা Google Sheet-এ দেওয়া যায়নি। আবার চেষ্টা করুন।', 'error');
     return;
   }
 
-  invoices.unshift(invoice);
+  if (isEdit) {
+    const idx = invoices.findIndex(i => i.id === editingInvoiceId);
+    if (idx >= 0) invoices[idx] = invoice; else invoices.unshift(invoice);
+  } else {
+    invoices.unshift(invoice);
+    const pending = JSON.parse(localStorage.getItem('pos_unsent_invoices') || '[]');
+    const remaining = pending.filter(item => item.id !== invoice.id);
+    localStorage.setItem('pos_unsent_invoices', JSON.stringify(remaining));
+    nextInvoiceNumber++;
+    localStorage.setItem('pos_next_inv_no', nextInvoiceNumber.toString());
+  }
   localStorage.setItem('pos_invoices', JSON.stringify(invoices));
 
-  const pending = JSON.parse(localStorage.getItem('pos_unsent_invoices') || '[]');
-  const remaining = pending.filter(item => item.id !== invoice.id);
-  localStorage.setItem('pos_unsent_invoices', JSON.stringify(remaining));
-
-  nextInvoiceNumber++;
-  localStorage.setItem('pos_next_inv_no', nextInvoiceNumber.toString());
-
   hideLoading();
-  showToast((hasSheetUrl ? '✓ ইনভয়েস শিটে সেভ হয়েছে: ' : '✓ ইনভয়েস লোকাল স্টোরেজে সেভ হয়েছে: ') + invoiceNo);
-
-  sendWhatsAppMessage(invoice, whatsappWindow);
+  showToast((hasSheetUrl ? '✓ ইনভয়েস শিটে ' : '✓ ইনভয়েস লোকাল স্টোরেজে ') + (isEdit ? 'আপডেট হয়েছে: ' : 'সেভ হয়েছে: ') + invoice.invoiceNo);
 
   resetForm();
   updateStats();
@@ -1635,6 +1641,7 @@ function resendWhatsApp() {
 
 // ===== Reset =====
 function resetForm() {
+  editingInvoiceId = null;
   document.getElementById('customerName').value = 'ABC Computer (Walk-in)';
   document.getElementById('customerPhone').value = '01877987587';
   document.getElementById('itemsContainer').innerHTML = '';
@@ -1754,15 +1761,16 @@ function printCurrent() {
   if (!name || items.length === 0) return showToast('প্রথমে বিল তৈরি করুন', 'error');
   
   const { subtotal, discount, total } = calculateTotal();
+  const editing = editingInvoiceId ? invoices.find(i => i.id === editingInvoiceId) : null;
   const inv = {
-    invoiceNo: generateInvoiceNo(nextInvoiceNumber),
+    invoiceNo: editing && editing.invoiceNo ? editing.invoiceNo : generateInvoiceNo(nextInvoiceNumber),
     customer: name,
     phone,
     items,
     subtotal,
     discount,
     total,
-    date: new Date().toISOString()
+    date: editing && editing.date ? editing.date : new Date().toISOString()
   };
   
   showToast('প্রিন্ট প্রস্তুত হচ্ছে...', 'loading');
@@ -1950,6 +1958,7 @@ function renderInvoices() {
       <div class="meta">${formatDate(inv.date)} ${inv.phone ? '• 📱 '+inv.phone : ''}</div>
       <div class="actions" onclick="event.stopPropagation()">
         <button style="background:#25d366;color:white;" onclick="quickResend(${inv.id})">📱 WhatsApp</button>
+        <button style="background:#f59e0b;color:white;" onclick="editInvoice(${inv.id})">✏️ এডিট</button>
         <button style="background:#3b82f6;color:white;" onclick="printInvoice(${inv.id})">🖨️ প্রিন্ট</button>
         <button style="background:#ef4444;color:white;" onclick="deleteInvoice(${inv.id})">🗑️</button>
       </div>
@@ -1963,6 +1972,40 @@ function renderInvoices() {
 function quickResend(id) {
   currentInvoiceId = id;
   resendWhatsApp();
+}
+
+// ===== Edit Invoice (loads saved invoice back into the form) =====
+function editInvoice(id) {
+  const inv = invoices.find(i => i.id === id);
+  if (!inv) return showToast('ইনভয়েস খুঁজে পাওয়া যায়নি', 'error');
+
+  editingInvoiceId = inv.id;
+  currentInvoiceId = inv.id;
+
+  document.getElementById('customerName').value = inv.customer || '';
+  document.getElementById('customerPhone').value = inv.phone || '';
+
+  const container = document.getElementById('itemsContainer');
+  container.innerHTML = '';
+  if (Array.isArray(inv.items) && inv.items.length) {
+    inv.items.forEach(item => addItem(item.name || '', item.qty || 1, item.price || 0));
+  } else {
+    addItem();
+  }
+
+  document.getElementById('discountAmount').value = String(inv.discountAmount != null ? inv.discountAmount : 0);
+  document.getElementById('discountType').value = inv.discountType === 'percent' ? 'percent' : 'amount';
+  calculateTotal();
+
+  // Show the invoice number being edited instead of the next-new one
+  document.getElementById('currentInvNo').textContent = inv.invoiceNo || generateInvoiceNo(nextInvoiceNumber);
+
+  closeInvoiceModal();
+  updateStats();
+  renderInvoices();
+
+  try { document.getElementById('customerName').scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+  showToast('✏️ ইনভয়েস এডিট মোডে খোলা হয়েছে: ' + (inv.invoiceNo || ''));
 }
 
 function viewInvoice(id) {
