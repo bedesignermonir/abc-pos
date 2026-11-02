@@ -114,8 +114,7 @@ body {
 }
 .stat-card.today::before { background: var(--success); }
 .stat-card.count::before { background: var(--danger); }
-.stat-card.myshare::before { background: var(--success); }
-.stat-card.partnershare::before { background: #f59e0b; }
+.stat-card.netassets::before { background: #f59e0b; }
 .stat-card .sublabel { color: var(--gray-500); font-size: 11px; margin-top: 5px; font-weight: 600; }
 .stat-card .icon {
   position: absolute;
@@ -788,17 +787,11 @@ body {
       <div class="label" id="countCardLabel">মোট ইনভয়েস</div>
       <div class="value" id="totalCount">০</div>
     </div>
-    <div class="stat-card myshare">
-      <div class="icon">👤</div>
-      <div class="label">আমার অংশ (কস্ট + ৬০% লাভ)</div>
-      <div class="value" id="myShareTotal">৳০</div>
-      <div class="sublabel" id="myShareBreakdown">কস্ট ৳০ + লাভের অংশ ৳০</div>
-    </div>
-    <div class="stat-card partnershare">
-      <div class="icon">🤝</div>
-      <div class="label">পার্টনারের অংশ (৪০% লাভ)</div>
-      <div class="value" id="partnerShareTotal">৳০</div>
-      <div class="sublabel" id="partnerShareBreakdown">মোট নিট লাভ ৳০</div>
+    <div class="stat-card netassets">
+      <div class="icon">🏦</div>
+      <div class="label">নিট মূলধন/সম্পদ (পাওনাদার বাদ দিয়ে)</div>
+      <div class="value" id="netAssetsTotal">৳০</div>
+      <div class="sublabel" id="netAssetsBreakdown">ক্যাশ + ডিজিটাল − পাওনাদার বকেয়া</div>
     </div>
   </div>
 
@@ -1045,13 +1038,6 @@ body {
       <textarea id="expenseCategories" style="min-height:100px;" placeholder="বাজার খরচ&#10;দোকান ভাড়া&#10;বিদ্যুৎ বিল&#10;পাওনাদার পরিশোধ"></textarea>
       <small style="color:var(--gray-500);font-size:11px;margin-top:4px;display:block;">
         এই তালিকা "নতুন খরচ তৈরি করুন" সেকশনের ড্রপডাউনে দেখা যাবে; পাওনাদারদের নাম স্বয়ংক্রিয়ভাবে যোগ হবে।
-      </small>
-    </div>
-    <div class="form-group">
-      <label>🤝 নিট লাভের ভাগ (প্রতি লাইনে: নাম | শতাংশ)</label>
-      <textarea id="profitShares" style="min-height:80px;" placeholder="আমার অংশ | 60&#10;পার্টনার | 40"></textarea>
-      <small style="color:var(--gray-500);font-size:11px;margin-top:4px;display:block;">
-        সব অংশের যোগফল ১০০% হতে হবে। নতুন অংশীদার যোগ করতে নতুন লাইন দিন।
       </small>
     </div>
     
@@ -1320,7 +1306,7 @@ async function postSheetData(payload) {
 
 function getSheetSettingsFromResponse(remoteSettings) {
   const normalized = { ...settings };
-  ['presetItems', 'expenseCategories', 'costPrices', 'sellingPrices', 'profitShares'].forEach(key => {
+  ['presetItems', 'expenseCategories', 'costPrices', 'sellingPrices'].forEach(key => {
     // Google Sheet-এর মানই প্রাধান্য পায় (টেস্ট/সিঙ্কে ক্যাশে-ক্লিয়ার হওয়া সেটআপ ফিরে আসে);
     // শিটে কী না থাকলে বা খালি থাকলে লোকাল মান অক্ষুণ্ণ থাকে — কোনো ডাটা-লস হয় না।
     if (!Object.prototype.hasOwnProperty.call(remoteSettings || {}, key)) return;
@@ -1562,12 +1548,6 @@ function populateSettingsFormFromCurrent() {
   if (presetEl) presetEl.value = settings.presetItems || '';
   const expCatEl = document.getElementById('expenseCategories');
   if (expCatEl) expCatEl.value = settings.expenseCategories || '';
-  const sharesEl = document.getElementById('profitShares');
-  if (sharesEl) {
-    sharesEl.value = getConfiguredProfitShares()
-      .map(share => `${share.name} | ${share.percentage}`)
-      .join('\n');
-  }
   renderPresetPriceFields();
   populateExpenseCategoryOptions();
 }
@@ -1688,16 +1668,6 @@ function getItems() {
   return items;
 }
 
-function getConfiguredProfitShares() {
-  if (Array.isArray(settings.profitShares) && settings.profitShares.length) {
-    return settings.profitShares;
-  }
-  return [
-    { name: 'আমার অংশ', percentage: 60 },
-    { name: 'পার্টনার', percentage: 40 }
-  ];
-}
-
 function calculateInvoiceProfit(invoice) {
   const costPrices = settings.costPrices || {};
   const presets = new Set((settings.presetItems || '').split('\n').map(item => item.trim()).filter(Boolean));
@@ -1732,21 +1702,6 @@ function calculateInvoiceProfit(invoice) {
 
   invoice.costTotal = Number(costTotal.toFixed(2));
   invoice.netProfit = Number((invoice.total - invoice.costTotal).toFixed(2));
-
-  const profitCents = Math.round(invoice.netProfit * 100);
-  let allocatedCents = 0;
-  const shares = getConfiguredProfitShares();
-  invoice.profitShares = shares.map((share, index) => {
-    const amountCents = index === shares.length - 1
-      ? profitCents - allocatedCents
-      : Math.round(profitCents * Number(share.percentage) / 100);
-    allocatedCents += amountCents;
-    return {
-      name: share.name,
-      percentage: Number(share.percentage),
-      amount: amountCents / 100
-    };
-  });
 
   return { missingCostItems: [] };
 }
@@ -2123,41 +2078,6 @@ function isInPeriod(inv, p) {
   return d >= p.start && d < p.end;
 }
 
-function computeDashboardShares(list) {
-  // Net Profit = Total Sale - Total Cost Price (per invoice, discount already reflected in total)
-  const invs = list || invoices;
-  let totalSale = 0, totalCost = 0;
-  invs.forEach(inv => {
-    totalSale += Number(inv.total) || 0;
-    totalCost += getInvoiceCostTotal(inv);
-  });
-  const netProfit = Number((totalSale - totalCost).toFixed(2));
-
-  // Business rules: My Share = Total Cost Price + (Net Profit x my configured %, default 60%)
-  // Partner's Share = Net Profit x partner % (default 40%), excluding cost price.
-  const shares = getConfiguredProfitShares();
-  const myShareCfg = shares.find(s => /আমার|my|i'?m\s*me|owner/i.test(s.name)) || shares[0];
-  const myPct = Number(myShareCfg && myShareCfg.percentage) || 60;
-  const myProfitCents = Math.round(netProfit * 100 * myPct / 100);
-  const allProfitCents = Math.round(netProfit * 100);
-  const partnerProfitCents = allProfitCents - myProfitCents;
-
-  const myProfitShare = myProfitCents / 100;
-  const partnerShare = partnerProfitCents / 100;
-  const myShare = Number(totalCost + myProfitShare);
-
-  return {
-    totalSale: Number(totalSale.toFixed(2)),
-    totalCost: Number(totalCost.toFixed(2)),
-    netProfit,
-    myPct,
-    partnerPct: Number((100 - myPct).toFixed(2)),
-    myProfitShare: Number(myProfitShare.toFixed(2)),
-    myShare: Number(myShare.toFixed(2)),
-    partnerShare: Number(partnerShare.toFixed(2))
-  };
-}
-
 function updateStats() {
   const p = currentPeriodInfo();
   const periodInvoices = invoices.filter(inv => isInPeriod(inv, p));
@@ -2172,14 +2092,27 @@ function updateStats() {
   document.getElementById('salesCardLabel').textContent = (p.mode === 'all' ? 'সব সময়ের' : p.label) + ' বিক্রি';
   document.getElementById('countCardLabel').textContent = p.mode === 'all' ? 'মোট ইনভয়েস (সব)' : p.label + ' ইনভয়েস';
 
-  // Profit sharing dashboard cards — strictly for the selected date period
-  const s = computeDashboardShares(periodInvoices);
-  document.getElementById('myShareTotal').textContent = formatMoney(s.myShare);
-  document.getElementById('myShareBreakdown').textContent =
-    'কস্ট ' + formatMoney(s.totalCost) + ' + লাভের ' + toBnNum(s.myPct) + '% (' + formatMoney(s.myProfitShare) + ')';
-  document.getElementById('partnerShareTotal').textContent = formatMoney(s.partnerShare);
-  document.getElementById('partnerShareBreakdown').textContent =
-    'মোট নিট লাভ ' + formatMoney(s.netProfit) + ' → পার্টনারের ' + toBnNum(s.partnerPct) + '%';
+  // নিট মূলধন/সম্পদ (পাওনাদার বাদ দিয়ে) — রিয়েল-টাইম: ক্যাশ + MFS/ব্যাংক − পাওনাদার বকেয়া
+  updateNetAssetsCard();
+}
+
+// নিট মূলধন কার্ড: মোট ক্যাশ + মোট ডিজিটাল (MFS/রিচার্জ/ব্যাংক) ব্যালেন্স থেকে সব পাওনাদারের বকেয়া বিয়োগ
+function computeNetAssets() {
+  const cash = registerCashTotal();
+  const digital = registerDigitalTotal();
+  const totalDue = creditors.reduce((sum, c) => sum + Math.max(0, safeNum(c.taken) - safeNum(c.paid)), 0);
+  return { cash, digital, totalDue, net: cash + digital - totalDue };
+}
+
+function updateNetAssetsCard() {
+  const el = document.getElementById('netAssetsTotal');
+  const sub = document.getElementById('netAssetsBreakdown');
+  if (!el || !sub) return;
+  const na = computeNetAssets();
+  el.textContent = formatMoney(na.net);
+  el.style.color = na.net < 0 ? '#dc2626' : '';
+  sub.textContent = 'ক্যাশ ' + formatMoney(na.cash) + ' + ডিজিটাল ' + formatMoney(na.digital) +
+    ' − বকেয়া ' + formatMoney(na.totalDue);
 }
 
 function onPeriodChange() {
@@ -2194,10 +2127,33 @@ function onPeriodChange() {
   } else {
     dateInput.style.display = 'none';
   }
+  // গ্লোবাল ডেট ফিল্টার সব সেকশনে প্রয়োগ: ইনভয়েস তালিকা, খরচের তালিকা ও আর্থিক সারসংক্ষেপ
+  syncSectionFiltersToPeriod();
   updateStats();
 }
 
-function onPeriodDateChange() { updateStats(); }
+function onPeriodDateChange() {
+  syncSectionFiltersToPeriod();
+  updateStats();
+}
+
+// গ্লোবাল পিরিয়ড ফিল্টারের সাথে সেকশন-ভিত্তিক ফিল্টার সিঙ্ক রাখে (খালি state এড়ানোর জন্য)
+function periodMonthValue(p) {
+  if (!p || p.mode === 'all' || p.mode === 'month') return ''; // মাস-ফিল্টার প্রযোজ্য নয় → সব দেখাবে
+  const d = p.start || new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+function syncSectionFiltersToPeriod() {
+  const p = currentPeriodInfo();
+  const mf = document.getElementById('monthFilter');       // Sales / Invoice list month filter
+  const ef = document.getElementById('expenseMonthFilter'); // Expenses list month filter
+  if (mf) mf.value = periodMonthValue(p);
+  if (ef) ef.value = periodMonthValue(p);
+  try { renderInvoices(); } catch (e) {}
+  try { renderExpenseList(); } catch (e) {}
+  try { renderFinanceSummary(); } catch (e) {}
+}
 
 // Auto-reset at midnight: when the day rolls over while in "আজকে" mode, cards reset to the new day
 (function scheduleMidnightReset() {
@@ -2255,7 +2211,7 @@ function renderInvoices() {
     </div>
   `).join('');
 
-  // Keep dashboard cards (sales / invoices / my share / partner share) in sync with the selected date period
+  // Keep dashboard cards (sales / invoices / net assets) in sync with the selected date period
   updateStats();
 }
 
@@ -2343,12 +2299,6 @@ function viewInvoice(id) {
             <span>মোট কস্ট</span>
             <span>${formatMoney(inv.costTotal || 0)}</span>
           </div>
-          ${(inv.profitShares || []).map(share => `
-            <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:13px;">
-              <span>${share.name} (${toBnNum(share.percentage)}%)</span>
-              <span style="font-weight:700;">${formatMoney(share.amount)}</span>
-            </div>
-          `).join('')}
         </div>
       ` : ''}
     </div>
@@ -2470,28 +2420,6 @@ function renderPresetPriceFields() {
   });
 }
 
-function parseProfitShares(value) {
-  const lines = value.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-  if (!lines.length) return null;
-
-  const shares = [];
-  const names = new Set();
-  let total = 0;
-  for (const line of lines) {
-    const parts = line.split('|');
-    if (parts.length !== 2) return null;
-    const name = parts[0].trim();
-    const percentage = Number(parts[1].trim());
-    if (!name || !Number.isFinite(percentage) || percentage < 0 || percentage > 100 || names.has(name)) {
-      return null;
-    }
-    names.add(name);
-    total += percentage;
-    shares.push({ name, percentage });
-  }
-  return Math.abs(total - 100) <= 0.01 ? shares : null;
-}
-
 function closeSettings() {
   document.getElementById('settingsModal').classList.remove('active');
 }
@@ -2506,8 +2434,7 @@ async function saveSettingsToSheet() {
         presetItems: settings.presetItems,
         expenseCategories: settings.expenseCategories || '',
         costPrices: settings.costPrices,
-        sellingPrices: settings.sellingPrices,
-        profitShares: settings.profitShares
+        sellingPrices: settings.sellingPrices
       }
     });
   } catch (error) {
@@ -2521,8 +2448,7 @@ async function saveSettingsToSheet() {
       remoteSettings.presetItems === settings.presetItems &&
       String(remoteSettings.expenseCategories || '') === String(settings.expenseCategories || '') &&
       JSON.stringify(JSON.parse(remoteSettings.costPrices || '{}')) === JSON.stringify(settings.costPrices) &&
-      JSON.stringify(JSON.parse(remoteSettings.sellingPrices || '{}')) === JSON.stringify(settings.sellingPrices) &&
-      JSON.stringify(JSON.parse(remoteSettings.profitShares || '[]')) === JSON.stringify(settings.profitShares);
+      JSON.stringify(JSON.parse(remoteSettings.sellingPrices || '{}')) === JSON.stringify(settings.sellingPrices);
     if (!settingsMatch) {
       throw new Error('Google Sheet-এ সংরক্ষিত সেটিংস মেলেনি। PIN এবং deployment পরীক্ষা করুন।');
     }
@@ -2532,11 +2458,6 @@ async function saveSettingsToSheet() {
 }
 
 async function saveSettings() {
-  const profitShares = parseProfitShares(document.getElementById('profitShares').value);
-  if (!profitShares) {
-    return showToast('লাভের ভাগ সঠিকভাবে লিখুন; সব শতাংশের যোগফল ১০০% হতে হবে', 'error');
-  }
-
   const costPrices = {};
   const sellingPrices = {};
   let invalidPrice = false;
@@ -2571,7 +2492,7 @@ async function saveSettings() {
   settings.expenseCategories = document.getElementById('expenseCategories').value;
   settings.costPrices = costPrices;
   settings.sellingPrices = sellingPrices;
-  settings.profitShares = profitShares;
+  delete settings.profitShares; // পার্টনার / নিট লাভের ভাগ সিস্টেম সম্পূর্ণ সরানো হয়েছে
   localStorage.setItem('pos_settings', JSON.stringify(settings));
   populateExpenseCategoryOptions();
   closeSettings();
@@ -3212,14 +3133,10 @@ function computeFinanceSummary() {
   const totalSales = invoices.reduce((sum, inv) => sum + safeNum(inv.total), 0);
   const totalCost  = invoices.reduce((sum, inv) => sum + getInvoiceCostTotal(inv), 0);
   const grossProfit = totalSales - totalCost;
-  const shares = getConfiguredProfitShares();
-  const ownerShareObj = shares.find(s => /আমার|my|owner/i.test(String(s.name || ''))) || shares[0] || { percentage: 60 };
-  const ownerPct = safeNum(ownerShareObj.percentage);
-  const myProfitShare = Math.round(grossProfit * ownerPct) / 100;
-  const myIncome = totalCost + myProfitShare; // কস্ট ফেরত + আমার লাভের অংশ
+  const myIncome = totalSales; // পুরো ব্যবসার আয় মালিকের — পার্টনার / লাভের ভাগ সিস্টেম সরানো হয়েছে
   const totalExpenses = expenses.reduce((sum, e) => sum + safeNum(e.amount), 0);
   const totalDue = creditors.reduce((sum, c) => sum + Math.max(0, safeNum(c.taken) - safeNum(c.paid)), 0);
-  return { totalSales, totalCost, grossProfit, myIncome, totalExpenses, totalDue, netPosition: myIncome - totalExpenses - totalDue };
+  return { totalSales, totalCost, grossProfit, myIncome, totalExpenses, totalDue, netPosition: grossProfit - totalExpenses };
 }
 
 function renderFinanceSummary() {
@@ -3230,7 +3147,6 @@ function renderFinanceSummary() {
     { label: '🛒 মোট বিক্রি (সব)', value: formatMoney(s.totalSales), cls: 'sc-blue' },
     { label: '📦 মোট কস্ট (সব)', value: formatMoney(s.totalCost), cls: '' },
     { label: '📈 নিট লাভ (সব)', value: formatMoney(s.grossProfit), cls: s.grossProfit >= 0 ? 'sc-green' : 'sc-red' },
-    { label: '💰 মোট আয় (কস্ট + আমার লাভ)', value: formatMoney(s.myIncome), cls: 'sc-green' },
     { label: '💸 মোট খরচ', value: formatMoney(s.totalExpenses), cls: 'sc-red' },
     { label: '🤝 পাওনাদারে বকেয়া', value: formatMoney(s.totalDue), cls: 'sc-red' }
   ];
@@ -3252,7 +3168,7 @@ function renderFinanceSummary() {
   const netEl = document.getElementById('netPositionValue');
   const breakEl = document.getElementById('netPositionBreakdown');
   if (netEl) netEl.textContent = formatMoney(s.netPosition);
-  if (breakEl) breakEl.textContent = 'মোট আয় ' + formatMoney(s.myIncome) + ' − মোট খরচ ' + formatMoney(s.totalExpenses) + ' − বকেয়া ' + formatMoney(s.totalDue);
+  if (breakEl) breakEl.textContent = 'নিট লাভ ' + formatMoney(s.grossProfit) + ' − মোট খরচ ' + formatMoney(s.totalExpenses);
 }
 
 function buildExpensesUI() {

@@ -116,7 +116,7 @@ function getProfitSheet() {
   let sheet = ss.getSheetByName(PROFIT_SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(PROFIT_SHEET_NAME);
-    sheet.appendRow(['Invoice ID', 'Invoice No', 'Date', 'Total Sale', 'Total Cost', 'Net Profit', 'My Share', 'Partner Share', 'Saved At']);
+    sheet.appendRow(['Invoice ID', 'Invoice No', 'Date', 'Total Sale', 'Total Cost', 'Net Profit', 'Saved At']);
   }
   return sheet;
 }
@@ -211,8 +211,6 @@ function saveInvoice(data) {
     totalSale,
     costTotal,
     netProfit,
-    netProfit * 0.6,
-    netProfit * 0.4,
     new Date().toISOString()
   ];
   
