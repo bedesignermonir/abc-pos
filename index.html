@@ -729,6 +729,12 @@ body {
 .mini-btn { border: none; border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
 .mini-btn.pay { background: linear-gradient(135deg, #10b981, #047857); color: #fff; }
 .mini-btn.del { background: linear-gradient(135deg, #ef4444, #b91c1c); color: #fff; }
+.mini-btn.edit { background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; }
+.exp-item-row { display: grid; grid-template-columns: 2fr 1.6fr 0.9fr 1fr 1.1fr 34px; gap: 8px; align-items: center; margin-top: 8px; }
+.exp-item-row select, .exp-item-row input { width: 100%; padding: 9px 10px; border: 1.5px solid var(--gray-200); border-radius: 8px; font-family: inherit; font-size: 13px; box-sizing: border-box; }
+.exp-item-total { font-weight: 700; font-size: 13px; white-space: nowrap; }
+.exp-remove-btn { border: none; background: #fee2e2; color: #b91c1c; border-radius: 8px; width: 32px; height: 32px; font-size: 16px; font-weight: 700; cursor: pointer; }
+@media (max-width: 720px) { .exp-item-row { grid-template-columns: 1.6fr 0.9fr 1fr 34px; } .exp-item-row .exp-desc-col { grid-column: 1 / -1; } }
 .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .summary-cell { background: var(--gray-50, #f8fafc); border: 1.5px solid var(--gray-200); border-radius: 12px; padding: 12px; }
 .summary-cell .sc-label { color: var(--gray-500); font-size: 11px; font-weight: 700; }
@@ -950,26 +956,43 @@ body {
   <div class="card">
     <div class="card-header">
       <div class="icon-box">🧾</div>
-      <h2>খরচ হিসাব</h2>
+      <h2>নতুন খরচ তৈরি করুন</h2>
     </div>
-    <div class="expense-form-grid">
+    <div class="exp-item-head" style="display:grid;grid-template-columns:2fr 1.6fr 0.9fr 1fr 1.1fr 34px;gap:8px;margin-top:8px;">
+      <span style="font-size:11px;font-weight:700;color:var(--gray-500);">🏷️ ক্যাটাগরি / পাওনাদার</span>
+      <span style="font-size:11px;font-weight:700;color:var(--gray-500);">📝 বিবরণ (অপশনাল)</span>
+      <span style="font-size:11px;font-weight:700;color:var(--gray-500);">পরিমাণ</span>
+      <span style="font-size:11px;font-weight:700;color:var(--gray-500);">একক খরচ</span>
+      <span style="font-size:11px;font-weight:700;color:var(--gray-500);">মোট</span>
+      <span></span>
+    </div>
+    <div id="expenseItemsContainer"></div>
+    <button class="btn btn-reset" onclick="addExpenseItem()" style="margin-top:10px;width:100%;">+ খরচ যোগ করুন</button>
+    <div class="expense-form-grid" style="margin-top:12px;">
       <div class="form-group" style="margin-bottom:0;">
-        <label>🏷️ খরচের ক্যাটাগরি / পাওনাদার</label>
-        <select id="expenseCategorySelect" onchange="toggleOtherExpenseInput()"></select>
-        <input type="text" id="expenseCategoryOther" placeholder="নতুন খরচের নাম লিখুন..." style="display:none;margin-top:8px;">
+        <label>💵 মোট খরচ</label>
+        <input type="text" id="expenseGrandTotal" value="৳০" readonly style="background:var(--gray-50,#f8fafc);font-weight:700;">
       </div>
       <div class="form-group" style="margin-bottom:0;">
-        <label>💵 পরিমাণ</label>
-        <input type="number" id="expenseAmount" min="0" step="0.01" placeholder="০">
-      </div>
-      <div class="form-group" style="margin-bottom:0;">
-        <label>📦 উৎস (যেখান থেকে টাকা যাবে)</label>
+        <label>📦 পেমেন্ট মাধ্যম (যেখান থেকে টাকা যাবে)</label>
         <select id="expenseSource"></select>
       </div>
-      <button class="btn btn-save" onclick="addExpense()">💸 খরচ সেভ</button>
     </div>
-    <div class="filter-row" style="margin-top:12px;">
-      <input type="month" id="expenseMonthFilter" onchange="renderExpenses()">
+    <div class="action-btns-3" style="margin-top:12px;">
+      <button class="btn btn-save" onclick="saveExpenseForm()">💾 সেভ</button>
+      <button class="btn btn-reset" onclick="resetExpenseForm()">🔄 রিসেট</button>
+    </div>
+    <div id="expenseEditBanner" style="display:none;margin-top:10px;padding:8px 12px;background:#fef3c7;border:1.5px solid #f59e0b;border-radius:10px;font-size:13px;font-weight:700;color:#92400e;"></div>
+  </div>
+
+  <!-- Expense List (খরচের তালিকা) -->
+  <div class="card">
+    <div class="card-header">
+      <div class="icon-box">📒</div>
+      <h2>খরচের তালিকা</h2>
+    </div>
+    <div class="filter-row" style="margin-bottom:8px;">
+      <input type="month" id="expenseMonthFilter" onchange="renderExpenseList()">
     </div>
     <div id="expenseList"></div>
   </div>
@@ -1018,19 +1041,21 @@ body {
       </small>
     </div>
     <div class="form-group">
+      <label>🧾 প্রিসেট খরচের তালিকা (প্রতি লাইনে একটি করে)</label>
+      <textarea id="expenseCategories" style="min-height:100px;" placeholder="বাজার খরচ&#10;দোকান ভাড়া&#10;বিদ্যুৎ বিল&#10;পাওনাদার পরিশোধ"></textarea>
+      <small style="color:var(--gray-500);font-size:11px;margin-top:4px;display:block;">
+        এই তালিকা "নতুন খরচ তৈরি করুন" সেকশনের ড্রপডাউনে দেখা যাবে; পাওনাদারদের নাম স্বয়ংক্রিয়ভাবে যোগ হবে।
+      </small>
+    </div>
+    <div class="form-group">
       <label>🤝 নিট লাভের ভাগ (প্রতি লাইনে: নাম | শতাংশ)</label>
       <textarea id="profitShares" style="min-height:80px;" placeholder="আমার অংশ | 60&#10;পার্টনার | 40"></textarea>
       <small style="color:var(--gray-500);font-size:11px;margin-top:4px;display:block;">
         সব অংশের যোগফল ১০০% হতে হবে। নতুন অংশীদার যোগ করতে নতুন লাইন দিন।
       </small>
     </div>
-    <div class="form-group">
-      <label>💸 খরচের ক্যাটাগরি (প্রতি লাইনে একটি)</label>
-      <textarea id="expenseCategories" style="min-height:100px;" placeholder="বাজার খরচ&#10;দোকান ভাড়া&#10;বিদ্যুৎ বিল&#10;কর্মচারীর বেতন"></textarea>
-      <small style="color:var(--gray-500);font-size:11px;margin-top:4px;display:block;">
-        পাওনাদারদের নাম খরচের তালিকায় স্বয়ংক্রিয়ভাবে যোগ হবে। সেভ করার পর "খরচ হিসাব" সেকশনের ড্রপডাউনে দেখা যাবে।
-      </small>
-    </div>
+    
+
     <div class="action-btns-3">
       <button class="btn btn-whatsapp" onclick="saveSettings()">💾 সেভ</button>
       <button class="btn btn-print" onclick="testSheetConnection()">🧪 টেস্ট</button>
@@ -1296,9 +1321,12 @@ async function postSheetData(payload) {
 function getSheetSettingsFromResponse(remoteSettings) {
   const normalized = { ...settings };
   ['presetItems', 'expenseCategories', 'costPrices', 'sellingPrices', 'profitShares'].forEach(key => {
-    if (Object.prototype.hasOwnProperty.call(settings, key) ||
-        !Object.prototype.hasOwnProperty.call(remoteSettings || {}, key)) return;
-    const value = remoteSettings[key];
+    // Google Sheet-এর মানই প্রাধান্য পায় (টেস্ট/সিঙ্কে ক্যাশে-ক্লিয়ার হওয়া সেটআপ ফিরে আসে);
+    // শিটে কী না থাকলে বা খালি থাকলে লোকাল মান অক্ষুণ্ণ থাকে — কোনো ডাটা-লস হয় না।
+    if (!Object.prototype.hasOwnProperty.call(remoteSettings || {}, key)) return;
+    const rawValue = remoteSettings[key];
+    if (rawValue === '' || rawValue === null || rawValue === undefined) return;
+    const value = rawValue;
     if (key === 'presetItems' || key === 'expenseCategories') {
       normalized[key] = String(value || '');
       return;
@@ -1454,7 +1482,8 @@ async function refreshFromSheet() {
 }
 
 async function testSheetConnection() {
-  const url = document.getElementById('sheetUrl').value.trim();
+  const urlInput = document.getElementById('sheetUrl');
+  const url = (urlInput ? urlInput.value : '').trim();
   if (!url) {
     showToast('অনুগ্রহ করে URL দিন', 'error');
     return;
@@ -1467,21 +1496,80 @@ async function testSheetConnection() {
     return;
   }
 
-  showLoading('সংযোগ পরীক্ষা করা হচ্ছে...');
+  showLoading('সংযোগ পরীক্ষা ও সেটিংস লোড হচ্ছে...');
 
+  let connectionOk = false;
+  let invoiceCount = 0;
   try {
     const result = await jsonpRequest(buildSheetUrl('test', {}, url));
-    hideLoading();
-    if (result && result.success) {
-      const count = result.count || 0;
-      showToast('✓ সংযোগ সফল! ' + count + ' টি ইনভয়েস পাওয়া গেছে');
-    } else {
-      showToast('সংযোগ ব্যর্থ: ' + ((result && result.message) || 'Apps Script test action সফল হয়নি'), 'error');
-    }
+    connectionOk = !!(result && result.success);
+    invoiceCount = (result && result.count) || 0;
   } catch (error) {
     hideLoading();
     showToast('সংযোগ ব্যর্থ: ' + error.message + ' Deploy as: Me; access: Anyone; URL must end in /exec.', 'error');
+    return;
   }
+
+  // টেস্টের সাথে সাথেই Settings শিট থেকে সম্পূর্ণ কনফিগারেশন এনে ফর্মে বসানো হয়
+  let settingsLoaded = false;
+  let settingsError = '';
+  try {
+    const remote = await jsonpRequest(buildSheetUrl('getSettings', { pin: SETTINGS_PIN }, url));
+    if (remote && remote.success) {
+      getSheetSettingsFromResponse(remote.settings || {});
+      settingsLoaded = true;
+    } else {
+      settingsError = (remote && remote.message) || 'Settings শিট থেকে ডাটা পাওয়া যায়নি';
+    }
+  } catch (error) {
+    settingsError = error.message;
+  }
+
+  // Creditors শিট থেকে পাওনাদারদের নামও নিয়ে আসে (খরচ ড্রপডাউনের জন্য)
+  let creditorCount = 0;
+  try {
+    const credRes = await jsonpRequest(buildSheetUrl('listCreditors', {}, url));
+    if (credRes && credRes.success && Array.isArray(credRes.creditors) && credRes.creditors.length) {
+      creditors = credRes.creditors.map(c => ({
+        id: safeNum(c.id), name: String(c.name || ''), taken: safeNum(c.taken),
+        paid: safeNum(c.paid), date: c.date || new Date().toISOString()
+      }));
+      saveCreditors();
+      renderCreditorList();
+      creditorCount = creditors.length;
+    }
+  } catch (error) {
+    console.warn('Creditors লোড হয়নি:', error.message);
+  }
+
+  if (settingsLoaded) {
+    populateSettingsFormFromCurrent();
+  }
+
+  hideLoading();
+  if (settingsLoaded) {
+    showToast('✓ সংযোগ সফল! ' + toBnNum(invoiceCount) + ' টি ইনভয়েস, সেটিংস, প্রিসেট আইটেম/কস্ট, খরচের তালিকা ও ' + toBnNum(creditorCount) + ' জন পাওনাদার লোড হয়েছে — "সেভ" চাপলে লোকাল + শিটে জমা হবে');
+  } else {
+    showToast('✓ সংযোগ সফল (' + toBnNum(invoiceCount) + ' ইনভয়েস), কিন্তু সেটিংস লোড হয়নি: ' + settingsError, 'error');
+  }
+}
+
+// সেটিংস মডালের সব ইনপুটে বর্তমান (শিট থেকে আনা) মান বসায়
+function populateSettingsFormFromCurrent() {
+  const sheetUrlEl = document.getElementById('sheetUrl');
+  if (sheetUrlEl) sheetUrlEl.value = settings.sheetUrl || '';
+  const presetEl = document.getElementById('presetItems');
+  if (presetEl) presetEl.value = settings.presetItems || '';
+  const expCatEl = document.getElementById('expenseCategories');
+  if (expCatEl) expCatEl.value = settings.expenseCategories || '';
+  const sharesEl = document.getElementById('profitShares');
+  if (sharesEl) {
+    sharesEl.value = getConfiguredProfitShares()
+      .map(share => `${share.name} | ${share.percentage}`)
+      .join('\n');
+  }
+  renderPresetPriceFields();
+  populateExpenseCategoryOptions();
 }
 
 // ===== Items Management =====
@@ -2317,14 +2405,7 @@ function verifySettingsPin() {
   }
 
   closeSettingsPin();
-  document.getElementById('sheetUrl').value = settings.sheetUrl || '';
-  document.getElementById('presetItems').value = settings.presetItems || '';
-  const expCatEl = document.getElementById('expenseCategories');
-  if (expCatEl) expCatEl.value = settings.expenseCategories || '';
-  document.getElementById('profitShares').value = getConfiguredProfitShares()
-    .map(share => `${share.name} | ${share.percentage}`)
-    .join('\n');
-  renderPresetPriceFields();
+  populateSettingsFormFromCurrent();
   document.getElementById('settingsModal').classList.add('active');
 }
 
@@ -2684,6 +2765,7 @@ function saveCreditors() { try { localStorage.setItem('pos_creditors', JSON.stri
 function saveExpenses()  { try { localStorage.setItem('pos_expenses',  JSON.stringify(expenses));  } catch (e) {} }
 
 // --- Google Sheet ব্যাকআপ (ব্যাকএন্ড কনফিগার থাকলে; লোকাল ডাটার মূল উৎস localStorage-ই থাকে) ---
+// খরচের শিটে items JSON সহ সম্পূর্ণ রেকর্ড যায় (saveExpense action)।
 async function backupCreditorToSheet(c) {
   if (!getSheetUrl()) return;
   try { await postSheetData({ action: 'saveCreditor', creditor: c }); }
@@ -2754,29 +2836,14 @@ function setRegisterBalanceValue(sourceKey, value) {
 }
 
 function populateExpenseCategoryOptions() {
-  const select = document.getElementById('expenseCategorySelect');
-  if (!select) return;
-  const prev = select.value;
-  const cats = getExpenseCategoryList();
-  const creditorNames = [...new Set(creditors.map(c => String(c.name || '').trim()).filter(Boolean))];
-  let html = '<option value="">-- বাছাই করুন --</option>';
-  cats.forEach(c => { html += `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`; });
-  if (creditorNames.length) {
-    html += '<optgroup label="🤝 পাওনাদারকে পরিশোধ">' +
-      creditorNames.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('') + '</optgroup>';
-  }
-  html += '<option value="__other__">✏️ অন্যান্য (নতুন নাম লিখুন...)</option>';
-  select.innerHTML = html;
-  if (prev && [...select.options].some(o => o.value === prev)) select.value = prev;
-  toggleOtherExpenseInput();
-}
-
-function toggleOtherExpenseInput() {
-  const select = document.getElementById('expenseCategorySelect');
-  const other = document.getElementById('expenseCategoryOther');
-  if (!select || !other) return;
-  other.style.display = select.value === '__other__' ? '' : 'none';
-  if (select.value !== '__other__') other.value = '';
+  // প্রতিটি সারির ড্রপডাউন রিফ্রেশ (ক্যাটাগরি + পাওনাদারের নাম সহ)
+  document.querySelectorAll('#expenseItemsContainer .exp-item-row').forEach(row => {
+    const sel = row.querySelector('.expCatSelect');
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = expenseCategoryDropdownHtml(prev);
+    onExpCatChange(sel);
+  });
 }
 
 function resolveCreditor(name) {
@@ -2882,80 +2949,259 @@ function renderExpenseList() {
     <div class="expense-row">
       <div class="expense-info">
         <div><span class="expense-cat-tag">${escapeHtml(e.category || '')}</span><b>${formatMoney(e.amount)}</b></div>
-        <div class="expense-sub">${formatDate(e.date)} · উৎস: ${escapeHtml(e.sourceLabel || srcLabels[e.source] || e.source || '')}</div>
+        <div class="expense-sub">${formatDate(e.date)} · মাধ্যম: ${escapeHtml(e.sourceLabel || srcLabels[e.source] || e.source || '')}${e.desc ? ' · ' + escapeHtml(e.desc) : ''}</div>
       </div>
       <div class="row-actions">
-        <button class="mini-btn del" onclick="deleteExpense(${safeNum(e.id)})">🗑️</button>
+        <button class="mini-btn edit" onclick="editExpense(${safeNum(e.id)})">✏️ এডিট</button>
+        <button class="mini-btn pay" onclick="printExpense(${safeNum(e.id)})">🖨️ প্রিন্ট</button>
+        <button class="mini-btn del" onclick="deleteExpense(${safeNum(e.id)})">🗑️ ডিলিট</button>
       </div>
     </div>`).join('');
 }
 
-function addExpense() {
+let editingExpenseId = null;
+
+function expenseCategoryDropdownHtml(selected) {
+  const cats = getExpenseCategoryList();
+  const creditorNames = [...new Set(creditors.map(c => String(c.name || '').trim()).filter(Boolean))];
+  let html = '<option value="">-- বাছাই করুন --</option>';
+  cats.forEach(c => {
+    html += `<option value="${escapeHtml(c)}" ${c === selected ? 'selected' : ''}>${escapeHtml(c)}</option>`;
+  });
+  if (creditorNames.length) {
+    html += '<optgroup label="🤝 পাওনাদারকে পরিশোধ">' +
+      creditorNames.map(n => `<option value="${escapeHtml(n)}" ${n === selected ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('') + '</optgroup>';
+  }
+  html += `<option value="__other__" ${selected === '__other__' ? 'selected' : ''}>✏️ অন্যান্য (নতুন নাম লিখুন...)</option>`;
+  return html;
+}
+
+function addExpenseItem(data) {
+  const container = document.getElementById('expenseItemsContainer');
+  if (!container) return;
+  const d = data || {};
+  const escAttr = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const row = document.createElement('div');
+  row.className = 'exp-item-row';
+  row.innerHTML = `
+    <div class="exp-cat-col">
+      <select class="expCatSelect" onchange="onExpCatChange(this); calcExpenseFormTotal()">${expenseCategoryDropdownHtml(d.category || '')}</select>
+      <input type="text" class="expCatOther" placeholder="নতুন খরচের নাম লিখুন..." value="${d.category === '__other__' ? escAttr(d.otherName) : ''}" style="display:${d.category === '__other__' ? 'block' : 'none'};margin-top:6px;" oninput="calcExpenseFormTotal()">
+    </div>
+    <div class="exp-desc-col"><input type="text" class="expDesc" placeholder="বিবরণ (যেমন: রিকশা ভাড়া)" value="${escAttr(d.desc)}"></div>
+    <input type="number" class="expQty" min="1" step="1" value="${safeNum(d.qty) > 0 ? safeNum(d.qty) : 1}" oninput="calcExpenseFormTotal()">
+    <input type="number" class="expCost" min="0" step="0.01" placeholder="মূল্য" value="${safeNum(d.unitCost) || ''}" oninput="calcExpenseFormTotal()">
+    <div class="exp-item-total">৳০</div>
+    <button type="button" class="exp-remove-btn" title="সারি মুছুন" onclick="this.parentElement.remove(); calcExpenseFormTotal()">×</button>`;
+  container.appendChild(row);
+  calcExpenseFormTotal();
+}
+
+function onExpCatChange(sel) {
+  const row = sel.closest('.exp-item-row');
+  const other = row.querySelector('.expCatOther');
+  other.style.display = sel.value === '__other__' ? 'block' : 'none';
+  if (sel.value !== '__other__') other.value = '';
+}
+
+function calcExpenseFormTotal() {
+  let total = 0;
+  document.querySelectorAll('#expenseItemsContainer .exp-item-row').forEach(row => {
+    const amt = Math.max(0, safeNum(row.querySelector('.expQty').value)) * Math.max(0, safeNum(row.querySelector('.expCost').value));
+    const disp = row.querySelector('.exp-item-total');
+    if (disp) disp.textContent = formatMoney(amt);
+    total += amt;
+  });
+  const g = document.getElementById('expenseGrandTotal');
+  if (g) g.value = formatMoney(total);
+  return total;
+}
+
+function collectExpenseFormRows() {
+  const rows = [];
+  document.querySelectorAll('#expenseItemsContainer .exp-item-row').forEach(row => {
+    const sel = row.querySelector('.expCatSelect');
+    const other = row.querySelector('.expCatOther');
+    const category = sel.value === '__other__' ? (other.value || '').trim() : sel.value;
+    const qty = Math.max(0, safeNum(row.querySelector('.expQty').value));
+    const unitCost = Math.max(0, safeNum(row.querySelector('.expCost').value));
+    const amount = Math.round(qty * unitCost * 100) / 100;
+    const desc = (row.querySelector('.expDesc').value || '').trim();
+    if (!category && !(qty > 0 && unitCost > 0)) return; // সম্পূর্ণ ফাঁকা সারি উপেক্ষা
+    if (!category) { throw new Error('প্রতিটি খরচের সারিতে ক্যাটাগরি / পাওনাদার বাছাই করুন'); }
+    if (!(amount > 0)) { throw new Error('"' + category + '" সারির পরিমাণ ও একক খরচ দিন'); }
+    rows.push({ category, qty: qty || 1, unitCost, amount, desc });
+  });
+  return rows;
+}
+
+function setSourceBalanceDelta(sourceKey, delta) {
+  const current = getRegisterBalanceValue(sourceKey);
+  setRegisterBalanceValue(sourceKey, Math.max(0, current + delta));
+}
+
+function applyExpenseEffects(rows, source, sign) {
+  const totalAmount = rows.reduce((sum, r) => sum + safeNum(r.amount), 0);
+  setSourceBalanceDelta(source, -sign * totalAmount);
+  const byCreditor = {};
+  rows.forEach(r => {
+    const c = resolveCreditor(r.category);
+    if (!c) return;
+    byCreditor[c.id] = (byCreditor[c.id] || 0) + safeNum(r.amount);
+  });
+  Object.keys(byCreditor).forEach(id => {
+    const c = creditors.find(x => safeNum(x.id) === safeNum(id));
+    if (!c) return;
+    c.paid = Math.max(0, safeNum(c.paid) - sign * byCreditor[id]);
+  });
+  saveCreditors();
+}
+
+function saveExpenseForm() {
   try {
-    const catSel = document.getElementById('expenseCategorySelect');
-    const otherEl = document.getElementById('expenseCategoryOther');
-    const amtEl = document.getElementById('expenseAmount');
+    const rows = collectExpenseFormRows();
+    if (!rows.length) return showToast('অন্তত একটি খরচের সারি পূরণ করুন (ক্যাটাগরি + পরিমাণ + একক খরচ)', 'error');
     const srcEl = document.getElementById('expenseSource');
-    let category = catSel.value === '__other__' ? (otherEl.value || '').trim() : catSel.value;
-    const amount = safeNum(amtEl.value);
     const source = srcEl.value || 'cash';
-    if (!category) return showToast('খরচের ক্যাটাগরি / পাওনাদার বাছাই করুন', 'error');
-    if (!(amount > 0)) return showToast('খরচের পরিমাণ দিন', 'error');
+    const totalAmount = rows.reduce((sum, r) => sum + r.amount, 0);
 
-    const current = getRegisterBalanceValue(source);
-    if (current < amount) {
-      return showToast('⚠️ "' + srcLabelOf(source) + '" এ মাত্র ' + formatMoney(current) + ' আছে — ' + formatMoney(amount) + ' কাটা যাবে না। প্রথমে ওই উৎসের ব্যালেন্স ঠিকভাবে লিখে 💾 সেভ করুন।', 'error');
+    if (editingExpenseId !== null) {
+      const e = expenses.find(x => safeNum(x.id) === safeNum(editingExpenseId));
+      if (!e) { resetExpenseForm(); return showToast('মূল খরচের রেকর্ড পাওয়া যায়নি', 'error'); }
+      const oldSource = e.source || 'cash';
+      // ১) পুরোনো ইফেক্ট ফেরত (উৎস ব্যালেন্স + পাওনাদার বকেয়া)
+      applyExpenseEffects(e.items && e.items.length ? e.items : [{ category: e.category, amount: safeNum(e.amount) }], oldSource, -1);
+      // 2) নতুন ইফেক্ট প্রয়োগ (পর্যাপ্ত ব্যালেন্স চেক সহ)
+      const available = getRegisterBalanceValue(source);
+      if (available < totalAmount) {
+        // পুরোনো ইফেক্ট আগের অবস্থায় ফিরিয়ে নিন
+        applyExpenseEffects(e.items && e.items.length ? e.items : [{ category: e.category, amount: safeNum(e.amount) }], oldSource, 1);
+        return showToast('⚠️ "' + srcLabelOf(source) + '" এ মাত্র ' + formatMoney(available) + ' আছে — ' + formatMoney(totalAmount) + ' কাটা যাবে না।', 'error');
+      }
+      applyExpenseEffects(rows, source, 1);
+      e.category = rows.map(r => r.category).join(', ');
+      e.items = rows;
+      e.amount = totalAmount;
+      e.source = source;
+      e.sourceLabel = srcLabelOf(source);
+      e.desc = rows.map(r => r.desc).filter(Boolean).join('; ');
+      saveExpenses();
+      backupExpenseToSheet(e);
+      resetExpenseForm();
+      renderExpenseList();
+      renderCreditorList();
+      populateExpenseCategoryOptions();
+      renderFinanceSummary();
+      showToast('✓ খরচ আপডেট হয়েছে: ' + formatMoney(totalAmount) + ' (' + srcLabelOf(source) + ')');
+      return;
     }
 
-    // ১) ব্যালেন্স থেকে স্বয়ংক্রিয় কর্তন
-    setRegisterBalanceValue(source, current - amount);
-
-    // ২) পাওনাদারের সাথে মিললে বকেয়া কমে
-    const creditor = resolveCreditor(category);
-    if (creditor) {
-      creditor.paid = safeNum(creditor.paid) + amount;
-      saveCreditors();
+    const available = getRegisterBalanceValue(source);
+    if (available < totalAmount) {
+      return showToast('⚠️ "' + srcLabelOf(source) + '" এ মাত্র ' + formatMoney(available) + ' আছে — ' + formatMoney(totalAmount) + ' কাটা যাবে না। প্রথমে রেজিস্টারে ব্যালেন্স লিখে 💾 সেভ করুন।', 'error');
     }
-
+    applyExpenseEffects(rows, source, 1);
     const expense = {
       id: Date.now(),
-      category: category,
-      amount: amount,
+      category: rows.map(r => r.category).join(', '),
+      items: rows,
+      amount: totalAmount,
       source: source,
       sourceLabel: srcLabelOf(source),
+      desc: rows.map(r => r.desc).filter(Boolean).join('; '),
       date: new Date().toISOString()
     };
     expenses.unshift(expense);
     saveExpenses();
     backupExpenseToSheet(expense);
-    if (creditor) backupCreditorToSheet(creditor);
-    amtEl.value = ''; otherEl.value = ''; catSel.value = '';
-    toggleOtherExpenseInput();
+    resetExpenseForm();
     renderExpenseList();
     renderCreditorList();
+    populateExpenseCategoryOptions();
     renderFinanceSummary();
-    showToast('✓ খরচ ' + formatMoney(amount) + ' ("' + category + '", ' + srcLabelOf(source) + ') সেভ হয়েছে' + (creditor ? ' — বকেয়া কমেছে' : ''));
+    showToast('✓ খরচ সেভ হয়েছে: ' + formatMoney(totalAmount) + ' (' + srcLabelOf(source) + ')' + (resolveCreditor(rows[0].category) ? ' — বকেয়া কমেছে' : ''));
   } catch (error) {
-    console.error('addExpense ত্রুটি:', error);
-    showToast('খরচ সেভ করা যায়নি: ' + error.message, 'error');
+    console.error('saveExpenseForm ত্রুটি:', error);
+    showToast(error.message || 'খরচ সেভ করা যায়নি', 'error');
   }
 }
 
-function srcLabelOf(key) {
-  const found = expenseSourceOptions().find(o => o.key === key);
-  return found ? found.label.replace(/^\S+\s/, '') : String(key || '');
+function resetExpenseForm() {
+  editingExpenseId = null;
+  const container = document.getElementById('expenseItemsContainer');
+  if (container) container.innerHTML = '';
+  addExpenseItem();
+  const srcSel = document.getElementById('expenseSource');
+  if (srcSel) srcSel.value = 'cash';
+  const banner = document.getElementById('expenseEditBanner');
+  if (banner) { banner.style.display = 'none'; banner.textContent = ''; }
+  calcExpenseFormTotal();
+}
+
+function editExpense(id) {
+  const e = expenses.find(x => safeNum(x.id) === safeNum(id));
+  if (!e) return showToast('খরচের রেকর্ড পাওয়া যায়নি', 'error');
+  editingExpenseId = safeNum(e.id);
+  const container = document.getElementById('expenseItemsContainer');
+  if (container) container.innerHTML = '';
+  const rows = (Array.isArray(e.items) && e.items.length)
+    ? e.items
+    : [{ category: e.category, qty: 1, unitCost: safeNum(e.amount), amount: safeNum(e.amount), desc: e.desc || '' }];
+  rows.forEach(r => addExpenseItem(r));
+  const srcSel = document.getElementById('expenseSource');
+  if (srcSel) srcSel.value = e.source || 'cash';
+  const banner = document.getElementById('expenseEditBanner');
+  if (banner) {
+    banner.style.display = 'block';
+    banner.textContent = '✏️ এডিট মোড: "' + (e.category || '') + '" (' + formatDate(e.date) + ') — পরিবর্তন করে আবার 💾 সেভ করুন; বাতিল করতে 🔄 রিসেট চাপুন।';
+  }
+  calcExpenseFormTotal();
+  if (container) container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function printExpense(id) {
+  const e = expenses.find(x => safeNum(x.id) === safeNum(id));
+  if (!e) return showToast('খরচের রেকর্ড পাওয়া যায়নি', 'error');
+  const rows = (Array.isArray(e.items) && e.items.length)
+    ? e.items
+    : [{ category: e.category, qty: 1, unitCost: safeNum(e.amount), amount: safeNum(e.amount), desc: '' }];
+  const itemsHtml = rows.map(r => `
+    <tr>
+      <td>${escapeHtml(r.category || '')}${r.desc ? '<br><small>' + escapeHtml(r.desc) + '</small>' : ''}</td>
+      <td style="text-align:center;">${toBnNum(safeNum(r.qty) || 1)}</td>
+      <td style="text-align:right;">${formatMoney(r.unitCost)}</td>
+      <td style="text-align:right;font-weight:700;">${formatMoney(r.amount)}</td>
+    </tr>`).join('');
+  const win = window.open('', '_blank');
+  if (!win) return showToast('প্রিন্ট উইন্ডো খোলা যায়নি — ব্রাউজার popup ব্লক চেক করুন', 'error');
+  win.document.write(`<!DOCTYPE html><html><head><title>খরচের রসিদ</title>
+    <style>body{font-family:'Noto Sans Bengali',Arial,sans-serif;padding:24px;max-width:520px;margin:auto;}
+    h2{text-align:center;margin-bottom:4px;} .sub{text-align:center;color:#555;font-size:13px;margin-bottom:16px;}
+    table{width:100%;border-collapse:collapse;} th,td{border:1px solid #ddd;padding:8px;font-size:14px;}
+    th{background:#f1f5f9;} .tot{font-size:17px;font-weight:800;text-align:right;margin-top:14px;}
+    .meta{font-size:13px;color:#333;margin-bottom:10px;}</style></head><body>
+    <h2>ABC Computer</h2><div class="sub">খরচের রসিদ (Expense Receipt)</div>
+    <div class="meta">তারিখ: ${formatDate(e.date)}<br>ক্যাটাগরি: ${escapeHtml(e.category || '')}<br>পেমেন্ট মাধ্যম: ${escapeHtml(e.sourceLabel || srcLabelOf(e.source))}</div>
+    <table><thead><tr><th>খাত / বিবরণ</th><th>পরিমাণ</th><th>একক খরচ</th><th>মোট</th></tr></thead>
+    <tbody>${itemsHtml}</tbody></table>
+    <div class="tot">সর্বমোট: ${formatMoney(e.amount)}</div>
+    <script>window.onload=function(){setTimeout(function(){window.print();},300);};<\/script>
+    </body></html>`);
+  win.document.close();
 }
 
 function deleteExpense(id) {
   const e = expenses.find(x => safeNum(x.id) === safeNum(id));
   if (!e) return;
-  if (!confirm('"' + e.category + '" এর ' + formatMoney(e.amount) + ' খরচের রেকর্ড মুছবেন?\n(মুছলে উৎসের ব্যালেন্স স্বয়ংক্রিয়ভাবে ফিরে আসবে)')) return;
+  if (!confirm('"' + e.category + '" এর ' + formatMoney(e.amount) + ' খরচের রেকর্ড মুছবেন?\n(মুছলে উৎসের ব্যালেন্স ও পাওনাদারের বকেয়া স্বয়ংক্রিয়ভাবে ফিরে আসবে)')) return;
+  const rows = (Array.isArray(e.items) && e.items.length)
+    ? e.items
+    : [{ category: e.category, amount: safeNum(e.amount) }];
+  applyExpenseEffects(rows, e.source || 'cash', -1);
   expenses = expenses.filter(x => safeNum(x.id) !== safeNum(id));
   saveExpenses();
   removeExpenseFromSheet(id);
-  const current = getRegisterBalanceValue(e.source);
-  setRegisterBalanceValue(e.source, current + safeNum(e.amount));
-  if (resolveCreditor(e.category)) { /* creditor paid stays as recorded; user can adjust via creditor list */ }
+  if (safeNum(editingExpenseId) === safeNum(id)) resetExpenseForm();
   renderExpenseList();
   renderCreditorList();
   renderFinanceSummary();
@@ -3020,7 +3266,8 @@ function buildExpensesUI() {
     const n = new Date();
     mf.value = n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0');
   }
-  populateExpenseCategoryOptions();
+  const container = document.getElementById('expenseItemsContainer');
+  if (container && !container.children.length) addExpenseItem();
 }
 
 buildExpensesUI();
