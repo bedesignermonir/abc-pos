@@ -1274,9 +1274,8 @@ function jsonpRequest(requestUrl, timeoutMs = SHEET_REQUEST_TIMEOUT_MS) {
 }
 
 async function postSheetData(payload) {
-  // ক্রস-অরিজিন POST-এ Apps Script-এর redirect-chain ও opaque-response সীমাবদ্ধতার
-  // কারণে fetch-এর ফলাফল নির্ভরযোগ্য নয়। তাই এখানে চূড়ান্ত সাফল্য ধরা হয় না —
-  // পরবর্তীতে JSONP (verifyInvoice/verifyDelete) দিয়ে লাইভ শিটে যাচাই করা হয়।
+  // Apps Script handles this safelisted form POST; the response is opaque in no-cors
+  // mode, so callers confirm writes through the matching JSONP verification endpoint.
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SHEET_REQUEST_TIMEOUT_MS);
   try {
@@ -1410,7 +1409,7 @@ async function saveToSheet(invoice) {
   let postError = '';
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      await postSheetData({ action: 'saveInvoice', data: invoice });
+      await postSheetData({ action: 'saveInvoice', invoice: invoice });
       postError = '';
       break;
     } catch (error) {

@@ -17,12 +17,16 @@ function doGet(e) {
   let result;
   
   try {
-    if (action === 'list') {
+    if (action === 'list' || action === 'getAll') {
       result = listInvoices(e);
+      if (action === 'getAll') {
+        result = getAllInvoices(result);
+      }
     } else if (action === 'getSettings') {
       result = getSettingsData(e);
     } else if (action === 'test') {
       result = testConnection();
+      if (result.success) result.count = listInvoices(e).invoices.length;
     } else if (action === 'listCreditors') {
       result = listCreditors(e);
     } else if (action === 'listExpenses') {
@@ -35,6 +39,10 @@ function doGet(e) {
       result = verifyRecord(e);
     } else if (action === 'verifyRecordGone') {
       result = verifyRecordGone(e);
+    } else if (action === 'verifyInvoice') {
+      result = verifyInvoice(e);
+    } else if (action === 'verifyDelete') {
+      result = verifyDelete(e);
     } else {
       result = { success: false, error: 'Unknown action' };
     }
@@ -47,9 +55,8 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    // Robust payload parsing
     const data = parsePayload(e);
-    const action = data.action || '';
+    const action = data.action || (e && e.parameter && e.parameter.action) || '';
     const callback = data.callback || '';
     
     let result;
@@ -70,6 +77,8 @@ function doPost(e) {
       result = deleteExpense(data);
     } else if (action === 'saveCashRecord') {
       result = saveCashRecord(data);
+    } else if (action === 'saveCashRegister') {
+      result = saveCashRegister(data);
     } else {
       result = { success: false, error: 'Unknown action: ' + action };
     }
@@ -82,23 +91,55 @@ function doPost(e) {
 
 // ---------- Helper Functions ----------
 function parsePayload(e) {
-  try {
-    if (e.postData && e.postData.contents) {
-      return JSON.parse(e.postData.contents);
-    } else if (e.parameter && e.parameter.data) {
-      return JSON.parse(decodeURIComponent(e.parameter.data));
+  if (!e) throw new Error('Request event is missing');
+
+  const contents = e.postData && e.postData.contents;
+  if (contents) {
+    const contentType = String(e.postData.type || '').toLowerCase();
+    if (contentType.indexOf('application/json') !== -1) {
+      return parseObjectPayload(contents, 'JSON request body');
     }
-  } catch (err) {}
-  return {};
+  }
+
+  const params = e.parameter || {};
+  const encodedPayload = params.payload || params.data;
+  if (encodedPayload) {
+    const payload = parseObjectPayload(encodedPayload, 'form payload');
+    if (!payload.action && params.action) payload.action = params.action;
+    return payload;
+  }
+
+  if (contents) return parseObjectPayload(contents, 'request body');
+  if (params.action) return Object.assign({}, params);
+  throw new Error('Request payload is empty');
+}
+
+function parseObjectPayload(value, label) {
+  let payload;
+  try {
+    payload = typeof value === 'string' ? JSON.parse(value) : value;
+  } catch (err) {
+    throw new Error('Invalid ' + label + ': ' + err.message);
+  }
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error(label + ' must be a JSON object');
+  }
+  return payload;
 }
 
 function jsonOutput(obj, callback) {
-  const output = ContentService.createTextOutput(JSON.stringify(obj));
-  output.setMimeType(ContentService.MimeType.JSON);
   if (callback) {
-    return ContentService.createTextOutput(callback + '(' + JSON.stringify(obj) + ')');
+    if (!/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/.test(callback)) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        error: 'Invalid JSONP callback'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    return ContentService.createTextOutput(callback + '(' + JSON.stringify(obj) + ');')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
-  return output;
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function getSheet() {
@@ -174,7 +215,10 @@ function findRowById(sheet, id) {
 // ---------- Invoice Functions ----------
 function saveInvoice(data) {
   const sheet = getSheet();
-  const invoice = data.invoice;
+  const invoice = data.invoice || data.data;
+  if (!invoice || typeof invoice !== 'object' || !invoice.id) {
+    throw new Error('Invoice data with an ID is required');
+  }
   
   const existingRow = findRowById(sheet, invoice.id);
   
@@ -233,14 +277,19 @@ function saveInvoice(data) {
 
 function deleteInvoice(data) {
   const sheet = getSheet();
+  const profitSheet = getProfitSheet();
   const row = findRowById(sheet, data.id);
-  if (row > 0) {
-    sheet.deleteRow(row);
-    SpreadsheetApp.flush();
-    const verifyRow = findRowById(getSheet(), data.id);
-    return { success: verifyRow === 0, deleted: data.id };
-  }
-  return { success: false, error: 'Not found' };
+  const profitRow = findRowById(profitSheet, data.id);
+  if (row > 0) sheet.deleteRow(row);
+  if (profitRow > 0) profitSheet.deleteRow(profitRow);
+  if (row > 0 || profitRow > 0) SpreadsheetApp.flush();
+
+  const verifySalesRow = findRowById(getSheet(), data.id);
+  const verifyProfitRow = findRowById(getProfitSheet(), data.id);
+  return {
+    success: verifySalesRow === 0 && verifyProfitRow === 0,
+    deleted: data.id
+  };
 }
 
 function listInvoices(e) {
@@ -261,6 +310,35 @@ function listInvoices(e) {
   }
   
   return { success: true, invoices: invoices };
+}
+
+function getAllInvoices(result) {
+  const data = result.invoices.map(function (row) {
+    let items = [];
+    try {
+      items = typeof row.Items === 'string' ? JSON.parse(row.Items) : (row.Items || []);
+    } catch (err) {
+      throw new Error('Invalid invoice items JSON for invoice ' + row.ID);
+    }
+    return {
+      id: row.ID,
+      invoiceNo: row['Invoice No'],
+      date: row.Date,
+      customerName: row['Customer Name'],
+      phone: row.Phone,
+      items: items,
+      subtotal: row.Subtotal,
+      discount: row.Discount,
+      total: row.Total,
+      costTotal: row['Cost Total'],
+      notes: row.Notes
+    };
+  });
+  const nextNumber = data.reduce(function (maximum, invoice) {
+    const match = String(invoice.invoiceNo || '').match(/(\d+)$/);
+    return match ? Math.max(maximum, Number(match[1]) + 1) : maximum;
+  }, 1);
+  return { success: true, data: data, nextNumber: nextNumber };
 }
 
 // ---------- Settings Functions ----------
@@ -325,7 +403,7 @@ function getSettingsData(e) {
 function verifySettings(e) {
   const sheet = getSettingsSheet();
   const values = sheet.getDataRange().getValues();
-  const keysToCheck = (e.parameter.keys || '').split(',').filter(k => k);
+  const keysToCheck = ((e && e.parameter && e.parameter.keys) || '').split(',').filter(k => k);
   
   const found = {};
   for (let i = 1; i < values.length; i++) {
@@ -343,6 +421,9 @@ function verifySettings(e) {
 function saveCreditor(data) {
   const sheet = getCreditorsSheet();
   const creditor = data.creditor;
+  if (!creditor || typeof creditor !== 'object' || !creditor.id) {
+    throw new Error('Creditor data with an ID is required');
+  }
   
   const row = [
     creditor.id,
@@ -403,6 +484,9 @@ function listCreditors(e) {
 function saveExpense(data) {
   const sheet = getExpensesSheet();
   const expense = data.expense;
+  if (!expense || typeof expense !== 'object' || !expense.id) {
+    throw new Error('Expense data with an ID is required');
+  }
   
   const row = [
     expense.id,
@@ -462,7 +546,10 @@ function listExpenses(e) {
 // ---------- Cash Register Functions ----------
 function saveCashRecord(data) {
   const sheet = getCashSheet();
-  const record = data.record;
+  const record = data.record || data.cashRegister;
+  if (!record || typeof record !== 'object' || !record.id) {
+    throw new Error('Cash register data with an ID is required');
+  }
   
   const row = [
     record.id,
@@ -486,6 +573,10 @@ function saveCashRecord(data) {
   
   const verifyRow = findRowById(getCashSheet(), record.id);
   return { success: verifyRow > 0, id: record.id };
+}
+
+function saveCashRegister(data) {
+  return saveCashRecord(data);
 }
 
 function listCashRecords(e) {
@@ -516,8 +607,9 @@ function listCashRecords(e) {
 
 // ---------- Verification Actions ----------
 function verifyRecord(e) {
-  const kind = e.parameter.kind || '';
-  const id = e.parameter.id || '';
+  const params = (e && e.parameter) || {};
+  const kind = params.kind || '';
+  const id = params.id || '';
   
   let sheet;
   if (kind === 'creditor') sheet = getCreditorsSheet();
@@ -529,9 +621,24 @@ function verifyRecord(e) {
   return { success: row > 0, found: row > 0 };
 }
 
+function verifyInvoice(e) {
+  const id = (e && e.parameter && e.parameter.id) || '';
+  const inSales = findRowById(getSheet(), id) > 0;
+  const inProfit = findRowById(getProfitSheet(), id) > 0;
+  return { success: inSales && inProfit, inSales: inSales, inProfit: inProfit };
+}
+
+function verifyDelete(e) {
+  const id = (e && e.parameter && e.parameter.id) || '';
+  const inSales = findRowById(getSheet(), id) > 0;
+  const inProfit = findRowById(getProfitSheet(), id) > 0;
+  return { success: !inSales && !inProfit, inSales: inSales, inProfit: inProfit };
+}
+
 function verifyRecordGone(e) {
-  const kind = e.parameter.kind || '';
-  const id = e.parameter.id || '';
+  const params = (e && e.parameter) || {};
+  const kind = params.kind || '';
+  const id = params.id || '';
   
   let sheet;
   if (kind === 'creditor') sheet = getCreditorsSheet();
