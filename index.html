@@ -1592,7 +1592,8 @@ async function testSheetConnection() {
     if (credRes && credRes.success && Array.isArray(credRes.creditors) && credRes.creditors.length) {
       creditors = credRes.creditors.map(c => ({
         id: safeNum(c.id), name: String(c.name || ''), taken: safeNum(c.taken),
-        paid: safeNum(c.paid), date: c.date || new Date().toISOString()
+        paid: safeNum(c.paid), due: safeNum(c.taken) - safeNum(c.paid),
+        date: c.date || new Date().toISOString()
       }));
       saveCreditors();
       renderCreditorList();
@@ -1602,13 +1603,31 @@ async function testSheetConnection() {
     console.warn('Creditors লোড হয়নি:', error.message);
   }
 
+  let cashRegisterLoaded = false;
+  try {
+    if (!localStorage.getItem('pos_cash_register')) {
+      const cashRes = await jsonpRequest(buildSheetUrl('listCash', {}, url));
+      if (cashRes && cashRes.success && Array.isArray(cashRes.records) && cashRes.records.length) {
+        const latest = cashRes.records.slice().sort((a, b) =>
+          String(b.date || '').localeCompare(String(a.date || '')))[0];
+        if (loadRegister(latest)) {
+          localStorage.setItem('pos_cash_register', JSON.stringify(latest));
+          updateRegisterTotals();
+          cashRegisterLoaded = true;
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('ক্যাশ রেজিস্টার শিট থেকে লোড হয়নি:', error.message);
+  }
+
   if (settingsLoaded) {
     populateSettingsFormFromCurrent();
   }
 
   hideLoading();
   if (settingsLoaded) {
-    showToast('✓ সংযোগ সফল! ' + toBnNum(invoiceCount) + ' টি ইনভয়েস, সেটিংস, প্রিসেট আইটেম/কস্ট, খরচের তালিকা ও ' + toBnNum(creditorCount) + ' জন পাওনাদার লোড হয়েছে — "সেভ" চাপলে লোকাল + শিটে জমা হবে');
+    showToast('✓ সংযোগ সফল! ' + toBnNum(invoiceCount) + ' টি ইনভয়েস, সেটিংস, প্রিসেট আইটেম/কস্ট, খরচের তালিকা, ' + toBnNum(creditorCount) + ' জন পাওনাদার' + (cashRegisterLoaded ? ' এবং ক্যাশ রেজিস্টার' : '') + ' লোড হয়েছে — "সেভ" চাপলে লোকাল + শিটে জমা হবে');
   } else {
     showToast('✓ সংযোগ সফল (' + toBnNum(invoiceCount) + ' ইনভয়েস), কিন্তু সেটিংস লোড হয়নি: ' + settingsError, 'error');
   }
@@ -2691,13 +2710,24 @@ async function saveRegister() {
     data.digitalTotal = BALANCE_ACCOUNTS.reduce((sum, account) =>
       sum + data.balances[account.key], 0);
     data.grandTotal = data.cashTotal + data.digitalTotal;
-    localStorage.setItem('pos_cash_register', JSON.stringify(data));
+    const record = {
+      id: data.id,
+      date: data.date,
+      cashTotal: data.cashTotal,
+      digitalTotal: data.digitalTotal,
+      grandTotal: data.grandTotal,
+      denominations: Object.fromEntries(CASH_DENOMS.map(denomination =>
+        [denomination, data.denominations[denomination]])),
+      balances: Object.fromEntries(BALANCE_ACCOUNTS.map(account =>
+        [account.key, data.balances[account.key]]))
+    };
+    localStorage.setItem('pos_cash_register', JSON.stringify(record));
     localSaved = true;
     if (getSheetUrl()) {
-      await postSheetData({ action: 'saveCashRegister', record: data });
+      await postSheetData({ action: 'saveCashRegister', record: record });
       const result = await jsonpRequest(buildSheetUrl('verifyRecord', {
         kind: 'cash',
-        id: data.id
+        id: record.id
       }));
       if (!result.success || !result.found) {
         throw new Error('Google Sheet-এ ক্যাশ রেকর্ড যাচাই করা যায়নি');
@@ -2714,27 +2744,52 @@ async function saveRegister() {
   }
 }
 
-function loadRegister() {
+function parseRegisterMap(value, label) {
+  let parsed = value;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch (error) {
+      throw new Error(label + ' JSON ত্রুটিপূর্ণ: ' + error.message);
+    }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(label + ' একটি অবজেক্ট হতে হবে');
+  }
+  return parsed;
+}
+
+function loadRegister(sourceData) {
   try {
-    const raw = localStorage.getItem('pos_cash_register');
-    if (!raw) return;
-    const data = JSON.parse(raw) || {};
+    let data = sourceData;
+    if (!data) {
+      const raw = localStorage.getItem('pos_cash_register');
+      if (!raw) return false;
+      data = JSON.parse(raw);
+    }
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new Error('ক্যাশ রেজিস্টার রেকর্ডটি সঠিক অবজেক্ট নয়');
+    }
+    const denominations = parseRegisterMap(data.denominations, 'Denominations');
+    const balances = parseRegisterMap(data.balances, 'Balances');
     CASH_DENOMS.forEach(d => {
       const el = document.getElementById('denom_' + d);
       if (el) {
-        const v = safeNum((data.denominations || {})[d]);
+        const v = safeNum(denominations[d]);
         el.value = v > 0 ? String(v) : '';
       }
     });
     BALANCE_ACCOUNTS.forEach(a => {
       const el = document.getElementById('bal_' + a.key);
       if (el) {
-        const v = safeNum((data.balances || {})[a.key]);
+        const v = safeNum(balances[a.key]);
         el.value = v > 0 ? String(v) : '';
       }
     });
+    return true;
   } catch (error) {
     console.error('রেজিস্টার লোড ত্রুটি:', error);
+    return false;
   }
 }
 
@@ -2888,7 +2943,10 @@ function addCreditor() {
     const paid = Math.max(0, safeNum(paidEl.value));
     if (!name) return showToast('পাওনাদারের নাম লিখুন', 'error');
     if (taken <= 0 && paid <= 0) return showToast('ধারার পরিমাণ অথবা পরিশোধের পরিমাণ দিন', 'error');
-    const creditor = { id: Date.now(), name: name, taken: taken, paid: paid, date: new Date().toISOString() };
+    const creditor = {
+      id: Date.now(), name: name, taken: taken, paid: paid,
+      due: taken - paid, date: new Date().toISOString()
+    };
     creditors.unshift(creditor);
     saveCreditors();
     backupCreditorToSheet(creditor);

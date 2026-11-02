@@ -194,8 +194,8 @@ function getCreditorsSheet() {
   let sheet = ss.getSheetByName(CREDITORS_SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(CREDITORS_SHEET_NAME);
-    sheet.appendRow(['ID', 'Name', 'Taken', 'Paid', 'Due', 'Date', 'Saved At']);
   }
+  ensureFixedSheetColumns(sheet, ['ID', 'Name', 'Taken', 'Paid', 'Due', 'Date']);
   return sheet;
 }
 
@@ -214,9 +214,41 @@ function getCashSheet() {
   let sheet = ss.getSheetByName(CASH_SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(CASH_SHEET_NAME);
-    sheet.appendRow(['ID', 'Date', 'Cash Total', 'Digital Total', 'Grand Total', 'Denominations', 'Balances', 'Saved At']);
   }
+  ensureFixedSheetColumns(sheet, ['ID', 'Date', 'Cash Total', 'Digital Total', 'Grand Total', 'Denominations', 'Balances', 'Saved At']);
   return sheet;
+}
+
+function ensureFixedSheetColumns(sheet, headers) {
+  const lastRow = Math.max(sheet.getLastRow(), 1);
+  const lastColumn = Math.max(sheet.getLastColumn(), headers.length);
+  const values = sheet.getRange(1, 1, lastRow, lastColumn).getValues();
+  const currentHeaders = values[0].map(function (value) {
+    return String(value || '').trim();
+  });
+  const exactSchema = headers.every(function (header, index) {
+    return currentHeaders[index] === header;
+  }) && lastColumn === headers.length;
+  if (exactSchema) return;
+
+  const hasRecognizedHeader = headers.some(function (header) {
+    return currentHeaders.indexOf(header) >= 0;
+  });
+  const rows = [];
+  if (hasRecognizedHeader) {
+    for (let rowIndex = 1; rowIndex < values.length; rowIndex++) {
+      const sourceRow = values[rowIndex];
+      if (!sourceRow.some(function (value) { return value !== '' && value !== null; })) continue;
+      rows.push(headers.map(function (header, columnIndex) {
+        const sourceIndex = currentHeaders.indexOf(header);
+        return sourceIndex >= 0 ? sourceRow[sourceIndex] : sourceRow[columnIndex];
+      }));
+    }
+  }
+
+  sheet.clearContents();
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  if (rows.length) sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
 }
 
 function findRowById(sheet, id) {
@@ -499,15 +531,15 @@ function saveCreditor(data) {
   if (!creditor || typeof creditor !== 'object' || !creditor.id) {
     throw new Error('Creditor data with an ID is required');
   }
-  
+  const taken = parseSheetNumber(creditor.taken, 'Taken');
+  const paid = parseSheetNumber(creditor.paid, 'Paid');
   const row = [
     creditor.id,
-    creditor.name,
-    creditor.taken || 0,
-    creditor.paid || 0,
-    creditor.due || 0,
-    creditor.date || new Date().toISOString().slice(0, 10),
-    new Date().toISOString()
+    String(creditor.name || ''),
+    taken,
+    paid,
+    taken - paid,
+    normalizeSheetDate(creditor.date)
   ];
   
   const existingRow = findRowById(sheet, creditor.id);
@@ -544,10 +576,10 @@ function listCreditors(e) {
       creditors.push({
         id: values[i][0],
         name: values[i][1],
-        taken: values[i][2],
-        paid: values[i][3],
-        due: values[i][4],
-        date: values[i][5]
+        taken: parseSheetNumber(values[i][2], 'Taken'),
+        paid: parseSheetNumber(values[i][3], 'Paid'),
+        due: parseSheetNumber(values[i][2], 'Taken') - parseSheetNumber(values[i][3], 'Paid'),
+        date: normalizeSheetDate(values[i][5])
       });
     }
   }
@@ -625,15 +657,16 @@ function saveCashRecord(data) {
   if (!record || typeof record !== 'object' || !record.id) {
     throw new Error('Cash register data with an ID is required');
   }
-  
+  const denominations = parseSheetObject(record.denominations, 'Denominations');
+  const balances = parseSheetObject(record.balances, 'Balances');
   const row = [
     record.id,
-    record.date,
-    record.cashTotal || 0,
-    record.digitalTotal || 0,
-    record.grandTotal || 0,
-    JSON.stringify(record.denominations || {}),
-    JSON.stringify(record.balances || {}),
+    normalizeSheetDate(record.date),
+    parseSheetNumber(record.cashTotal, 'Cash Total'),
+    parseSheetNumber(record.digitalTotal, 'Digital Total'),
+    parseSheetNumber(record.grandTotal, 'Grand Total'),
+    JSON.stringify(denominations),
+    JSON.stringify(balances),
     new Date().toISOString()
   ];
   
@@ -661,23 +694,49 @@ function listCashRecords(e) {
   
   for (let i = 1; i < values.length; i++) {
     if (values[i][0]) {
-      let denom = {}, balances = {};
-      try { denom = JSON.parse(values[i][5]) || {}; } catch(err) {}
-      try { balances = JSON.parse(values[i][6]) || {}; } catch(err) {}
-      
       records.push({
         id: values[i][0],
-        date: values[i][1],
-        cashTotal: values[i][2],
-        digitalTotal: values[i][3],
-        grandTotal: values[i][4],
-        denominations: denom,
-        balances: balances
+        date: normalizeSheetDate(values[i][1]),
+        cashTotal: parseSheetNumber(values[i][2], 'Cash Total'),
+        digitalTotal: parseSheetNumber(values[i][3], 'Digital Total'),
+        grandTotal: parseSheetNumber(values[i][4], 'Grand Total'),
+        denominations: parseSheetObject(values[i][5], 'Denominations'),
+        balances: parseSheetObject(values[i][6], 'Balances')
       });
     }
   }
   
   return { success: true, records: records };
+}
+
+function parseSheetNumber(value, label) {
+  if (value === '' || value === null || value === undefined) return 0;
+  if (typeof value === 'number') {
+    if (isFinite(value)) return value;
+    throw new Error(label + ' must be a finite number');
+  }
+  const normalized = String(value)
+    .replace(/[০-৯]/g, function (digit) { return String('০১২৩৪৫৬৭৮৯'.indexOf(digit)); })
+    .replace(/[,\s]/g, '');
+  const number = Number(normalized);
+  if (!isFinite(number)) throw new Error(label + ' must be a finite number');
+  return number;
+}
+
+function parseSheetObject(value, label) {
+  if (value === '' || value === null || value === undefined) return {};
+  const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(label + ' must be a JSON object');
+  }
+  return parsed;
+}
+
+function normalizeSheetDate(value) {
+  if (value instanceof Date) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  return String(value || new Date().toISOString().slice(0, 10));
 }
 
 // ---------- Verification Actions ----------
