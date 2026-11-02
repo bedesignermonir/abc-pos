@@ -4,7 +4,6 @@
 // ============================================
 
 const SHEET_NAME = 'Sales';
-const PROFIT_SHEET_NAME = 'Profit Sharing';
 const SETTINGS_SHEET_NAME = 'Settings';
 const CREDITORS_SHEET_NAME = 'Creditors';
 const EXPENSES_SHEET_NAME = 'Expenses';
@@ -152,16 +151,6 @@ function getSheet() {
   return sheet;
 }
 
-function getProfitSheet() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(PROFIT_SHEET_NAME);
-  if (!sheet) {
-    sheet = ss.insertSheet(PROFIT_SHEET_NAME);
-    sheet.appendRow(['Invoice ID', 'Invoice No', 'Date', 'Total Sale', 'Total Cost', 'Net Profit', 'Saved At']);
-  }
-  return sheet;
-}
-
 function getSettingsSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(SETTINGS_SHEET_NAME);
@@ -219,20 +208,30 @@ function saveInvoice(data) {
   if (!invoice || typeof invoice !== 'object' || !invoice.id) {
     throw new Error('Invoice data with an ID is required');
   }
+
+  const items = parseInvoiceItems(invoice.items);
+  const subtotal = items.reduce(function (sum, item) {
+    return sum + item.total;
+  }, 0);
+  const discount = finiteNumber(invoice.discount, 0);
+  const total = Math.max(0, subtotal - discount);
+  const costTotal = items.reduce(function (sum, item) {
+    return sum + item.costPrice * item.qty;
+  }, 0);
   
   const existingRow = findRowById(sheet, invoice.id);
   
   const row = [
     invoice.id,
-    invoice.invoiceNo,
-    invoice.date,
-    invoice.customerName,
-    invoice.phone,
-    JSON.stringify(invoice.items),
-    invoice.subtotal,
-    invoice.discount,
-    invoice.total,
-    invoice.costTotal || 0,
+    invoice.invoiceNo || '',
+    invoice.date || new Date().toISOString(),
+    invoice.customer || invoice.customerName || '',
+    invoice.phone || '',
+    JSON.stringify(items),
+    subtotal,
+    discount,
+    total,
+    costTotal,
     invoice.notes || '',
     new Date().toISOString()
   ];
@@ -242,29 +241,6 @@ function saveInvoice(data) {
   } else {
     sheet.appendRow(row);
   }
-  
-  const profitSheet = getProfitSheet();
-  const costTotal = parseFloat(invoice.costTotal) || 0;
-  const totalSale = parseFloat(invoice.total) || 0;
-  const netProfit = totalSale - costTotal;
-  
-  const profitRow = [
-    invoice.id,
-    invoice.invoiceNo,
-    invoice.date,
-    totalSale,
-    costTotal,
-    netProfit,
-    new Date().toISOString()
-  ];
-  
-  const existingProfitRow = findRowById(profitSheet, invoice.id);
-  if (existingProfitRow > 0) {
-    profitSheet.getRange(existingProfitRow, 1, 1, profitRow.length).setValues([profitRow]);
-  } else {
-    profitSheet.appendRow(profitRow);
-  }
-  
   SpreadsheetApp.flush();
   
   const verifyRow = findRowById(getSheet(), invoice.id);
@@ -277,17 +253,13 @@ function saveInvoice(data) {
 
 function deleteInvoice(data) {
   const sheet = getSheet();
-  const profitSheet = getProfitSheet();
   const row = findRowById(sheet, data.id);
-  const profitRow = findRowById(profitSheet, data.id);
   if (row > 0) sheet.deleteRow(row);
-  if (profitRow > 0) profitSheet.deleteRow(profitRow);
-  if (row > 0 || profitRow > 0) SpreadsheetApp.flush();
+  if (row > 0) SpreadsheetApp.flush();
 
   const verifySalesRow = findRowById(getSheet(), data.id);
-  const verifyProfitRow = findRowById(getProfitSheet(), data.id);
   return {
-    success: verifySalesRow === 0 && verifyProfitRow === 0,
+    success: verifySalesRow === 0,
     deleted: data.id
   };
 }
@@ -314,12 +286,18 @@ function listInvoices(e) {
 
 function getAllInvoices(result) {
   const data = result.invoices.map(function (row) {
-    let items = [];
-    try {
-      items = typeof row.Items === 'string' ? JSON.parse(row.Items) : (row.Items || []);
-    } catch (err) {
-      throw new Error('Invalid invoice items JSON for invoice ' + row.ID);
-    }
+    const items = parseInvoiceItems(row.Items);
+    const subtotalFromItems = items.reduce(function (sum, item) {
+      return sum + item.total;
+    }, 0);
+    const savedSubtotal = finiteNumber(row.Subtotal, 0);
+    const subtotal = items.length ? subtotalFromItems : savedSubtotal;
+    const discount = finiteNumber(row.Discount, 0);
+    const calculatedTotal = Math.max(0, subtotal - discount);
+    const calculatedCost = items.reduce(function (sum, item) {
+      return sum + item.costPrice * item.qty;
+    }, 0);
+    const savedCost = finiteNumber(row['Cost Total'], 0);
     return {
       id: row.ID,
       invoiceNo: row['Invoice No'],
@@ -327,10 +305,10 @@ function getAllInvoices(result) {
       customerName: row['Customer Name'],
       phone: row.Phone,
       items: items,
-      subtotal: row.Subtotal,
-      discount: row.Discount,
-      total: row.Total,
-      costTotal: row['Cost Total'],
+      subtotal: subtotal,
+      discount: discount,
+      total: calculatedTotal,
+      costTotal: calculatedCost || savedCost,
       notes: row.Notes
     };
   });
@@ -339,6 +317,40 @@ function getAllInvoices(result) {
     return match ? Math.max(maximum, Number(match[1]) + 1) : maximum;
   }, 1);
   return { success: true, data: data, nextNumber: nextNumber };
+}
+
+function finiteNumber(value, fallback) {
+  if (value === '' || value === null || value === undefined) return fallback;
+  const number = Number(value);
+  return isFinite(number) ? number : fallback;
+}
+
+function parseInvoiceItems(value) {
+  let items = value;
+  if (typeof items === 'string') {
+    try {
+      items = JSON.parse(items);
+    } catch (err) {
+      throw new Error('Invoice items must contain valid JSON: ' + err.message);
+    }
+  }
+  if (!Array.isArray(items)) {
+    throw new Error('Invoice items must be an array');
+  }
+  return items.map(function (item) {
+    if (!item || typeof item !== 'object') {
+      throw new Error('Invoice item must be an object');
+    }
+    const qty = finiteNumber(item.qty, 0);
+    const price = finiteNumber(item.price, 0);
+    return {
+      name: String(item.name || ''),
+      qty: qty,
+      price: price,
+      costPrice: finiteNumber(item.costPrice, 0),
+      total: qty * price
+    };
+  });
 }
 
 // ---------- Settings Functions ----------
@@ -624,15 +636,13 @@ function verifyRecord(e) {
 function verifyInvoice(e) {
   const id = (e && e.parameter && e.parameter.id) || '';
   const inSales = findRowById(getSheet(), id) > 0;
-  const inProfit = findRowById(getProfitSheet(), id) > 0;
-  return { success: inSales && inProfit, inSales: inSales, inProfit: inProfit };
+  return { success: inSales, inSales: inSales };
 }
 
 function verifyDelete(e) {
   const id = (e && e.parameter && e.parameter.id) || '';
   const inSales = findRowById(getSheet(), id) > 0;
-  const inProfit = findRowById(getProfitSheet(), id) > 0;
-  return { success: !inSales && !inProfit, inSales: inSales, inProfit: inProfit };
+  return { success: !inSales, inSales: inSales };
 }
 
 function verifyRecordGone(e) {

@@ -1386,18 +1386,7 @@ async function loadFromSheet() {
     if (remoteSettings.success) getSheetSettingsFromResponse(remoteSettings.settings || {});
 
     const data = Array.isArray(payload.data) ? payload.data : [];
-    invoices = data.map(inv => {
-      if (Array.isArray(inv.profitDetails) && inv.profitDetails.length) {
-        return { ...inv, items: inv.profitDetails };
-      }
-      if (inv.itemsSummary && (!Array.isArray(inv.items) || !inv.items.length)) {
-        return {
-          ...inv,
-          items: [{ name: inv.itemsSummary, qty: 1, price: Number(inv.total || 0), total: Number(inv.total || 0) }]
-        };
-      }
-      return inv;
-    });
+    invoices = data.map(normalizeSheetInvoice);
 
     localStorage.setItem('pos_invoices', JSON.stringify(invoices));
     if (payload.nextNumber) {
@@ -1416,6 +1405,54 @@ async function loadFromSheet() {
     showToast('⚠ Google Sheet-এর সাথে সংযোগ হয়নি: ' + error.message, 'error');
     return false;
   }
+}
+
+function normalizeSheetInvoice(invoice) {
+  let items = invoice.items;
+  if (typeof items === 'string') {
+    try {
+      items = JSON.parse(items);
+    } catch (error) {
+      throw new Error('ইনভয়েসের আইটেম JSON পড়া যায়নি: ' + error.message);
+    }
+  }
+  if (!Array.isArray(items)) {
+    throw new Error('Google Sheet-এর ইনভয়েস আইটেম তালিকা সঠিক নয়');
+  }
+
+  items = items.map(item => {
+    const qty = safeNum(item && item.qty);
+    const price = safeNum(item && item.price);
+    return {
+      name: String(item && item.name || ''),
+      qty,
+      price,
+      costPrice: safeNum(item && item.costPrice),
+      total: qty * price
+    };
+  });
+
+  const itemsSubtotal = items.reduce((sum, item) => sum + item.total, 0);
+  const savedSubtotal = safeNum(invoice.subtotal);
+  const subtotal = items.length ? itemsSubtotal : savedSubtotal;
+  const discount = safeNum(invoice.discount);
+  const calculatedTotal = Math.max(0, subtotal - discount);
+  const itemCostTotal = items.reduce((sum, item) => sum + item.costPrice * item.qty, 0);
+  const costTotal = itemCostTotal || safeNum(invoice.costTotal);
+
+  return {
+    id: invoice.id,
+    invoiceNo: invoice.invoiceNo || '',
+    customer: String(invoice.customer || invoice.customerName || ''),
+    phone: String(invoice.phone || ''),
+    date: invoice.date || new Date().toISOString(),
+    items,
+    subtotal,
+    discount,
+    total: calculatedTotal,
+    costTotal,
+    notes: invoice.notes || ''
+  };
 }
 
 async function saveToSheet(invoice) {
@@ -1440,8 +1477,8 @@ async function saveToSheet(invoice) {
 
   try {
     const result = await jsonpRequest(buildSheetUrl('verifyInvoice', { id: invoice.id }));
-    if (result.success && result.inSales && result.inProfit) return true;
-    showToast('Sales বা Profit Sharing শিটে ইনভয়েস সম্পূর্ণ সেভ হয়নি। Apps Script deployment পরীক্ষা করুন।', 'error');
+    if (result.success && result.inSales) return true;
+    showToast('Sales শিটে ইনভয়েস সেভ হয়েছে কিনা যাচাই করা যায়নি। Apps Script deployment পরীক্ষা করুন।', 'error');
     return false;
   } catch (error) {
     showToast('শিটে সেভ যাচাই করা যায়নি: ' + (postError || error.message), 'error');
@@ -1467,7 +1504,7 @@ async function deleteFromSheet(id) {
 
   try {
     const result = await jsonpRequest(buildSheetUrl('verifyDelete', { id }));
-    if (result.success && !result.inSales && !result.inProfit) return true;
+    if (result.success && !result.inSales) return true;
     if (postError) showToast('মুছে ফেলার অনুরোধে সমস্যা: ' + postError, 'error');
     return false;
   } catch (error) {
@@ -1687,7 +1724,7 @@ function getItems() {
   return items;
 }
 
-function calculateInvoiceProfit(invoice) {
+function calculateInvoiceCost(invoice) {
   const costPrices = settings.costPrices || {};
   const presets = new Set((settings.presetItems || '').split('\n').map(item => item.trim()).filter(Boolean));
   const missingCostItems = [...new Set(invoice.items
@@ -1698,14 +1735,10 @@ function calculateInvoiceProfit(invoice) {
 
   let costTotal = 0;
   invoice.items = invoice.items.map(item => {
-    const costPrice = Object.prototype.hasOwnProperty.call(costPrices, item.name)
-      ? Number(costPrices[item.name])
-      : Number(item.costPrice || 0);
+    const costPrice = safeNum(Object.prototype.hasOwnProperty.call(costPrices, item.name)
+      ? costPrices[item.name]
+      : item.costPrice);
     const itemCost = safeNum(costPrice) * safeNum(item.qty);
-    const itemRevenue = invoice.subtotal > 0
-      ? Number((invoice.total * item.total / invoice.subtotal).toFixed(2))
-      : 0;
-    const itemProfit = Number((itemRevenue - itemCost).toFixed(2));
     costTotal += itemCost;
     return {
       ...item,
@@ -1713,14 +1746,11 @@ function calculateInvoiceProfit(invoice) {
       qty: safeNum(item.qty),
       price: safeNum(item.price),
       total: safeNum(item.total),
-      costTotal: Number(itemCost.toFixed(2)),
-      netRevenue: itemRevenue,
-      netProfit: itemProfit
+      costTotal: Number(itemCost.toFixed(2))
     };
   });
 
   invoice.costTotal = Number(costTotal.toFixed(2));
-  invoice.netProfit = Number((invoice.total - invoice.costTotal).toFixed(2));
 
   return { missingCostItems: [] };
 }
@@ -1761,9 +1791,9 @@ async function saveInvoiceOnly() {
     date: isEdit && existing && existing.date ? existing.date : new Date().toISOString()
   };
 
-  const profitResult = calculateInvoiceProfit(invoice);
-  if (profitResult.missingCostItems.length) {
-    return showToast('সেটিংসে কস্টিং প্রাইস সেট করুন: ' + profitResult.missingCostItems.join(', '), 'error');
+  const costResult = calculateInvoiceCost(invoice);
+  if (costResult.missingCostItems.length) {
+    return showToast('সেটিংসে কস্টিং প্রাইস সেট করুন: ' + costResult.missingCostItems.join(', '), 'error');
   }
 
   showLoading(isEdit ? 'আপডেট করা হচ্ছে...' : 'সেভ করা হচ্ছে...');
@@ -2294,29 +2324,25 @@ function viewInvoice(id) {
           <span style="font-weight:700;">${formatMoney(i.total)}</span>
         </div>
       `).join('')}
-      ${inv.subtotal && inv.subtotal !== inv.total ? `
-        <div style="display:flex;justify-content:space-between;padding:5px 0;color:var(--gray-500);">
-          <span>সাবটোটাল</span>
-          <span>${formatMoney(inv.subtotal)}</span>
-        </div>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;color:var(--gray-500);">
+        <span>সাবটোটাল</span>
+        <span>${formatMoney(safeNum(inv.subtotal))}</span>
+      </div>
+      ${safeNum(inv.discount) > 0 ? `
         <div style="display:flex;justify-content:space-between;padding:5px 0;color:var(--danger);">
           <span>ডিসকাউন্ট</span>
-          <span>-${formatMoney(inv.discount)}</span>
+          <span>-${formatMoney(safeNum(inv.discount))}</span>
         </div>
       ` : ''}
       <div style="display:flex;justify-content:space-between;padding:10px 0;margin-top:8px;border-top:2px solid var(--primary);font-size:18px;font-weight:700;color:var(--success);">
         <span>সর্বমোট</span>
         <span>${formatMoney(inv.total)}</span>
       </div>
-      ${Number.isFinite(Number(inv.netProfit)) ? `
+      ${Number.isFinite(Number(inv.costTotal)) ? `
         <div style="margin-top:12px;padding:12px;background:#ecfdf5;border-radius:10px;">
           <div style="display:flex;justify-content:space-between;font-weight:700;color:var(--dark);">
-            <span>নিট লাভ</span>
-            <span>${formatMoney(inv.netProfit)}</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;margin-top:4px;color:var(--gray-500);font-size:12px;">
             <span>মোট কস্ট</span>
-            <span>${formatMoney(inv.costTotal || 0)}</span>
+            <span>${formatMoney(safeNum(inv.costTotal))}</span>
           </div>
         </div>
       ` : ''}
@@ -2511,7 +2537,6 @@ async function saveSettings() {
   settings.expenseCategories = document.getElementById('expenseCategories').value;
   settings.costPrices = costPrices;
   settings.sellingPrices = sellingPrices;
-  delete settings.profitShares; // পার্টনার / নিট লাভের ভাগ সিস্টেম সম্পূর্ণ সরানো হয়েছে
   localStorage.setItem('pos_settings', JSON.stringify(settings));
   populateExpenseCategoryOptions();
   closeSettings();
@@ -3165,10 +3190,9 @@ function computeFinanceSummary() {
   const totalSales = invoices.reduce((sum, inv) => sum + safeNum(inv.total), 0);
   const totalCost  = invoices.reduce((sum, inv) => sum + getInvoiceCostTotal(inv), 0);
   const grossProfit = totalSales - totalCost;
-  const myIncome = totalSales; // পুরো ব্যবসার আয় মালিকের — পার্টনার / লাভের ভাগ সিস্টেম সরানো হয়েছে
   const totalExpenses = expenses.reduce((sum, e) => sum + safeNum(e.amount), 0);
   const totalDue = creditors.reduce((sum, c) => sum + Math.max(0, safeNum(c.taken) - safeNum(c.paid)), 0);
-  return { totalSales, totalCost, grossProfit, myIncome, totalExpenses, totalDue, netPosition: grossProfit - totalExpenses };
+  return { totalSales, totalCost, grossProfit, totalExpenses, totalDue, netPosition: grossProfit - totalExpenses };
 }
 
 function renderFinanceSummary() {
