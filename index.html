@@ -10,8 +10,9 @@
 <link rel="icon" href="./app-icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="./app-icon-180.png">
 <title>ABC COMPUTER - POS সিস্টেম</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/noto-sans-bengali@latest/bengali-400-normal.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/noto-sans-bengali@latest/bengali-700-normal.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Noto Sans Bengali', sans-serif; }
@@ -1005,13 +1006,30 @@ let settingsPinAttempts = 0;
 let settingsPinLockedUntil = 0;
 
 // ===== ইউটিলিটি ফাংশন =====
+// নিরাপদ সংখ্যা রূপান্তর: undefined/null/NaN/'' -> 0 (কোনো NaN দেখাবে না)
+function safeNum(n) {
+  if (typeof n === 'string') {
+    // বাংলা ডিজিট ও হাজার সেপারেটর (+/- চিহ্ন বজায়) পরিষ্কার করে ASCII নম্বরে রূপান্তর
+    const cleaned = n.replace(/[০-৯]/g, ch => String('০১২৩৪৫৬৭৮৯'.indexOf(ch)))
+                     .replace(/[, ]/g, '');
+    const x = parseFloat(cleaned);
+    return isFinite(x) ? x : 0;
+  }
+  if (typeof n === 'number') { return isFinite(n) ? n : 0; }
+  const x = Number(n);
+  return isFinite(x) ? x : 0;
+}
+
 function toBnNum(n) {
   const bn = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
-  return n.toString().replace(/\d/g, d => bn[d]);
+  // undefined/null/NaN/অবজেক্ট — কিছুতেই crash করবে না; খালি মান -> '০'
+  if (n === undefined || n === null) return '০';
+  const s = typeof n === 'number' ? (isFinite(n) ? String(n) : '০') : String(n);
+  return s.replace(/\d/g, d => bn[+d]);
 }
 
 function formatMoney(n) {
-  return '৳' + toBnNum(Math.round(n).toLocaleString('en-IN'));
+  return '৳' + toBnNum(Math.round(safeNum(n)).toLocaleString('en-IN'));
 }
 
 function formatDate(d) {
@@ -1399,7 +1417,7 @@ function calculateRowTotal(row) {
 function calculateTotal() {
   let subtotal = 0;
   document.querySelectorAll('.item-row').forEach(row => {
-    subtotal += calculateRowTotal(row);
+    subtotal += safeNum(calculateRowTotal(row));
   });
   
   const discountAmount = parseFloat(document.getElementById('discountAmount').value) || 0;
@@ -1466,7 +1484,7 @@ function calculateInvoiceProfit(invoice) {
     const costPrice = Object.prototype.hasOwnProperty.call(costPrices, item.name)
       ? Number(costPrices[item.name])
       : Number(item.costPrice || 0);
-    const itemCost = costPrice * item.qty;
+    const itemCost = safeNum(costPrice) * safeNum(item.qty);
     const itemRevenue = invoice.subtotal > 0
       ? Number((invoice.total * item.total / invoice.subtotal).toFixed(2))
       : 0;
@@ -1475,6 +1493,9 @@ function calculateInvoiceProfit(invoice) {
     return {
       ...item,
       costPrice,
+      qty: safeNum(item.qty),
+      price: safeNum(item.price),
+      total: safeNum(item.total),
       costTotal: Number(itemCost.toFixed(2)),
       netRevenue: itemRevenue,
       netProfit: itemProfit
@@ -1583,7 +1604,14 @@ async function saveInvoiceOnly() {
 
 function sendWhatsAppMessage(inv, whatsappWindow = null) {
   const E = EMOJI_OK;
-  const msg = generateWhatsAppMessage(inv);
+  // Robust: never throw on malformed invoice data (missing items array, bad numbers, etc.)
+  let msg;
+  try {
+    msg = generateWhatsAppMessage({ ...inv, items: Array.isArray(inv && inv.items) ? inv.items : [] });
+  } catch (err) {
+    console.error('generateWhatsAppMessage error:', err);
+    msg = `*ইনভয়েস নং: ${(inv && inv.invoiceNo) || 'N/A'}*\n\nমোট টাকার পরিমাণ = ৳${toBnNum(safeNum(inv && inv.total))} টাকা`;
+  }
 
   // Safely coerce phone to string (may arrive as number from Google Sheet); fallback to default business phone
   const DEFAULT_PHONE = '01877987587';
@@ -1618,16 +1646,16 @@ function generateWhatsAppMessage(inv) {
   
   inv.items.forEach((item, i) => {
     msg += `${E?'▸':'>>'} ${item.name}\n`;
-    msg += `   ${E?'➜':'>>'} ${toBnNum(item.qty)} × ৳${toBnNum(item.price)} = *৳${toBnNum(item.total)}*\n\n`;
+    msg += `   ${E?'➜':'>>'} ${toBnNum(safeNum(item.qty))} × ৳${toBnNum(safeNum(item.price))} = *৳${toBnNum(safeNum(item.total))}*\n\n`;
   });
   
   msg += `━━━━━━━━━━━━━━━━━━\n`;
   if (inv.subtotal && inv.subtotal !== inv.total) {
-    msg += `সাবটোটাল: ৳${toBnNum(inv.subtotal)}\n`;
-    msg += `ডিসকাউন্ট: ৳${toBnNum(inv.discount)}\n`;
+    msg += `সাবটোটাল: ৳${toBnNum(safeNum(inv.subtotal))}\n`;
+    msg += `ডিসকাউন্ট: ৳${toBnNum(safeNum(inv.discount))}\n`;
     msg += `━━━━━━━━━━━━━━━━━━\n`;
   }
-  msg += `*মোট টাকার পরিমাণ = ৳${toBnNum(inv.total)} টাকা*\n`;
+  msg += `*মোট টাকার পরিমাণ = ৳${toBnNum(safeNum(inv.total))} টাকা*\n`;
   msg += `━━━━━━━━━━━━━━━━━━\n\n`;
   
   msg += `╔════════════════════╗\n`;
@@ -1648,9 +1676,14 @@ function generateWhatsAppMessage(inv) {
 
 function resendWhatsApp() {
   if (!currentInvoiceId) return;
-  const inv = invoices.find(i => i.id === currentInvoiceId);
+  const inv = invoices.find(i => String(i.id) === String(currentInvoiceId));
   if (!inv) return;
-  sendWhatsAppMessage(inv);
+  try {
+    sendWhatsAppMessage(inv);
+  } catch (err) {
+    console.error('resendWhatsApp error:', err);
+    showToast('WhatsApp খোলা যায়নি', 'error');
+  }
 }
 
 // ===== Reset =====
@@ -1674,16 +1707,16 @@ function generatePrintHTML(inv) {
     <tr>
       <td class="text-center">${toBnNum(i+1)}</td>
       <td>${item.name}</td>
-      <td class="text-center">${toBnNum(item.qty)}</td>
-      <td class="text-right">৳${toBnNum(item.price)}</td>
-      <td class="text-right">৳${toBnNum(item.total)}</td>
+      <td class="text-center">${toBnNum(safeNum(item.qty))}</td>
+      <td class="text-right">৳${toBnNum(safeNum(item.price))}</td>
+      <td class="text-right">৳${toBnNum(safeNum(item.total))}</td>
     </tr>
   `).join('');
 
   let totalsHtml = '';
   if (inv.subtotal && inv.subtotal !== inv.total) {
-    totalsHtml += `<div class="line"><span>সাবটোটাল:</span><span>৳${toBnNum(inv.subtotal)}</span></div>`;
-    totalsHtml += `<div class="line discount"><span>ডিসকাউন্ট:</span><span>-৳${toBnNum(inv.discount)}</span></div>`;
+    totalsHtml += `<div class="line"><span>সাবটোটাল:</span><span>৳${toBnNum(safeNum(inv.subtotal))}</span></div>`;
+    totalsHtml += `<div class="line discount"><span>ডিসকাউন্ট:</span><span>-৳${toBnNum(safeNum(inv.discount))}</span></div>`;
   }
 
   return `
@@ -1723,7 +1756,7 @@ function generatePrintHTML(inv) {
 
     <div class="print-totals">
       ${totalsHtml}
-      <div class="final-total">সর্বমোট: ৳${toBnNum(inv.total)}</div>
+      <div class="final-total">সর্বমোট: ৳${toBnNum(safeNum(inv.total))}</div>
     </div>
 
     <div class="print-footer">
@@ -2054,7 +2087,7 @@ function viewInvoice(id) {
       <hr style="margin:10px 0;border:none;border-top:1px dashed #cbd5e1;">
       ${inv.items.map(i => `
         <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--gray-100);">
-          <span>${i.name} × ${toBnNum(i.qty)}</span>
+          <span>${i.name} × ${toBnNum(safeNum(i.qty))}</span>
           <span style="font-weight:700;">${formatMoney(i.total)}</span>
         </div>
       `).join('')}
