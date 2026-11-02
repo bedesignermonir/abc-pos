@@ -3,6 +3,7 @@ const PROFIT_SHEET_NAME = 'Profit Sharing';
 const SETTINGS_SHEET_NAME = 'Settings'; // সেটিংস শিটের নাম
 const CREDITORS_SHEET_NAME = 'Creditors'; // পাওনাদার / ঋণ হিসাব (স্বয়ংক্রিয়ভাবে তৈরি হবে)
 const EXPENSES_SHEET_NAME = 'Expenses';   // খরচের হিসাব (স্বয়ংক্রিয়ভাবে তৈরি হবে)
+const CASH_SHEET_NAME = 'CashRegister';   // দৈনিক ক্যাশ ও ব্যালেন্স রেজিস্টার (স্বয়ংক্রিয়ভাবে তৈরি হবে)
 const LEGACY_SHEET_NAME = 'Sheet1';
 const SETTINGS_PIN = '25802580';
 
@@ -81,6 +82,22 @@ function getExpensesSheet() {
   return sheet;
 }
 
+// দৈনিক ক্যাশ ও ব্যালেন্স রেজিস্টার শিট — প্রতিদিনের রেকর্ড এক সারিতে (ID = তারিখ, upsert)
+function getCashSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(CASH_SHEET_NAME);
+  const headers = ['ID', 'Date', 'Cash Total', 'Digital Total', 'Grand Total', 'Denominations', 'Balances', 'Saved At'];
+  if (!sheet) {
+    sheet = ss.insertSheet(CASH_SHEET_NAME);
+    sheet.appendRow(headers);
+  } else if (sheet.getLastColumn() < headers.length) {
+    const startColumn = Math.max(1, sheet.getLastColumn() + 1);
+    sheet.getRange(1, startColumn, 1, headers.length - startColumn + 1)
+      .setValues([headers.slice(startColumn - 1)]);
+  }
+  return sheet;
+}
+
 function creditorDueOf(row) {
   return Math.max(0, Number(row[2] || 0) - Number(row[3] || 0));
 }
@@ -117,6 +134,33 @@ function doGetPostVerify(e) {
         inSales: salesRow !== -1,
         inProfit: profitRow !== -1
       });
+    }
+
+    // Settings POST-এর পর লাইভ যাচাই — শিটে প্রকৃতপক্ষে মান বসেছে কিনা
+    if (action === 'verifySettings') {
+      const remote = getSettings();
+      return createRequestResponse(e, { success: true, settings: remote });
+    }
+
+    // Creditors/Expenses/CashRegister POST-এর পর লাইভ যাচাই
+    if (action === 'verifyRecord') {
+      const kind = String(payload.kind || params.kind || '');
+      const id = String(payload.id || params.id || '');
+      let rowIdx = -1;
+      if (kind === 'creditor') rowIdx = findInvoiceRow(getCreditorsSheet(), id);
+      else if (kind === 'expense') rowIdx = findInvoiceRow(getExpensesSheet(), id);
+      else if (kind === 'cash') rowIdx = findInvoiceRow(getCashSheet(), id);
+      return createRequestResponse(e, { success: true, kind: kind, found: rowIdx !== -1 });
+    }
+
+    // খরচ ডিলিটের পর যাচাই (row পাওয়া যায়নি মানেই সফল ডিলিট)
+    if (action === 'verifyRecordGone') {
+      const kind = String(payload.kind || params.kind || '');
+      const id = String(payload.id || params.id || '');
+      let stillThere = false;
+      if (kind === 'creditor') stillThere = findInvoiceRow(getCreditorsSheet(), id) !== -1;
+      else if (kind === 'expense') stillThere = findInvoiceRow(getExpensesSheet(), id) !== -1;
+      return createRequestResponse(e, { success: true, kind: kind, gone: !stillThere });
     }
 
     return createRequestResponse(e, {
@@ -205,7 +249,8 @@ function doGet(e) {
       return createRequestResponse(e, { success: true, settings: getSettings() });
     }
 
-    if (action === 'verifyInvoice' || action === 'verifyDelete') {
+    if (action === 'verifyInvoice' || action === 'verifyDelete' ||
+        action === 'verifySettings' || action === 'verifyRecord' || action === 'verifyRecordGone') {
       return doGetPostVerify(e);
     }
 
@@ -241,6 +286,29 @@ function doGet(e) {
         });
       }
       return createRequestResponse(e, { success: true, expenses: expenses });
+    }
+
+    if (action === 'listCash') {
+      const month = params.month || '';
+      const data = getCashSheet().getDataRange().getValues();
+      const records = [];
+      for (let i = 1; i < data.length; i++) {
+        if (!data[i][0] && !data[i][1]) continue;
+        const rowDate = data[i][1];
+        const dateStr = rowDate instanceof Date
+          ? Utilities.formatDate(rowDate, Session.getScriptTimeZone(), 'yyyy-MM-dd')
+          : String(rowDate || '');
+        if (month && dateStr.indexOf(month) !== 0) continue;
+        records.push({
+          id: data[i][0], date: dateStr,
+          cashTotal: Number(data[i][2] || 0), digitalTotal: Number(data[i][3] || 0),
+          grandTotal: Number(data[i][4] || 0),
+          denominations: safeJsonParse(String(data[i][5] || ''), {}),
+          balances: safeJsonParse(String(data[i][6] || ''), {}),
+          savedAt: String(data[i][7] || '')
+        });
+      }
+      return createRequestResponse(e, { success: true, records: records });
     }
 
     if (action === 'getAll' || action === 'searchReceiptFromSheet' || action === 'search' ||
@@ -366,22 +434,57 @@ function handleRequest(e) {
         settingsSheet.appendRow(['Setting Name', 'Value']);
       }
 
+      // স্টোরিজে থাকা পুরোনো মানের সাথে মার্জ — যা পাঠানো হয়নি সেটি অক্ষুণ্ণ থাকে,
+      // ফলে আংশিক পে-লোডেও কোনো সেটিংস ডাটা মুছে যায় না।
+      const stored = getSettings();
+      const merged = {};
+      ['presetItems', 'expenseCategories'].forEach(function(key) {
+        merged[key] = (settings[key] !== undefined && settings[key] !== null)
+          ? String(settings[key])
+          : String(stored[key] || '');
+      });
+      ['costPrices', 'sellingPrices', 'profitShares'].forEach(function(key) {
+        let incoming = settings[key];
+        if (typeof incoming === 'string') incoming = safeJsonParse(incoming, null);
+        if (incoming === undefined || incoming === null) {
+          incoming = safeJsonParse(String(stored[key] || ''), key === 'profitShares' ? [] : {});
+        }
+        merged[key] = incoming;
+      });
+
       const values = [
-        ['presetItems', String(settings.presetItems || '')],
-        ['expenseCategories', String(settings.expenseCategories || '')],
-        ['costPrices', JSON.stringify(settings.costPrices || {})],
-        ['sellingPrices', JSON.stringify(settings.sellingPrices || {})],
-        ['profitShares', JSON.stringify(settings.profitShares || [])]
+        ['presetItems', String(merged.presetItems || '')],
+        ['expenseCategories', String(merged.expenseCategories || '')],
+        ['costPrices', JSON.stringify(merged.costPrices || {})],
+        ['sellingPrices', JSON.stringify(merged.sellingPrices || {})],
+        ['profitShares', JSON.stringify(merged.profitShares || [])]
       ];
       const existing = settingsSheet.getDataRange().getValues();
       values.forEach(([key, value]) => {
-        const index = existing.findIndex((row, i) => i > 0 && row[0] === key);
+        const index = existing.findIndex((row, i) => i > 0 && String(row[0]).trim() === key);
         if (index >= 1) {
           settingsSheet.getRange(index + 1, 2).setValue(value);
         } else {
           settingsSheet.appendRow([key, value]);
         }
       });
+      SpreadsheetApp.flush();
+
+      // POST-এর রেসপন্স opaque হওয়ায় ফ্রন্টএন্ড verifySettings GET দিয়ে যাচাই করে;
+      // এখানেও লিখে-পড়া নিজেই যাচাই করে সফল/ব্যর্থ প্রকৃত অবস্থা রিটার্ন করা হয়।
+      const readBack = getSettings();
+      const mismatched = [];
+      values.forEach(([key, value]) => {
+        const remoteVal = readBack[key];
+        const remoteStr = (remoteVal === null || remoteVal === undefined) ? '' : String(remoteVal);
+        if (remoteStr !== String(value)) mismatched.push(key);
+      });
+      if (mismatched.length) {
+        return createJsonResponse({
+          success: false,
+          message: 'শিটে লেখা যাচাই ব্যর্থ: ' + mismatched.join(', ') + ' — PIN ও deployment পরীক্ষা করুন'
+        });
+      }
 
       return createJsonResponse({ success: true, message: 'সেটিংস সেভ হয়েছে' });
     }
@@ -490,10 +593,15 @@ function handleRequest(e) {
       lock.waitLock(10000);
       try {
         upsertInvoiceRow(getCreditorsSheet(), id, row);
+        SpreadsheetApp.flush();
+        const found = findInvoiceRow(getCreditorsSheet(), id) !== -1;
+        return createJsonResponse({
+          success: found,
+          message: found ? 'পাওনাদার সেভ হয়েছে' : 'পাওনাদার যাচাই ব্যর্থ — আবার চেষ্টা করুন'
+        });
       } finally {
         lock.releaseLock();
       }
-      return createJsonResponse({ success: true, message: 'পাওনাদার সেভ হয়েছে' });
     }
 
     if (action === 'deleteCreditor') {
@@ -538,6 +646,36 @@ function handleRequest(e) {
       try {
         const deleted = deleteInvoiceRow(getExpensesSheet(), id);
         return createJsonResponse({ success: deleted, message: deleted ? 'মুছে ফেলা হয়েছে' : 'রেকর্ড পাওয়া যায়নি' });
+      } finally {
+        lock.releaseLock();
+      }
+    }
+
+    // দৈনিক ক্যাশ ও ব্যালেন্স রেজিস্টার → CashRegister শিটে তারিখ-ভিত্তিক upsert
+    if (action === 'saveCashRecord') {
+      const rec = data.record || data;
+      const dateStr = String(rec.date || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'));
+      const id = String(rec.id || dateStr);
+      const denoms = rec.denominations || {};
+      const balances = rec.balances || {};
+      const cashTotal = Number(rec.cashTotal !== undefined ? rec.cashTotal
+        : Object.keys(denoms).reduce((sum, d) => sum + Number(d || 0) * Math.max(0, Number(denoms[d]) || 0), 0));
+      const digitalTotal = Number(rec.digitalTotal !== undefined ? rec.digitalTotal
+        : Object.keys(balances).reduce((sum, k) => sum + Math.max(0, Number(balances[k]) || 0), 0));
+      const grandTotal = Number(rec.grandTotal !== undefined ? rec.grandTotal : cashTotal + digitalTotal);
+      const row = [id, dateStr, cashTotal, digitalTotal, grandTotal,
+        JSON.stringify(denoms), JSON.stringify(balances),
+        rec.savedAt || new Date().toISOString()];
+      const lock = LockService.getScriptLock();
+      lock.waitLock(10000);
+      try {
+        upsertInvoiceRow(getCashSheet(), id, row);
+        SpreadsheetApp.flush();
+        const found = findInvoiceRow(getCashSheet(), id) !== -1;
+        return createJsonResponse({
+          success: found,
+          message: found ? 'ক্যাশ রেজিস্টার শিটে সেভ হয়েছে' : 'ক্যাশ রেজিস্টার যাচাই ব্যর্থ'
+        });
       } finally {
         lock.releaseLock();
       }
@@ -594,7 +732,7 @@ function getSettings() {
     sheet = ss.insertSheet(SETTINGS_SHEET_NAME);
     sheet.appendRow(['Setting Name', 'Value']);
   }
-  
+
   const data = sheet.getDataRange().getValues();
   const settings = {};
   for (let i = 1; i < data.length; i++) {
