@@ -1,6 +1,6 @@
 // ============================================
-// ABC Computer POS - Google Apps Script Backend
-// Updated: CashRegister, Expenses, Creditors & Settings Sync
+// ABC Computer POS - Robust Backend v4
+// Fixed: Connection errors, CORS handling, Write verification
 // ============================================
 
 const SHEET_NAME = 'Sales';
@@ -16,26 +16,30 @@ function doGet(e) {
   
   let result;
   
-  if (action === 'list') {
-    result = listInvoices(e);
-  } else if (action === 'getSettings') {
-    result = getSettingsData(e);
-  } else if (action === 'test') {
-    result = testConnection();
-  } else if (action === 'listCreditors') {
-    result = listCreditors(e);
-  } else if (action === 'listExpenses') {
-    result = listExpenses(e);
-  } else if (action === 'listCash') {
-    result = listCashRecords(e);
-  } else if (action === 'verifySettings') {
-    result = verifySettings(e);
-  } else if (action === 'verifyRecord') {
-    result = verifyRecord(e);
-  } else if (action === 'verifyRecordGone') {
-    result = verifyRecordGone(e);
-  } else {
-    result = { success: false, error: 'Unknown action' };
+  try {
+    if (action === 'list') {
+      result = listInvoices(e);
+    } else if (action === 'getSettings') {
+      result = getSettingsData(e);
+    } else if (action === 'test') {
+      result = testConnection();
+    } else if (action === 'listCreditors') {
+      result = listCreditors(e);
+    } else if (action === 'listExpenses') {
+      result = listExpenses(e);
+    } else if (action === 'listCash') {
+      result = listCashRecords(e);
+    } else if (action === 'verifySettings') {
+      result = verifySettings(e);
+    } else if (action === 'verifyRecord') {
+      result = verifyRecord(e);
+    } else if (action === 'verifyRecordGone') {
+      result = verifyRecordGone(e);
+    } else {
+      result = { success: false, error: 'Unknown action' };
+    }
+  } catch (err) {
+    result = { success: false, error: err.toString() };
   }
   
   return jsonOutput(result, callback);
@@ -43,7 +47,8 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    const data = JSON.parse(e.postData.contents);
+    // Robust payload parsing
+    const data = parsePayload(e);
     const action = data.action || '';
     const callback = data.callback || '';
     
@@ -75,6 +80,18 @@ function doPost(e) {
   }
 }
 
+// ---------- Helper Functions ----------
+function parsePayload(e) {
+  try {
+    if (e.postData && e.postData.contents) {
+      return JSON.parse(e.postData.contents);
+    } else if (e.parameter && e.parameter.data) {
+      return JSON.parse(decodeURIComponent(e.parameter.data));
+    }
+  } catch (err) {}
+  return {};
+}
+
 function jsonOutput(obj, callback) {
   const output = ContentService.createTextOutput(JSON.stringify(obj));
   output.setMimeType(ContentService.MimeType.JSON);
@@ -84,7 +101,6 @@ function jsonOutput(obj, callback) {
   return output;
 }
 
-// ---------- Sheet Helpers ----------
 function getSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(SHEET_NAME);
@@ -145,12 +161,21 @@ function getCashSheet() {
   return sheet;
 }
 
+function findRowById(sheet, id) {
+  const values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][0]).trim() === String(id).trim()) {
+      return i + 1;
+    }
+  }
+  return 0;
+}
+
 // ---------- Invoice Functions ----------
 function saveInvoice(data) {
   const sheet = getSheet();
   const invoice = data.invoice;
   
-  // Check if invoice already exists
   const existingRow = findRowById(sheet, invoice.id);
   
   const row = [
@@ -174,7 +199,6 @@ function saveInvoice(data) {
     sheet.appendRow(row);
   }
   
-  // Also save to profit sheet
   const profitSheet = getProfitSheet();
   const costTotal = parseFloat(invoice.costTotal) || 0;
   const totalSale = parseFloat(invoice.total) || 0;
@@ -201,7 +225,6 @@ function saveInvoice(data) {
   
   SpreadsheetApp.flush();
   
-  // Verify write
   const verifyRow = findRowById(getSheet(), invoice.id);
   return { 
     success: verifyRow > 0, 
@@ -247,7 +270,6 @@ function saveSettings(data) {
   const sheet = getSettingsSheet();
   const settings = data.settings || {};
   
-  // Read existing settings
   const existing = {};
   const values = sheet.getDataRange().getValues();
   for (let i = 1; i < values.length; i++) {
@@ -256,10 +278,8 @@ function saveSettings(data) {
     }
   }
   
-  // Merge with new settings
   const merged = Object.assign({}, existing, settings);
   
-  // Clear and rewrite
   sheet.clear();
   sheet.appendRow(['Key', 'Value']);
   
@@ -273,7 +293,6 @@ function saveSettings(data) {
   
   SpreadsheetApp.flush();
   
-  // Verify
   const verifyValues = getSettingsSheet().getDataRange().getValues();
   let allFound = true;
   for (const key in settings) {
@@ -461,8 +480,7 @@ function saveCashRecord(data) {
   const existingRow = findRowById(sheet, record.id);
   if (existingRow > 0) {
     sheet.getRange(existingRow, 1, 1, row.length).setValues([row]);
-  }
-  else {
+  } else {
     sheet.appendRow(row);
   }
   
@@ -525,17 +543,6 @@ function verifyRecordGone(e) {
   
   const row = findRowById(sheet, id);
   return { success: row === 0, gone: row === 0 };
-}
-
-// ---------- Utility Functions ----------
-function findRowById(sheet, id) {
-  const values = sheet.getDataRange().getValues();
-  for (let i = 1; i < values.length; i++) {
-    if (String(values[i][0]).trim() === String(id).trim()) {
-      return i + 1;
-    }
-  }
-  return 0;
 }
 
 function testConnection() {
