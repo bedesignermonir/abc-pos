@@ -703,6 +703,18 @@ body {
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: var(--gray-100); border-radius: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; }
+
+/* ===== ক্যাশ ও ব্যালেন্স রেজিস্টার ===== */
+.cash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 6px; }
+.cash-cell label { display: block; color: var(--gray-500); font-size: 12px; font-weight: 700; margin-bottom: 5px; }
+.cash-cell input { width: 100%; padding: 10px 12px; border: 2px solid var(--gray-200); border-radius: 10px; font-size: 14px; font-family: inherit; box-sizing: border-box; }
+.cash-cell input:focus { outline: none; border-color: var(--primary); }
+.cash-subtotal-row { text-align: right; font-weight: 700; color: var(--dark); margin: 10px 0 18px; font-size: 15px; }
+.reg-divider { border: none; border-top: 2px dashed var(--gray-200); margin: 16px 0; }
+.grand-total-card { background: linear-gradient(135deg, var(--dark), #1e3a5f); border-radius: 16px; padding: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.grand-total-card .gt-label { color: rgba(255,255,255,0.75); font-size: 13px; font-weight: 700; }
+.grand-total-card .gt-value { color: #fff; font-size: 28px; font-weight: 700; }
+.grand-total-card .gt-breakdown { color: rgba(255,255,255,0.65); font-size: 12px; font-weight: 600; width: 100%; }
 </style>
 </head>
 <body>
@@ -856,6 +868,35 @@ body {
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Daily Cash & Balance Register -->
+  <div class="card">
+    <div class="card-header">
+      <div class="icon-box">💵</div>
+      <h2>দৈনিক ক্যাশ ও ব্যালেন্স হিসাব</h2>
+    </div>
+
+    <label style="color:var(--gray-500);font-size:12px;font-weight:700;display:block;margin-bottom:8px;">💰 নোটভিত্তিক ক্যাশ গণনা (নোটের সংখ্যা লিখুন — মোট টাকা অটো হিসাব হবে)</label>
+    <div class="cash-grid" id="cashDenomGrid"></div>
+    <div class="cash-subtotal-row">মোট ক্যাশ: <span id="cashTotalDisplay" style="color:var(--success);">৳০</span></div>
+
+    <hr class="reg-divider">
+
+    <label style="color:var(--gray-500);font-size:12px;font-weight:700;display:block;margin-bottom:8px;">📱 MFS / রিচার্জ / ব্যাংক ব্যালেন্স</label>
+    <div class="cash-grid" id="balanceInputGrid"></div>
+
+    <div class="grand-total-card">
+      <div>
+        <div class="gt-label">সর্বমোট মূলধন / ব্যালেন্স</div>
+        <div class="gt-value" id="grandBalanceTotal">৳০</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-whatsapp" style="padding:10px 16px;" onclick="saveRegister()">💾 সেভ করুন</button>
+        <button class="btn btn-reset" style="padding:10px 16px;" onclick="resetRegister()">🔄 রিসেট</button>
+      </div>
+      <div class="gt-breakdown" id="grandBalanceBreakdown">ক্যাশ ৳০ + ডিজিটাল ৳০</div>
     </div>
   </div>
 </div>
@@ -2406,6 +2447,124 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('./service-worker.js')
     .catch(error => console.error('Service worker registration failed:', error));
 }
+
+// ===== দৈনিক ক্যাশ ও ব্যালেন্স রেজিস্টার =====
+const CASH_DENOMS = [10, 20, 50, 100, 200, 500, 1000];
+const BALANCE_ACCOUNTS = [
+  { key: 'bkash',        label: 'বিকাশ (Business/Main)' },
+  { key: 'nagad',        label: 'নগদ' },
+  { key: 'rocket',       label: 'রকেট' },
+  { key: 'gp',           label: 'জিপি রিচার্জ' },
+  { key: 'banglalink',   label: 'বাংলালিংক রিচার্জ' },
+  { key: 'robi',         label: 'রবি রিচার্জ' },
+  { key: 'airtel',       label: 'এয়ারটেল রিচার্জ' },
+  { key: 'bank',         label: 'ব্যাংক অ্যাকাউন্ট' },
+  { key: 'bkashSaving',  label: 'বিকাশ সেভিংস' },
+  { key: 'personalMfs',  label: 'বিকাশ/নগদ পার্সোনাল' }
+];
+
+function buildRegisterUI() {
+  const denomGrid = document.getElementById('cashDenomGrid');
+  const balGrid = document.getElementById('balanceInputGrid');
+  if (!denomGrid || !balGrid) return;
+  denomGrid.innerHTML = CASH_DENOMS.map(d => `
+    <div class="cash-cell">
+      <label for="denom_${d}">৳${toBnNum(d)} নোট</label>
+      <input type="number" id="denom_${d}" min="0" step="1" placeholder="০" oninput="updateRegisterTotals()">
+    </div>`).join('');
+  balGrid.innerHTML = BALANCE_ACCOUNTS.map(a => `
+    <div class="cash-cell">
+      <label for="bal_${a.key}">${a.label}</label>
+      <input type="number" id="bal_${a.key}" min="0" step="0.01" placeholder="০" oninput="updateRegisterTotals()">
+    </div>`).join('');
+}
+
+function registerCashTotal() {
+  let total = 0;
+  CASH_DENOMS.forEach(d => {
+    const el = document.getElementById('denom_' + d);
+    total += d * Math.max(0, safeNum(el ? el.value : 0));
+  });
+  return total;
+}
+
+function registerDigitalTotal() {
+  let total = 0;
+  BALANCE_ACCOUNTS.forEach(a => {
+    const el = document.getElementById('bal_' + a.key);
+    total += Math.max(0, safeNum(el ? el.value : 0));
+  });
+  return total;
+}
+
+function updateRegisterTotals() {
+  try {
+    const cash = registerCashTotal();
+    const digital = registerDigitalTotal();
+    const grand = cash + digital;
+    const cashEl = document.getElementById('cashTotalDisplay');
+    const grandEl = document.getElementById('grandBalanceTotal');
+    const breakEl = document.getElementById('grandBalanceBreakdown');
+    if (cashEl) cashEl.textContent = formatMoney(cash);
+    if (grandEl) grandEl.textContent = formatMoney(grand);
+    if (breakEl) breakEl.textContent = 'ক্যাশ ' + formatMoney(cash) + ' + ডিজিটাল ' + formatMoney(digital);
+  } catch (error) {
+    console.error('রেজিস্টার হিসাব ত্রুটি:', error);
+  }
+}
+
+function saveRegister() {
+  try {
+    const data = { date: new Date().toISOString().slice(0, 10), denominations: {}, balances: {} };
+    CASH_DENOMS.forEach(d => {
+      const el = document.getElementById('denom_' + d);
+      data.denominations[d] = Math.max(0, safeNum(el ? el.value : 0));
+    });
+    BALANCE_ACCOUNTS.forEach(a => {
+      const el = document.getElementById('bal_' + a.key);
+      data.balances[a.key] = Math.max(0, safeNum(el ? el.value : 0));
+    });
+    localStorage.setItem('pos_cash_register', JSON.stringify(data));
+    showToast('✅ ক্যাশ ও ব্যালেন্স হিসাব সেভ হয়েছে (' + toBnNum(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })) + ')');
+  } catch (error) {
+    showToast('সেভ করা যায়নি: ' + error.message, 'error');
+  }
+}
+
+function loadRegister() {
+  try {
+    const raw = localStorage.getItem('pos_cash_register');
+    if (!raw) return;
+    const data = JSON.parse(raw) || {};
+    CASH_DENOMS.forEach(d => {
+      const el = document.getElementById('denom_' + d);
+      if (el) {
+        const v = safeNum((data.denominations || {})[d]);
+        el.value = v > 0 ? String(v) : '';
+      }
+    });
+    BALANCE_ACCOUNTS.forEach(a => {
+      const el = document.getElementById('bal_' + a.key);
+      if (el) {
+        const v = safeNum((data.balances || {})[a.key]);
+        el.value = v > 0 ? String(v) : '';
+      }
+    });
+  } catch (error) {
+    console.error('রেজিস্টার লোড ত্রুটি:', error);
+  }
+}
+
+function resetRegister() {
+  CASH_DENOMS.forEach(d => { const el = document.getElementById('denom_' + d); if (el) el.value = ''; });
+  BALANCE_ACCOUNTS.forEach(a => { const el = document.getElementById('bal_' + a.key); if (el) el.value = ''; });
+  updateRegisterTotals();
+  showToast('🔄 রেজিস্টার রিসেট হয়েছে (সেভ করা পুরোনো রেকর্ড মোবাইলে থাকবে — নতুন মান সেভ করলে আপডেট হবে)');
+}
+
+buildRegisterUI();
+loadRegister();
+updateRegisterTotals();
 </script>
 </body>
 </html>
