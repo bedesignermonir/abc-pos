@@ -146,9 +146,37 @@ function getSheet() {
   let sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
-    sheet.appendRow(['ID', 'Invoice No', 'Date', 'Customer Name', 'Phone', 'Items', 'Subtotal', 'Discount', 'Total', 'Cost Total', 'Notes', 'Saved At']);
+    sheet.appendRow([
+      'ID', 'Invoice No', 'Date', 'Customer', 'Phone', 'Items', 'Subtotal',
+      'Discount', 'Total', 'Cost Total', 'Net Profit', 'Notes', 'Saved At'
+    ]);
+  } else {
+    ensureSalesHeaders(sheet);
   }
   return sheet;
+}
+
+function ensureSalesHeaders(sheet) {
+  const lastColumn = Math.max(sheet.getLastColumn(), 1);
+  const headerRange = sheet.getRange(1, 1, 1, lastColumn);
+  const headers = headerRange.getValues()[0].map(function (value) {
+    return String(value || '').trim();
+  });
+  const customerNameIndex = headers.indexOf('Customer Name');
+  if (customerNameIndex >= 0 && headers.indexOf('Customer') < 0) {
+    headers[customerNameIndex] = 'Customer';
+    sheet.getRange(1, customerNameIndex + 1).setValue('Customer');
+  }
+  const requiredHeaders = [
+    'ID', 'Invoice No', 'Date', 'Customer', 'Phone', 'Items', 'Subtotal',
+    'Discount', 'Total', 'Cost Total', 'Net Profit', 'Notes', 'Saved At'
+  ];
+  requiredHeaders.forEach(function (header) {
+    if (headers.indexOf(header) >= 0) return;
+    const column = sheet.getLastColumn() + 1;
+    sheet.getRange(1, column).setValue(header);
+    headers[column - 1] = header;
+  });
 }
 
 function getSettingsSheet() {
@@ -218,24 +246,33 @@ function saveInvoice(data) {
   const costTotal = items.reduce(function (sum, item) {
     return sum + item.costPrice * item.qty;
   }, 0);
+  const netProfit = total - costTotal;
+  const savedAt = new Date().toISOString();
+  const valuesByHeader = {
+    'ID': invoice.id,
+    'Invoice No': invoice.invoiceNo || '',
+    'Date': invoice.date || savedAt,
+    'Customer': invoice.customer || invoice.customerName || '',
+    'Customer Name': invoice.customer || invoice.customerName || '',
+    'Phone': invoice.phone || '',
+    'Items': formatInvoiceItems(items),
+    'Subtotal': subtotal,
+    'Discount': discount,
+    'Total': total,
+    'Cost Total': costTotal,
+    'Net Profit': netProfit,
+    'Notes': invoice.notes || '',
+    'Saved At': savedAt
+  };
   
   const existingRow = findRowById(sheet, invoice.id);
-  
-  const row = [
-    invoice.id,
-    invoice.invoiceNo || '',
-    invoice.date || new Date().toISOString(),
-    invoice.customer || invoice.customerName || '',
-    invoice.phone || '',
-    JSON.stringify(items),
-    subtotal,
-    discount,
-    total,
-    costTotal,
-    invoice.notes || '',
-    new Date().toISOString()
-  ];
-  
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const row = headers.map(function (header) {
+    return Object.prototype.hasOwnProperty.call(valuesByHeader, String(header).trim())
+      ? valuesByHeader[String(header).trim()]
+      : '';
+  });
+
   if (existingRow > 0) {
     sheet.getRange(existingRow, 1, 1, row.length).setValues([row]);
   } else {
@@ -302,13 +339,14 @@ function getAllInvoices(result) {
       id: row.ID,
       invoiceNo: row['Invoice No'],
       date: row.Date,
-      customerName: row['Customer Name'],
+      customerName: row.Customer || row['Customer Name'],
       phone: row.Phone,
       items: items,
       subtotal: subtotal,
       discount: discount,
       total: calculatedTotal,
       costTotal: calculatedCost || savedCost,
+      netProfit: calculatedTotal - (calculatedCost || savedCost),
       notes: row.Notes
     };
   });
@@ -331,7 +369,7 @@ function parseInvoiceItems(value) {
     try {
       items = JSON.parse(items);
     } catch (err) {
-      throw new Error('Invoice items must contain valid JSON: ' + err.message);
+      items = parseReadableInvoiceItems(value);
     }
   }
   if (!Array.isArray(items)) {
@@ -351,6 +389,31 @@ function parseInvoiceItems(value) {
       total: qty * price
     };
   });
+}
+
+function formatInvoiceItems(items) {
+  return items.map(function (item) {
+    return item.name + ' (' + item.qty + 'x' + item.price + 'TK)';
+  }).join(', ');
+}
+
+function parseReadableInvoiceItems(value) {
+  const items = [];
+  const pattern = /([^,]+?)\s+\((\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)TK\)/g;
+  let match;
+  while ((match = pattern.exec(value)) !== null) {
+    items.push({
+      name: match[1].trim(),
+      qty: Number(match[2]),
+      price: Number(match[3]),
+      costPrice: 0,
+      total: Number(match[2]) * Number(match[3])
+    });
+  }
+  if (!items.length) {
+    throw new Error('Invoice items must be a JSON array or readable item list');
+  }
+  return items;
 }
 
 // ---------- Settings Functions ----------

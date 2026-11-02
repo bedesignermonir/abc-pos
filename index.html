@@ -1413,7 +1413,7 @@ function normalizeSheetInvoice(invoice) {
     try {
       items = JSON.parse(items);
     } catch (error) {
-      throw new Error('ইনভয়েসের আইটেম JSON পড়া যায়নি: ' + error.message);
+      items = parseReadableInvoiceItems(items);
     }
   }
   if (!Array.isArray(items)) {
@@ -1451,8 +1451,26 @@ function normalizeSheetInvoice(invoice) {
     discount,
     total: calculatedTotal,
     costTotal,
+    netProfit: calculatedTotal - costTotal,
     notes: invoice.notes || ''
   };
+}
+
+function parseReadableInvoiceItems(value) {
+  const items = [];
+  const pattern = /([^,]+?)\s+\((\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)TK\)/g;
+  let match;
+  while ((match = pattern.exec(value)) !== null) {
+    items.push({
+      name: match[1].trim(),
+      qty: Number(match[2]),
+      price: Number(match[3]),
+      costPrice: 0,
+      total: Number(match[2]) * Number(match[3])
+    });
+  }
+  if (!items.length) throw new Error('শিটের পণ্যের বিবরণ পড়া যায়নি');
+  return items;
 }
 
 async function saveToSheet(invoice) {
@@ -1751,6 +1769,7 @@ function calculateInvoiceCost(invoice) {
   });
 
   invoice.costTotal = Number(costTotal.toFixed(2));
+  invoice.netProfit = Number((safeNum(invoice.total) - invoice.costTotal).toFixed(2));
 
   return { missingCostItems: [] };
 }
@@ -2784,6 +2803,11 @@ function expenseSourceOptions() {
   const opts = [{ key: 'cash', label: '💵 ক্যাশ (নোট গণনা থেকে)' }];
   BALANCE_ACCOUNTS.forEach(a => opts.push({ key: a.key, label: '📱 ' + a.label }));
   return opts;
+}
+
+function srcLabelOf(sourceKey) {
+  const source = expenseSourceOptions().find(option => option.key === sourceKey);
+  return source ? source.label : 'অজানা পেমেন্ট মাধ্যম';
 }
 
 function getRegisterBalanceValue(sourceKey) {
