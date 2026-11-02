@@ -715,6 +715,28 @@ body {
 .grand-total-card .gt-label { color: rgba(255,255,255,0.75); font-size: 13px; font-weight: 700; }
 .grand-total-card .gt-value { color: #fff; font-size: 28px; font-weight: 700; }
 .grand-total-card .gt-breakdown { color: rgba(255,255,255,0.65); font-size: 12px; font-weight: 600; width: 100%; }
+
+/* ===== Creditors / Expenses / Summary ===== */
+.creditor-form-grid, .expense-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: end; }
+.creditor-form-grid .btn, .expense-form-grid .btn { padding: 11px 14px; }
+.creditor-row, .expense-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--gray-200); border-radius: 12px; margin-top: 8px; flex-wrap: wrap; }
+.creditor-info, .expense-info { min-width: 0; }
+.creditor-name { font-weight: 700; font-size: 14px; }
+.creditor-sub, .expense-sub { color: var(--gray-500); font-size: 12px; margin-top: 2px; }
+.creditor-due { font-weight: 700; font-size: 15px; white-space: nowrap; }
+.expense-cat-tag { display: inline-block; background: var(--primary-light, #e8f0fe); color: var(--primary, #1a73e8); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-right: 6px; }
+.row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.mini-btn { border: none; border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.mini-btn.pay { background: linear-gradient(135deg, #10b981, #047857); color: #fff; }
+.mini-btn.del { background: linear-gradient(135deg, #ef4444, #b91c1c); color: #fff; }
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.summary-cell { background: var(--gray-50, #f8fafc); border: 1.5px solid var(--gray-200); border-radius: 12px; padding: 12px; }
+.summary-cell .sc-label { color: var(--gray-500); font-size: 11px; font-weight: 700; }
+.summary-cell .sc-value { font-size: 18px; font-weight: 700; margin-top: 4px; }
+.sc-green { color: var(--success, #10b981); }
+.sc-red { color: #dc2626; }
+.sc-blue { color: var(--primary, #1a73e8); }
+@media (max-width: 600px) { .creditor-form-grid, .expense-form-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -899,6 +921,76 @@ body {
       <div class="gt-breakdown" id="grandBalanceBreakdown">ক্যাশ ৳০ + ডিজিটাল ৳০</div>
     </div>
   </div>
+
+  <!-- Creditors / Loans (পাওনাদার হিসাব) -->
+  <div class="card">
+    <div class="card-header">
+      <div class="icon-box">🤝</div>
+      <h2>পাওনাদার / ঋণ হিসাব</h2>
+    </div>
+    <div class="creditor-form-grid">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>👤 পাওনাদারের নাম</label>
+        <input type="text" id="creditorName" placeholder="যেমন: করিম ট্রেডার্স">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>💰 নতুন ধার (পাওনা টাকার পরিমাণ)</label>
+        <input type="number" id="creditorAmount" min="0" step="0.01" placeholder="০">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>✅ পরিশোধ (অপশনাল — এই তারিখে)</label>
+        <input type="number" id="creditorPaid" min="0" step="0.01" placeholder="০ (খালি রাখলে ০)">
+      </div>
+      <button class="btn btn-save" onclick="addCreditor()">➕ যোগ করুন</button>
+    </div>
+    <div id="creditorList" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- Expenses (খরচ হিসাব) -->
+  <div class="card">
+    <div class="card-header">
+      <div class="icon-box">🧾</div>
+      <h2>খরচ হিসাব</h2>
+    </div>
+    <div class="expense-form-grid">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>🏷️ খরচের ক্যাটাগরি / পাওনাদার</label>
+        <select id="expenseCategorySelect" onchange="toggleOtherExpenseInput()"></select>
+        <input type="text" id="expenseCategoryOther" placeholder="নতুন খরচের নাম লিখুন..." style="display:none;margin-top:8px;">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>💵 পরিমাণ</label>
+        <input type="number" id="expenseAmount" min="0" step="0.01" placeholder="০">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>📦 উৎস (যেখান থেকে টাকা যাবে)</label>
+        <select id="expenseSource"></select>
+      </div>
+      <button class="btn btn-save" onclick="addExpense()">💸 খরচ সেভ</button>
+    </div>
+    <div class="filter-row" style="margin-top:12px;">
+      <input type="month" id="expenseMonthFilter" onchange="renderExpenses()">
+    </div>
+    <div id="expenseList"></div>
+  </div>
+
+  <!-- Financial Summary (আর্থিক সারসংক্ষেপ) -->
+  <div class="card">
+    <div class="card-header">
+      <div class="icon-box">📈</div>
+      <h2>আর্থিক সারসংক্ষেপ</h2>
+    </div>
+    <div class="summary-grid" id="financeSummaryGrid"></div>
+    <div class="reg-divider" style="border:none;border-top:2px dashed var(--gray-200);margin:14px 0;"></div>
+    <div class="cash-grid" id="sourceBalanceGrid"></div>
+    <div class="grand-total-card" style="margin-top:14px;">
+      <div>
+        <div class="gt-label">নিট পজিশন (লাভ − খরচ − বকেয়া)</div>
+        <div class="gt-value" id="netPositionValue">৳০</div>
+      </div>
+      <div class="gt-breakdown" id="netPositionBreakdown">মোট আয় ৳০ − মোট খরচ ৳০ − পাওনাদারে বকেয়া ৳০</div>
+    </div>
+  </div>
 </div>
 </div>
 
@@ -930,6 +1022,13 @@ body {
       <textarea id="profitShares" style="min-height:80px;" placeholder="আমার অংশ | 60&#10;পার্টনার | 40"></textarea>
       <small style="color:var(--gray-500);font-size:11px;margin-top:4px;display:block;">
         সব অংশের যোগফল ১০০% হতে হবে। নতুন অংশীদার যোগ করতে নতুন লাইন দিন।
+      </small>
+    </div>
+    <div class="form-group">
+      <label>💸 খরচের ক্যাটাগরি (প্রতি লাইনে একটি)</label>
+      <textarea id="expenseCategories" style="min-height:100px;" placeholder="বাজার খরচ&#10;দোকান ভাড়া&#10;বিদ্যুৎ বিল&#10;কর্মচারীর বেতন"></textarea>
+      <small style="color:var(--gray-500);font-size:11px;margin-top:4px;display:block;">
+        পাওনাদারদের নাম খরচের তালিকায় স্বয়ংক্রিয়ভাবে যোগ হবে। সেভ করার পর "খরচ হিসাব" সেকশনের ড্রপডাউনে দেখা যাবে।
       </small>
     </div>
     <div class="action-btns-3">
@@ -1196,11 +1295,11 @@ async function postSheetData(payload) {
 
 function getSheetSettingsFromResponse(remoteSettings) {
   const normalized = { ...settings };
-  ['presetItems', 'costPrices', 'sellingPrices', 'profitShares'].forEach(key => {
+  ['presetItems', 'expenseCategories', 'costPrices', 'sellingPrices', 'profitShares'].forEach(key => {
     if (Object.prototype.hasOwnProperty.call(settings, key) ||
         !Object.prototype.hasOwnProperty.call(remoteSettings || {}, key)) return;
     const value = remoteSettings[key];
-    if (key === 'presetItems') {
+    if (key === 'presetItems' || key === 'expenseCategories') {
       normalized[key] = String(value || '');
       return;
     }
@@ -2220,6 +2319,8 @@ function verifySettingsPin() {
   closeSettingsPin();
   document.getElementById('sheetUrl').value = settings.sheetUrl || '';
   document.getElementById('presetItems').value = settings.presetItems || '';
+  const expCatEl = document.getElementById('expenseCategories');
+  if (expCatEl) expCatEl.value = settings.expenseCategories || '';
   document.getElementById('profitShares').value = getConfiguredProfitShares()
     .map(share => `${share.name} | ${share.percentage}`)
     .join('\n');
@@ -2322,6 +2423,7 @@ async function saveSettingsToSheet() {
       pin: SETTINGS_PIN,
       settings: {
         presetItems: settings.presetItems,
+        expenseCategories: settings.expenseCategories || '',
         costPrices: settings.costPrices,
         sellingPrices: settings.sellingPrices,
         profitShares: settings.profitShares
@@ -2336,6 +2438,7 @@ async function saveSettingsToSheet() {
     const remoteSettings = result && result.settings;
     const settingsMatch = result && result.success && remoteSettings &&
       remoteSettings.presetItems === settings.presetItems &&
+      String(remoteSettings.expenseCategories || '') === String(settings.expenseCategories || '') &&
       JSON.stringify(JSON.parse(remoteSettings.costPrices || '{}')) === JSON.stringify(settings.costPrices) &&
       JSON.stringify(JSON.parse(remoteSettings.sellingPrices || '{}')) === JSON.stringify(settings.sellingPrices) &&
       JSON.stringify(JSON.parse(remoteSettings.profitShares || '[]')) === JSON.stringify(settings.profitShares);
@@ -2384,10 +2487,12 @@ async function saveSettings() {
     settings.sheetUrl = '';
   }
   settings.presetItems = document.getElementById('presetItems').value;
+  settings.expenseCategories = document.getElementById('expenseCategories').value;
   settings.costPrices = costPrices;
   settings.sellingPrices = sellingPrices;
   settings.profitShares = profitShares;
   localStorage.setItem('pos_settings', JSON.stringify(settings));
+  populateExpenseCategoryOptions();
   closeSettings();
   document.getElementById('itemsContainer').innerHTML = '';
   addItem();
@@ -2565,6 +2670,373 @@ function resetRegister() {
 buildRegisterUI();
 loadRegister();
 updateRegisterTotals();
+
+// ===== পাওনাদার / খরচ / আর্থিক সারসংক্ষেপ (Creditors, Expenses & Summary) =====
+const DEFAULT_EXPENSE_CATEGORIES = ['বাজার খরচ', 'দোকান ভাড়া', 'বিদ্যুৎ বিল', 'ইন্টারনেট বিল', 'কর্মচারীর বেতন', 'পরিবহন খরচ'];
+let creditors = [];   // [{id, name, taken, paid, date}]
+let expenses  = [];   // [{id, category, amount, source, sourceLabel, date}]
+try { creditors = JSON.parse(localStorage.getItem('pos_creditors') || '[]'); } catch (e) { creditors = []; }
+try { expenses  = JSON.parse(localStorage.getItem('pos_expenses')  || '[]'); } catch (e) { expenses  = []; }
+if (!Array.isArray(creditors)) creditors = [];
+if (!Array.isArray(expenses)) expenses = [];
+
+function saveCreditors() { try { localStorage.setItem('pos_creditors', JSON.stringify(creditors)); } catch (e) {} }
+function saveExpenses()  { try { localStorage.setItem('pos_expenses',  JSON.stringify(expenses));  } catch (e) {} }
+
+// --- Google Sheet ব্যাকআপ (ব্যাকএন্ড কনফিগার থাকলে; লোকাল ডাটার মূল উৎস localStorage-ই থাকে) ---
+async function backupCreditorToSheet(c) {
+  if (!getSheetUrl()) return;
+  try { await postSheetData({ action: 'saveCreditor', creditor: c }); }
+  catch (error) { console.warn('পাওনাদার শিট ব্যাকআপ হয়নি:', error.message); }
+}
+async function removeCreditorFromSheet(id) {
+  if (!getSheetUrl()) return;
+  try { await postSheetData({ action: 'deleteCreditor', id: id }); }
+  catch (error) { console.warn('পাওনাদার শিট ডিলিট হয়নি:', error.message); }
+}
+async function backupExpenseToSheet(e) {
+  if (!getSheetUrl()) return;
+  try { await postSheetData({ action: 'saveExpense', expense: e }); }
+  catch (error) { console.warn('খরচ শিট ব্যাকআপ হয়নি:', error.message); }
+}
+async function removeExpenseFromSheet(id) {
+  if (!getSheetUrl()) return;
+  try { await postSheetData({ action: 'deleteExpense', id: id }); }
+  catch (error) { console.warn('খরচ শিট ডিলিট হয়নি:', error.message); }
+}
+
+function escapeHtml(s) {
+  return String(s === undefined || s === null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function getExpenseCategoryList() {
+  const raw = typeof settings.expenseCategories === 'string' && settings.expenseCategories.trim()
+    ? settings.expenseCategories
+    : DEFAULT_EXPENSE_CATEGORIES.join('\n');
+  const cats = raw.split('\n').map(s => s.trim()).filter(Boolean);
+  return [...new Set(cats)];
+}
+
+// উৎস তালিকা: ক্যাশ নোট + MFS/রিচার্জ/ব্যাংক অ্যাকাউন্ট (রেজিস্টারের সাথে হুবহু মিলে যায়)
+function expenseSourceOptions() {
+  const opts = [{ key: 'cash', label: '💵 ক্যাশ (নোট গণনা থেকে)' }];
+  BALANCE_ACCOUNTS.forEach(a => opts.push({ key: a.key, label: '📱 ' + a.label }));
+  return opts;
+}
+
+function getRegisterBalanceValue(sourceKey) {
+  if (sourceKey === 'cash') return registerCashTotal();
+  const el = document.getElementById('bal_' + sourceKey);
+  return Math.max(0, safeNum(el ? el.value : 0));
+}
+
+function setRegisterBalanceValue(sourceKey, value) {
+  const v = Math.max(0, safeNum(value));
+  if (sourceKey === 'cash') {
+    CASH_DENOMS.forEach(d => { const el = document.getElementById('denom_' + d); if (el) el.value = ''; });
+    if (v > 0) {
+      let remaining = v;
+      for (let i = CASH_DENOMS.length - 1; i >= 0; i--) {
+        const d = CASH_DENOMS[i];
+        const count = Math.floor(remaining / d);
+        remaining -= count * d;
+        const el = document.getElementById('denom_' + d);
+        if (el && count > 0) el.value = String(count);
+      }
+    }
+  } else {
+    const el = document.getElementById('bal_' + sourceKey);
+    if (el) el.value = v > 0 ? String(v) : '';
+  }
+  updateRegisterTotals();
+}
+
+function populateExpenseCategoryOptions() {
+  const select = document.getElementById('expenseCategorySelect');
+  if (!select) return;
+  const prev = select.value;
+  const cats = getExpenseCategoryList();
+  const creditorNames = [...new Set(creditors.map(c => String(c.name || '').trim()).filter(Boolean))];
+  let html = '<option value="">-- বাছাই করুন --</option>';
+  cats.forEach(c => { html += `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`; });
+  if (creditorNames.length) {
+    html += '<optgroup label="🤝 পাওনাদারকে পরিশোধ">' +
+      creditorNames.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('') + '</optgroup>';
+  }
+  html += '<option value="__other__">✏️ অন্যান্য (নতুন নাম লিখুন...)</option>';
+  select.innerHTML = html;
+  if (prev && [...select.options].some(o => o.value === prev)) select.value = prev;
+  toggleOtherExpenseInput();
+}
+
+function toggleOtherExpenseInput() {
+  const select = document.getElementById('expenseCategorySelect');
+  const other = document.getElementById('expenseCategoryOther');
+  if (!select || !other) return;
+  other.style.display = select.value === '__other__' ? '' : 'none';
+  if (select.value !== '__other__') other.value = '';
+}
+
+function resolveCreditor(name) {
+  const target = String(name || '').trim().toLowerCase();
+  if (!target) return null;
+  return creditors.find(c => String(c.name || '').trim().toLowerCase() === target) || null;
+}
+
+function renderCreditorList() {
+  const wrap = document.getElementById('creditorList');
+  if (!wrap) return;
+  if (!creditors.length) {
+    wrap.innerHTML = '<div style="color:var(--gray-500);font-size:13px;padding:6px 2px;">এখনো কোনো পাওনাদার নেই। উপরের ফর্মে যোগ করুন।</div>';
+    return;
+  }
+  wrap.innerHTML = creditors.map(c => {
+    const taken = safeNum(c.taken), paid = safeNum(c.paid), due = Math.max(0, taken - paid);
+    return `
+    <div class="creditor-row">
+      <div class="creditor-info">
+        <div class="creditor-name">🤝 ${escapeHtml(c.name)}</div>
+        <div class="creditor-sub">ধারা ${formatMoney(taken)} · পরিশোধ ${formatMoney(paid)} · ${formatDate(c.date)}</div>
+      </div>
+      <div class="creditor-due" style="color:${due > 0 ? '#dc2626' : 'var(--success)'};">বকেয়া ${formatMoney(due)}</div>
+      <div class="row-actions">
+        <button class="mini-btn pay" onclick="payCreditorPrompt(${safeNum(c.id)})">✅ পরিশোধ</button>
+        <button class="mini-btn del" onclick="deleteCreditor(${safeNum(c.id)})">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addCreditor() {
+  try {
+    const nameEl = document.getElementById('creditorName');
+    const amtEl = document.getElementById('creditorAmount');
+    const paidEl = document.getElementById('creditorPaid');
+    const name = (nameEl.value || '').trim();
+    const taken = Math.max(0, safeNum(amtEl.value));
+    const paid = Math.max(0, safeNum(paidEl.value));
+    if (!name) return showToast('পাওনাদারের নাম লিখুন', 'error');
+    if (taken <= 0 && paid <= 0) return showToast('ধারার পরিমাণ অথবা পরিশোধের পরিমাণ দিন', 'error');
+    const creditor = { id: Date.now(), name: name, taken: taken, paid: paid, date: new Date().toISOString() };
+    creditors.unshift(creditor);
+    saveCreditors();
+    backupCreditorToSheet(creditor);
+    nameEl.value = ''; amtEl.value = ''; paidEl.value = '';
+    renderCreditorList();
+    populateExpenseCategoryOptions();
+    renderFinanceSummary();
+    showToast('✓ পাওনাদার "' + name + '" যোগ হয়েছে (বকেয়া ' + formatMoney(Math.max(0, taken - paid)) + ')');
+  } catch (error) {
+    console.error('addCreditor ত্রুটি:', error);
+    showToast('পাওনাদার যোগ করা যায়নি: ' + error.message, 'error');
+  }
+}
+
+function payCreditorPrompt(id) {
+  const c = creditors.find(x => safeNum(x.id) === safeNum(id));
+  if (!c) return showToast('পাওনাদার খুঁজে পাওয়া যায়নি', 'error');
+  const due = Math.max(0, safeNum(c.taken) - safeNum(c.paid));
+  if (due <= 0) return showToast('"' + c.name + '" এর কোনো বকেয়া নেই');
+  const input = prompt('"' + c.name + '" কে কত টাকা পরিশোধ করবেন?\n(বর্তমান বকেয়া: ' + Math.round(due) + ' টাকা)', String(Math.round(due)));
+  if (input === null) return;
+  const amount = safeNum(input);
+  if (amount <= 0) return showToast('সঠিক পরিমাণ দিন', 'error');
+  c.paid = safeNum(c.paid) + amount;
+  saveCreditors();
+  backupCreditorToSheet(c);
+  renderCreditorList();
+  renderFinanceSummary();
+  showToast('✓ "' + c.name + '" — ' + formatMoney(amount) + ' পরিশোধ হিসাব হয়েছে (নতুন বকেয়া ' + formatMoney(Math.max(0, safeNum(c.taken) - safeNum(c.paid))) + ')');
+}
+
+function deleteCreditor(id) {
+  const c = creditors.find(x => safeNum(x.id) === safeNum(id));
+  if (!c) return;
+  if (!confirm('"' + c.name + '" এর রেকর্ড মুছে ফেলবেন?')) return;
+  creditors = creditors.filter(x => safeNum(x.id) !== safeNum(id));
+  saveCreditors();
+  removeCreditorFromSheet(id);
+  renderCreditorList();
+  populateExpenseCategoryOptions();
+  renderFinanceSummary();
+  showToast('🗑️ পাওনাদারের রেকর্ড মুছে ফেলা হয়েছে');
+}
+
+function renderExpenseList() {
+  const wrap = document.getElementById('expenseList');
+  if (!wrap) return;
+  const monthFilterEl = document.getElementById('expenseMonthFilter');
+  const monthVal = monthFilterEl ? monthFilterEl.value : '';
+  const list = monthVal
+    ? expenses.filter(e => String(e.date || '').slice(0, 7) === monthVal)
+    : expenses;
+  if (!list.length) {
+    wrap.innerHTML = '<div style="color:var(--gray-500);font-size:13px;padding:8px 2px;">এই সময়ের কোনো খরচ নেই।</div>';
+    return;
+  }
+  const srcLabels = {};
+  expenseSourceOptions().forEach(o => { srcLabels[o.key] = o.label; });
+  wrap.innerHTML = list.map(e => `
+    <div class="expense-row">
+      <div class="expense-info">
+        <div><span class="expense-cat-tag">${escapeHtml(e.category || '')}</span><b>${formatMoney(e.amount)}</b></div>
+        <div class="expense-sub">${formatDate(e.date)} · উৎস: ${escapeHtml(e.sourceLabel || srcLabels[e.source] || e.source || '')}</div>
+      </div>
+      <div class="row-actions">
+        <button class="mini-btn del" onclick="deleteExpense(${safeNum(e.id)})">🗑️</button>
+      </div>
+    </div>`).join('');
+}
+
+function addExpense() {
+  try {
+    const catSel = document.getElementById('expenseCategorySelect');
+    const otherEl = document.getElementById('expenseCategoryOther');
+    const amtEl = document.getElementById('expenseAmount');
+    const srcEl = document.getElementById('expenseSource');
+    let category = catSel.value === '__other__' ? (otherEl.value || '').trim() : catSel.value;
+    const amount = safeNum(amtEl.value);
+    const source = srcEl.value || 'cash';
+    if (!category) return showToast('খরচের ক্যাটাগরি / পাওনাদার বাছাই করুন', 'error');
+    if (!(amount > 0)) return showToast('খরচের পরিমাণ দিন', 'error');
+
+    const current = getRegisterBalanceValue(source);
+    if (current < amount) {
+      return showToast('⚠️ "' + srcLabelOf(source) + '" এ মাত্র ' + formatMoney(current) + ' আছে — ' + formatMoney(amount) + ' কাটা যাবে না। প্রথমে ওই উৎসের ব্যালেন্স ঠিকভাবে লিখে 💾 সেভ করুন।', 'error');
+    }
+
+    // ১) ব্যালেন্স থেকে স্বয়ংক্রিয় কর্তন
+    setRegisterBalanceValue(source, current - amount);
+
+    // ২) পাওনাদারের সাথে মিললে বকেয়া কমে
+    const creditor = resolveCreditor(category);
+    if (creditor) {
+      creditor.paid = safeNum(creditor.paid) + amount;
+      saveCreditors();
+    }
+
+    const expense = {
+      id: Date.now(),
+      category: category,
+      amount: amount,
+      source: source,
+      sourceLabel: srcLabelOf(source),
+      date: new Date().toISOString()
+    };
+    expenses.unshift(expense);
+    saveExpenses();
+    backupExpenseToSheet(expense);
+    if (creditor) backupCreditorToSheet(creditor);
+    amtEl.value = ''; otherEl.value = ''; catSel.value = '';
+    toggleOtherExpenseInput();
+    renderExpenseList();
+    renderCreditorList();
+    renderFinanceSummary();
+    showToast('✓ খরচ ' + formatMoney(amount) + ' ("' + category + '", ' + srcLabelOf(source) + ') সেভ হয়েছে' + (creditor ? ' — বকেয়া কমেছে' : ''));
+  } catch (error) {
+    console.error('addExpense ত্রুটি:', error);
+    showToast('খরচ সেভ করা যায়নি: ' + error.message, 'error');
+  }
+}
+
+function srcLabelOf(key) {
+  const found = expenseSourceOptions().find(o => o.key === key);
+  return found ? found.label.replace(/^\S+\s/, '') : String(key || '');
+}
+
+function deleteExpense(id) {
+  const e = expenses.find(x => safeNum(x.id) === safeNum(id));
+  if (!e) return;
+  if (!confirm('"' + e.category + '" এর ' + formatMoney(e.amount) + ' খরচের রেকর্ড মুছবেন?\n(মুছলে উৎসের ব্যালেন্স স্বয়ংক্রিয়ভাবে ফিরে আসবে)')) return;
+  expenses = expenses.filter(x => safeNum(x.id) !== safeNum(id));
+  saveExpenses();
+  removeExpenseFromSheet(id);
+  const current = getRegisterBalanceValue(e.source);
+  setRegisterBalanceValue(e.source, current + safeNum(e.amount));
+  if (resolveCreditor(e.category)) { /* creditor paid stays as recorded; user can adjust via creditor list */ }
+  renderExpenseList();
+  renderCreditorList();
+  renderFinanceSummary();
+  showToast('🗑️ খরচের রেকর্ড মুছে ' + formatMoney(e.amount) + ' "' + srcLabelOf(e.source) + '" ব্যালেন্সে ফেরত দেওয়া হয়েছে');
+}
+
+function computeFinanceSummary() {
+  const totalSales = invoices.reduce((sum, inv) => sum + safeNum(inv.total), 0);
+  const totalCost  = invoices.reduce((sum, inv) => sum + getInvoiceCostTotal(inv), 0);
+  const grossProfit = totalSales - totalCost;
+  const shares = getConfiguredProfitShares();
+  const ownerShareObj = shares.find(s => /আমার|my|owner/i.test(String(s.name || ''))) || shares[0] || { percentage: 60 };
+  const ownerPct = safeNum(ownerShareObj.percentage);
+  const myProfitShare = Math.round(grossProfit * ownerPct) / 100;
+  const myIncome = totalCost + myProfitShare; // কস্ট ফেরত + আমার লাভের অংশ
+  const totalExpenses = expenses.reduce((sum, e) => sum + safeNum(e.amount), 0);
+  const totalDue = creditors.reduce((sum, c) => sum + Math.max(0, safeNum(c.taken) - safeNum(c.paid)), 0);
+  return { totalSales, totalCost, grossProfit, myIncome, totalExpenses, totalDue, netPosition: myIncome - totalExpenses - totalDue };
+}
+
+function renderFinanceSummary() {
+  const grid = document.getElementById('financeSummaryGrid');
+  if (!grid) return;
+  const s = computeFinanceSummary();
+  const cells = [
+    { label: '🛒 মোট বিক্রি (সব)', value: formatMoney(s.totalSales), cls: 'sc-blue' },
+    { label: '📦 মোট কস্ট (সব)', value: formatMoney(s.totalCost), cls: '' },
+    { label: '📈 নিট লাভ (সব)', value: formatMoney(s.grossProfit), cls: s.grossProfit >= 0 ? 'sc-green' : 'sc-red' },
+    { label: '💰 মোট আয় (কস্ট + আমার লাভ)', value: formatMoney(s.myIncome), cls: 'sc-green' },
+    { label: '💸 মোট খরচ', value: formatMoney(s.totalExpenses), cls: 'sc-red' },
+    { label: '🤝 পাওনাদারে বকেয়া', value: formatMoney(s.totalDue), cls: 'sc-red' }
+  ];
+  grid.innerHTML = cells.map(c => `
+    <div class="summary-cell">
+      <div class="sc-label">${c.label}</div>
+      <div class="sc-value ${c.cls}">${c.value}</div>
+    </div>`).join('');
+
+  const srcWrap = document.getElementById('sourceBalanceGrid');
+  if (srcWrap) {
+    srcWrap.innerHTML = expenseSourceOptions().map(o => `
+      <div class="summary-cell">
+        <div class="sc-label">${escapeHtml(o.label)}</div>
+        <div class="sc-value">${formatMoney(getRegisterBalanceValue(o.key))}</div>
+      </div>`).join('');
+  }
+
+  const netEl = document.getElementById('netPositionValue');
+  const breakEl = document.getElementById('netPositionBreakdown');
+  if (netEl) netEl.textContent = formatMoney(s.netPosition);
+  if (breakEl) breakEl.textContent = 'মোট আয় ' + formatMoney(s.myIncome) + ' − মোট খরচ ' + formatMoney(s.totalExpenses) + ' − বকেয়া ' + formatMoney(s.totalDue);
+}
+
+function buildExpensesUI() {
+  const srcSel = document.getElementById('expenseSource');
+  if (srcSel) {
+    srcSel.innerHTML = expenseSourceOptions()
+      .map(o => `<option value="${o.key}">${escapeHtml(o.label)}</option>`).join('');
+  }
+  const mf = document.getElementById('expenseMonthFilter');
+  if (mf && !mf.value) {
+    const n = new Date();
+    mf.value = n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0');
+  }
+  populateExpenseCategoryOptions();
+}
+
+buildExpensesUI();
+renderCreditorList();
+renderExpenseList();
+renderFinanceSummary();
+
+// রেজিস্টার ইনপুট বদলালে সামারির উৎস-ব্যালেন্স ও সামগ্রিক হিসাব সিঙ্ক থাকে
+const _origUpdateRegisterTotals = updateRegisterTotals;
+updateRegisterTotals = function () {
+  _origUpdateRegisterTotals();
+  try { renderFinanceSummary(); } catch (e) { console.error('সামারি রেন্ডার ত্রুটি:', e); }
+};
+document.querySelectorAll('#cashDenomGrid input, #balanceInputGrid input').forEach(inp => {
+  inp.addEventListener('input', () => { try { renderFinanceSummary(); } catch (e) {} });
+});
 </script>
 </body>
 </html>

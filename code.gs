@@ -1,6 +1,8 @@
 const SHEET_NAME = 'Sales';
 const PROFIT_SHEET_NAME = 'Profit Sharing';
 const SETTINGS_SHEET_NAME = 'Settings'; // সেটিংস শিটের নাম
+const CREDITORS_SHEET_NAME = 'Creditors'; // পাওনাদার / ঋণ হিসাব (স্বয়ংক্রিয়ভাবে তৈরি হবে)
+const EXPENSES_SHEET_NAME = 'Expenses';   // খরচের হিসাব (স্বয়ংক্রিয়ভাবে তৈরি হবে)
 const LEGACY_SHEET_NAME = 'Sheet1';
 const SETTINGS_PIN = '25802580';
 
@@ -47,6 +49,40 @@ function getProfitSheet() {
       .setValues([headers.slice(startColumn - 1)]);
   }
   return sheet;
+}
+
+function getCreditorsSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(CREDITORS_SHEET_NAME);
+  const headers = ['ID', 'Name', 'Taken', 'Paid', 'Due', 'Date'];
+  if (!sheet) {
+    sheet = ss.insertSheet(CREDITORS_SHEET_NAME);
+    sheet.appendRow(headers);
+  } else if (sheet.getLastColumn() < headers.length) {
+    const startColumn = Math.max(1, sheet.getLastColumn() + 1);
+    sheet.getRange(1, startColumn, 1, headers.length - startColumn + 1)
+      .setValues([headers.slice(startColumn - 1)]);
+  }
+  return sheet;
+}
+
+function getExpensesSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(EXPENSES_SHEET_NAME);
+  const headers = ['ID', 'Category', 'Amount', 'Source', 'Source Label', 'Date'];
+  if (!sheet) {
+    sheet = ss.insertSheet(EXPENSES_SHEET_NAME);
+    sheet.appendRow(headers);
+  } else if (sheet.getLastColumn() < headers.length) {
+    const startColumn = Math.max(1, sheet.getLastColumn() + 1);
+    sheet.getRange(1, startColumn, 1, headers.length - startColumn + 1)
+      .setValues([headers.slice(startColumn - 1)]);
+  }
+  return sheet;
+}
+
+function creditorDueOf(row) {
+  return Math.max(0, Number(row[2] || 0) - Number(row[3] || 0));
 }
 
 function createRequestResponse(e, data) {
@@ -171,6 +207,40 @@ function doGet(e) {
 
     if (action === 'verifyInvoice' || action === 'verifyDelete') {
       return doGetPostVerify(e);
+    }
+
+    if (action === 'listCreditors') {
+      const data = getCreditorsSheet().getDataRange().getValues();
+      const creditors = [];
+      for (let i = 1; i < data.length; i++) {
+        if (!data[i][0] && !data[i][1]) continue;
+        creditors.push({
+          id: data[i][0], name: String(data[i][1] || ''),
+          taken: Number(data[i][2] || 0), paid: Number(data[i][3] || 0),
+          due: creditorDueOf(data[i]), date: data[i][5]
+        });
+      }
+      return createRequestResponse(e, { success: true, creditors: creditors });
+    }
+
+    if (action === 'listExpenses') {
+      const month = params.month || '';
+      const data = getExpensesSheet().getDataRange().getValues();
+      const expenses = [];
+      for (let i = 1; i < data.length; i++) {
+        if (!data[i][0] && !data[i][1]) continue;
+        const rowDate = data[i][5];
+        const dateStr = rowDate instanceof Date
+          ? Utilities.formatDate(rowDate, Session.getScriptTimeZone(), 'yyyy-MM-dd')
+          : String(rowDate || '');
+        if (month && dateStr.indexOf(month) !== 0) continue;
+        expenses.push({
+          id: data[i][0], category: String(data[i][1] || ''),
+          amount: Number(data[i][2] || 0), source: String(data[i][3] || ''),
+          sourceLabel: String(data[i][4] || ''), date: dateStr
+        });
+      }
+      return createRequestResponse(e, { success: true, expenses: expenses });
     }
 
     if (action === 'getAll' || action === 'searchReceiptFromSheet' || action === 'search' ||
@@ -298,6 +368,7 @@ function handleRequest(e) {
 
       const values = [
         ['presetItems', String(settings.presetItems || '')],
+        ['expenseCategories', String(settings.expenseCategories || '')],
         ['costPrices', JSON.stringify(settings.costPrices || {})],
         ['sellingPrices', JSON.stringify(settings.sellingPrices || {})],
         ['profitShares', JSON.stringify(settings.profitShares || [])]
@@ -401,6 +472,72 @@ function handleRequest(e) {
           success: deletedSales || deletedProfit,
           message: deletedSales || deletedProfit ? 'মুছে ফেলা হয়েছে' : 'ইনভয়েস খুঁজে পাওয়া যায়নি'
         });
+      } finally {
+        lock.releaseLock();
+      }
+    }
+
+    if (action === 'saveCreditor') {
+      const c = data.creditor || data;
+      const id = c.id || new Date().getTime();
+      const taken = Number(c.taken || 0);
+      const paid = Number(c.paid || 0);
+      if (!String(c.name || '').trim()) {
+        return createJsonResponse({ success: false, message: 'পাওনাদারের নাম দরকার' });
+      }
+      const row = [id, String(c.name).trim(), taken, paid, Math.max(0, taken - paid), c.date || new Date()];
+      const lock = LockService.getScriptLock();
+      lock.waitLock(10000);
+      try {
+        upsertInvoiceRow(getCreditorsSheet(), id, row);
+      } finally {
+        lock.releaseLock();
+      }
+      return createJsonResponse({ success: true, message: 'পাওনাদার সেভ হয়েছে' });
+    }
+
+    if (action === 'deleteCreditor') {
+      const id = data.id || (e && e.parameter && e.parameter.id);
+      if (!id) return createJsonResponse({ success: false, message: 'আইডি দেওয়া হয়নি' });
+      const lock = LockService.getScriptLock();
+      lock.waitLock(10000);
+      try {
+        const deleted = deleteInvoiceRow(getCreditorsSheet(), id);
+        return createJsonResponse({ success: deleted, message: deleted ? 'মুছে ফেলা হয়েছে' : 'রেকর্ড পাওয়া যায়নি' });
+      } finally {
+        lock.releaseLock();
+      }
+    }
+
+    if (action === 'saveExpense') {
+      const ex = data.expense || data;
+      const id = ex.id || new Date().getTime();
+      if (!String(ex.category || '').trim()) {
+        return createJsonResponse({ success: false, message: 'খরচের ক্যাটাগরি দরকার' });
+      }
+      const amount = Number(ex.amount || 0);
+      if (!isFinite(amount) || amount <= 0) {
+        return createJsonResponse({ success: false, message: 'সঠিক খরচের পরিমাণ দিন' });
+      }
+      const row = [id, String(ex.category).trim(), amount, String(ex.source || ''), String(ex.sourceLabel || ''), ex.date || new Date()];
+      const lock = LockService.getScriptLock();
+      lock.waitLock(10000);
+      try {
+        upsertInvoiceRow(getExpensesSheet(), id, row);
+      } finally {
+        lock.releaseLock();
+      }
+      return createJsonResponse({ success: true, message: 'খরচ সেভ হয়েছে' });
+    }
+
+    if (action === 'deleteExpense') {
+      const id = data.id || (e && e.parameter && e.parameter.id);
+      if (!id) return createJsonResponse({ success: false, message: 'আইডি দেওয়া হয়নি' });
+      const lock = LockService.getScriptLock();
+      lock.waitLock(10000);
+      try {
+        const deleted = deleteInvoiceRow(getExpensesSheet(), id);
+        return createJsonResponse({ success: deleted, message: deleted ? 'মুছে ফেলা হয়েছে' : 'রেকর্ড পাওয়া যায়নি' });
       } finally {
         lock.releaseLock();
       }
