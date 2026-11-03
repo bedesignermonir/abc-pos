@@ -41,6 +41,10 @@ const firebaseConfig = {
 };
 ```
 
+### Google Authentication setup
+
+In Firebase Console, open **Authentication → Settings → Authorized domains** and add the HTTPS domain used to access the web app. The APK currently loads its UI from `file:///android_asset/index.html`; a `file://` origin cannot be added as an authorized domain. The app uses redirect sign-in in Android WebViews and local containers, but Google may block OAuth inside embedded WebViews. For APK sign-in, use an HTTPS-hosted app in a supported browser or configure Android native Google Sign-In.
+
 ---
 
 ## 🛡️ Firestore Security Rules (`firestore.rules`)

@@ -1592,16 +1592,57 @@ function renderAuthUI(user) {
   }
 }
 
+function isAndroidWebView() {
+  const userAgent = navigator.userAgent || '';
+  return Boolean(window.AndroidApp) || (/Android/i.test(userAgent) && /\bwv\b/i.test(userAgent));
+}
+
+function shouldUseGoogleRedirect() {
+  const hostname = window.location.hostname.toLowerCase();
+  return window.location.protocol === 'file:'
+    || hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || isAndroidWebView();
+}
+
+function getGoogleAuthErrorMessage(error) {
+  const code = error && error.code;
+  if (code === 'auth/unauthorized-domain') {
+    if (window.location.protocol === 'file:') {
+      return 'এই APK file:// origin ব্যবহার করছে, যা Firebase Authorized domains-এ যোগ করা যায় না। Google লগইনের জন্য অ্যাপটি HTTPS ডোমেইনে হোস্ট করুন অথবা Android native Google Sign-In ব্যবহার করুন।';
+    }
+    const hostname = window.location.hostname || '(unknown)';
+    return `এই ডোমেইনটি Firebase-এ অনুমোদিত নয়। Firebase Console > Authentication > Settings > Authorized domains-এ "${hostname}" যোগ করুন।`;
+  }
+  if (isAndroidWebView() && (code === 'auth/operation-not-supported-in-this-environment' || code === 'auth/web-storage-unsupported')) {
+    return 'এই Android WebView-এ Google Web Sign-In সমর্থিত নয়। অ্যাপটি Chrome-এ খুলুন অথবা Android native Google Sign-In কনফিগার করুন।';
+  }
+  return 'লগইন ব্যর্থ হয়েছে: ' + ((error && error.message) || error);
+}
+
 // Google Sign-In
 async function loginWithGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
   try {
     showLoading('Google দিয়ে সাইন ইন হচ্ছে...');
-    await auth.signInWithRedirect(provider);
+    if (shouldUseGoogleRedirect()) {
+      await auth.signInWithRedirect(provider);
+    } else {
+      try {
+        await auth.signInWithPopup(provider);
+      } catch (popupError) {
+        const code = popupError && popupError.code;
+        if (code !== 'auth/popup-blocked' && code !== 'auth/operation-not-supported-in-this-environment') {
+          throw popupError;
+        }
+        console.warn('Google Sign-In popup unavailable; falling back to redirect:', popupError);
+        await auth.signInWithRedirect(provider);
+      }
+    }
   } catch (error) {
     console.error('Google Sign-In failed:', error);
-    showToast('লগইন ব্যর্থ হয়েছে: ' + (error.message || error), 'error');
+    showToast(getGoogleAuthErrorMessage(error), 'error');
   } finally {
     hideLoading();
   }
@@ -1708,7 +1749,7 @@ auth.getRedirectResult().then(result => {
   }
 }).catch(error => {
   console.error('Google redirect sign-in failed:', error);
-  showToast('লগইন ব্যর্থ হয়েছে: ' + (error.message || error), 'error');
+  showToast(getGoogleAuthErrorMessage(error), 'error');
 });
 
 // Authentication State Listener
