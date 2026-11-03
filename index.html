@@ -746,6 +746,32 @@ body {
 .sc-red { color: #dc2626; }
 .sc-blue { color: var(--primary, #1a73e8); }
 @media (max-width: 600px) { .creditor-form-grid, .expense-form-grid { grid-template-columns: 1fr; } }
+
+/* Google Sign-In & Auth Modal Styling */
+.google-signin-btn:hover {
+  background: #f9fafb !important;
+  border-color: #d1d5db !important;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.1) !important;
+  transform: translateY(-1px);
+}
+.print-logo-wrap {
+  text-align: center;
+  margin-bottom: 6px;
+}
+.print-logo-img {
+  max-height: 65px;
+  max-width: 200px;
+  object-fit: contain;
+  display: inline-block;
+}
+@media print {
+  .print-logo-img {
+    max-height: 55px !important;
+    max-width: 180px !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
 </style>
 </head>
 <body>
@@ -1027,23 +1053,124 @@ body {
 </div>
 </div>
 
+<!-- Google Sign-In Authentication Modal -->
+<div class="modal" id="authLoginModal">
+  <div class="modal-content" style="max-width:440px;text-align:center;padding:28px 24px;border-radius:24px;">
+    <div style="width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg, #1e3a8a, #0f172a);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;box-shadow:0 8px 20px rgba(15,23,42,0.25);">
+      <span style="font-size:30px;">🏪</span>
+    </div>
+    <h2 id="authModalBizName" style="color:var(--dark);font-size:22px;margin-bottom:4px;">ABC COMPUTER POS</h2>
+    <p style="color:var(--gray-500);font-size:13px;margin-bottom:18px;line-height:1.5;">
+      মাল্টি-টেন্যান্ট ক্লাউড সিস্টেম • নিরাপদ ডিজিটাল হিসাবরক্ষণ
+    </p>
+
+    <div style="background:var(--gray-50);border:1.5px solid var(--gray-200);border-radius:14px;padding:14px;margin-bottom:20px;text-align:left;font-size:12px;color:var(--gray-700);line-height:1.7;">
+      <div style="font-weight:700;color:var(--dark);margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+        <span style="color:#10b981;font-size:14px;">✓</span> আপনার Google একাউন্টে ক্লাউড সুরক্ষা:
+      </div>
+      <div>🔒 <strong>আইসোলেটেড ডেটা:</strong> <code style="background:#e2e8f0;padding:2px 5px;border-radius:4px;">users/{user_uid}/</code> পার্টিশনে সংরক্ষিত</div>
+      <div>⚡ <strong>রিয়েলটাইম সিঙ্ক:</strong> সকল ডিভাইস ও ব্রাউজার থেকে স্বয়ংক্রিয় আপডেট</div>
+      <div>💾 <strong>নিরাপদ ব্যাকআপ:</strong> বিক্রয়, খরচ ও বাকির হিসাব কখনো হারাবে না</div>
+    </div>
+
+    <button type="button" id="googleSignInModalBtn" onclick="loginWithGoogle()" class="google-signin-btn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:12px;background:white;color:#1f2937;border:2px solid #e5e7eb;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 12px rgba(0,0,0,0.06);">
+      <svg width="22" height="22" viewBox="0 0 24 24" style="flex-shrink:0;">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+      </svg>
+      <span>Google (Gmail) দিয়ে সাইন-ইন করুন</span>
+    </button>
+
+    <div style="margin-top:16px;">
+      <button type="button" onclick="closeAuthModal()" style="background:none;border:none;color:var(--gray-500);font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;">
+        অফলাইন ড্রাফট মোডে দেখুন (লগইন ছাড়া)
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- Settings Modal -->
 <div class="modal" id="settingsModal">
   <div class="modal-content">
-    <h2>⚙️ সেটিংস</h2>
-    <div class="form-group" style="background:var(--gray-50);padding:14px;border-radius:12px;border:1.5px solid var(--gray-200);">
+    <h2>⚙️ সেটিংস ও প্রোফাইল</h2>
+
+    <!-- Merchant Account Profile Section -->
+    <div class="form-group" style="background:var(--gray-50);padding:14px;border-radius:12px;border:1.5px solid var(--gray-200);margin-bottom:14px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <label style="margin:0;color:var(--dark);font-size:14px;font-weight:700;">☁️ Google Firebase ক্লাউড ব্যাকএন্ড</label>
-        <span id="settingsCloudBadge" style="font-size:11px;background:#10b981;color:white;padding:3px 10px;border-radius:12px;font-weight:700;">সক্রিয়</span>
+        <label style="margin:0;color:var(--dark);font-size:14px;font-weight:700;">👤 ব্যবহারকারী একাউন্ট ও ক্লাউড সিঙ্ক</label>
+        <span id="settingsCloudBadge" style="font-size:11px;background:#10b981;color:white;padding:3px 10px;border-radius:12px;font-weight:700;">অনলাইন সিঙ্ক</span>
       </div>
+
+      <div id="settingsUserProfileCard" style="display:none;align-items:center;gap:12px;margin-bottom:10px;background:white;padding:10px 14px;border-radius:10px;border:1px solid var(--gray-200);">
+        <img id="settingsUserPhoto" src="app-icon-180.png" style="width:42px;height:42px;border-radius:50%;object-fit:cover;border:2px solid var(--primary);" alt="User Photo">
+        <div style="min-width:0;flex:1;">
+          <div id="settingsUserName" style="font-weight:700;color:var(--dark);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">User Name</div>
+          <div id="settingsUserEmail" style="color:var(--gray-500);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">user@gmail.com</div>
+        </div>
+      </div>
+
       <div style="font-size:12px;color:var(--gray-700);line-height:1.6;">
         <div><strong>প্রজেক্ট আইডি:</strong> <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;">gen-lang-client-0772095030</code></div>
         <div><strong>বর্তমান টেন্যান্ট:</strong> <span id="settingsUserDisplay" style="font-weight:600;color:var(--primary-dark);">লগইন চেক হচ্ছে...</span></div>
         <div><strong>আইসোলেটেড ডেটা পাথ:</strong> <code id="settingsDataPath" style="background:#e2e8f0;padding:2px 6px;border-radius:4px;">users/{user_uid}/</code></div>
       </div>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-        <button id="settingsLoginBtn" type="button" class="btn btn-whatsapp" style="padding:7px 12px;font-size:12px;" onclick="loginWithGoogle()">🔑 Google দিয়ে সাইন-ইন</button>
-        <button id="settingsLogoutBtn" type="button" class="btn btn-reset" style="padding:7px 12px;font-size:12px;display:none;" onclick="logoutUser()">🚪 লগআউট</button>
+        <button id="settingsLoginBtn" type="button" class="btn btn-whatsapp" style="padding:7px 14px;font-size:12px;" onclick="openAuthModal()">🔑 Google দিয়ে সাইন-ইন</button>
+        <button id="settingsLogoutBtn" type="button" class="btn btn-reset" style="padding:7px 14px;font-size:12px;display:none;background:#fee2e2;color:#b91c1c;border:none;font-weight:700;" onclick="logoutUser()">🚪 লগআউট</button>
+      </div>
+    </div>
+
+    <!-- Business Profile & Branding Section -->
+    <div class="form-group" style="background:#f8fafc;padding:16px;border-radius:14px;border:1.5px solid var(--gray-200);margin-bottom:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:8px;border-bottom:1.5px solid var(--gray-200);">
+        <label style="margin:0;color:var(--dark);font-size:14px;font-weight:700;">🏢 ব্যবসার প্রোফাইল ও ইনভয়েস ব্র্যান্ডিং</label>
+        <span style="font-size:11px;color:var(--gray-500);">রসিদ ও হেডারে প্রদর্শিত হবে</span>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="margin-bottom:8px;">
+          <label for="settingBizName">কোম্পানি / দোকানের নাম *</label>
+          <input type="text" id="settingBizName" placeholder="ABC COMPUTER">
+        </div>
+        <div class="form-group" style="margin-bottom:8px;">
+          <label for="settingBizTagline">স্লোগান / ট্যাগলাইন</label>
+          <input type="text" id="settingBizTagline" placeholder="আপনার বিশ্বস্ত ডিজিটাল সেবা কেন্দ্র">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="margin-bottom:8px;">
+          <label for="settingBizPhone">যোগাযোগের ফোন *</label>
+          <input type="text" id="settingBizPhone" placeholder="০১৮৭৭৯৮৭৫৮৭">
+        </div>
+        <div class="form-group" style="margin-bottom:8px;">
+          <label for="settingBizWebsite">ওয়েবসাইট লিংক</label>
+          <input type="text" id="settingBizWebsite" placeholder="https://www.teamsabc.com/">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:10px;">
+        <label for="settingBizAddress">প্রতিষ্ঠানের ঠিকানা *</label>
+        <textarea id="settingBizAddress" style="min-height:55px;" placeholder="বনগ্রাম স্কুল রোড, তেঘরিয়া, দক্ষিণ কেরানীগঞ্জ, ঢাকা।"></textarea>
+      </div>
+
+      <div class="form-group" style="margin-bottom:4px;">
+        <label>কোম্পানির লোগো (রসিদের শীর্ষে ও হেডারে)</label>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:6px;">
+          <div id="settingLogoPreviewBox" style="width:72px;height:72px;border-radius:12px;border:2px dashed var(--gray-200);display:flex;align-items:center;justify-content:center;background:white;overflow:hidden;flex-shrink:0;">
+            <span id="settingLogoPlaceholder" style="font-size:24px;color:var(--gray-500);">📷</span>
+            <img id="settingLogoImg" src="" style="width:100%;height:100%;object-fit:contain;display:none;" alt="Logo Preview">
+          </div>
+          <div style="flex:1;min-width:200px;">
+            <input type="file" id="settingBizLogoFile" accept="image/*" style="font-size:12px;margin-bottom:6px;padding:6px;" onchange="handleLogoFileUpload(event)">
+            <input type="text" id="settingBizLogoUrl" placeholder="অথবা লোগো ইমেজ URL দিন" style="font-size:12px;padding:8px 10px;" oninput="handleLogoUrlInput(event)">
+          </div>
+          <button type="button" class="btn" style="background:#fee2e2;color:#b91c1c;font-size:12px;padding:8px 12px;border:none;border-radius:8px;cursor:pointer;font-weight:700;" onclick="removeBusinessLogo()">
+            🗑️ মুছুন
+          </button>
+        </div>
       </div>
     </div>
     <div class="form-group">
@@ -1264,6 +1391,126 @@ const firebaseConfig = {
 if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
+
+// ===== Dynamic Business Profile & Branding Model =====
+function getBusinessInfo() {
+  return {
+    name: (settings.businessName && settings.businessName.trim()) ? settings.businessName.trim() : BUSINESS.name,
+    tagline: (settings.businessTagline && settings.businessTagline.trim()) ? settings.businessTagline.trim() : BUSINESS.tagline,
+    phone: (settings.businessPhone && settings.businessPhone.trim()) ? settings.businessPhone.trim() : BUSINESS.phone,
+    address: (settings.businessAddress && settings.businessAddress.trim()) ? settings.businessAddress.trim() : BUSINESS.address,
+    website: (settings.businessWebsite && settings.businessWebsite.trim()) ? settings.businessWebsite.trim() : BUSINESS.website,
+    logo: settings.businessLogo || null,
+    services: BUSINESS.services,
+    social: BUSINESS.social,
+    review: BUSINESS.review
+  };
+}
+
+let currentLogoDataUrl = null;
+
+function setLogoPreview(dataUrl) {
+  currentLogoDataUrl = dataUrl || null;
+  const img = document.getElementById('settingLogoImg');
+  const placeholder = document.getElementById('settingLogoPlaceholder');
+  if (dataUrl) {
+    if (img) { img.src = dataUrl; img.style.display = 'block'; }
+    if (placeholder) placeholder.style.display = 'none';
+  } else {
+    if (img) { img.src = ''; img.style.display = 'none'; }
+    if (placeholder) placeholder.style.display = 'block';
+  }
+}
+
+function handleLogoFileUpload(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const maxDim = 240;
+      let w = img.width;
+      let h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      const compressed = canvas.toDataURL('image/png');
+      setLogoPreview(compressed);
+      const urlInput = document.getElementById('settingBizLogoUrl');
+      if (urlInput) urlInput.value = '';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleLogoUrlInput(event) {
+  const url = (event.target.value || '').trim();
+  if (url) {
+    setLogoPreview(url);
+    const fileInput = document.getElementById('settingBizLogoFile');
+    if (fileInput) fileInput.value = '';
+  } else {
+    setLogoPreview(null);
+  }
+}
+
+function removeBusinessLogo() {
+  setLogoPreview(null);
+  const fileInput = document.getElementById('settingBizLogoFile');
+  if (fileInput) fileInput.value = '';
+  const urlInput = document.getElementById('settingBizLogoUrl');
+  if (urlInput) urlInput.value = '';
+}
+
+function applyBusinessBranding() {
+  const biz = getBusinessInfo();
+  // Update header text
+  const brandH1 = document.querySelector('.brand-text h1');
+  if (brandH1) brandH1.textContent = biz.name;
+  const brandTagline = document.querySelector('.brand-text .tagline');
+  if (brandTagline) brandTagline.textContent = biz.tagline + ' (মাল্টি-টেন্যান্ট ক্লাউড POS)';
+
+  // Update header logo
+  const logoEl = document.querySelector('.header .logo');
+  if (logoEl) {
+    if (biz.logo) {
+      logoEl.innerHTML = `<img src="${biz.logo}" alt="Logo" style="width:100%;height:100%;object-fit:cover;border-radius:14px;">`;
+      logoEl.style.background = 'transparent';
+    } else {
+      logoEl.textContent = (biz.name || 'A').trim().charAt(0).toUpperCase();
+      logoEl.style.background = 'linear-gradient(135deg, var(--primary), var(--primary-dark))';
+    }
+  }
+
+  // Update login modal title
+  const authBiz = document.getElementById('authModalBizName');
+  if (authBiz) authBiz.textContent = biz.name + ' POS';
+}
+
+function openAuthModal() {
+  const modal = document.getElementById('authLoginModal');
+  if (modal) modal.classList.add('active');
+}
+
+function closeAuthModal() {
+  sessionStorage.setItem('pos_auth_modal_dismissed', '1');
+  const modal = document.getElementById('authLoginModal');
+  if (modal) modal.classList.remove('active');
+}
+
 const auth = firebase.auth();
 const db = firebase.firestore();
 
@@ -1378,6 +1625,7 @@ async function logoutUser() {
     await auth.signOut();
     hideLoading();
     showToast('সফলভাবে লগআউট হয়েছে');
+    openAuthModal();
   } catch (error) {
     hideLoading();
     showToast('লগআউট সমস্যা: ' + error.message, 'error');
@@ -1445,7 +1693,7 @@ function attachFirestoreListeners(uid) {
     if (snap.exists) {
       const remote = snap.data();
       let changed = false;
-      ['presetItems', 'expenseCategories', 'costPrices', 'sellingPrices'].forEach(k => {
+      ['presetItems', 'expenseCategories', 'costPrices', 'sellingPrices', 'businessName', 'businessTagline', 'businessPhone', 'businessAddress', 'businessWebsite', 'businessLogo'].forEach(k => {
         if (remote[k] !== undefined && JSON.stringify(remote[k]) !== JSON.stringify(settings[k])) {
           settings[k] = remote[k];
           changed = true;
@@ -1454,11 +1702,23 @@ function attachFirestoreListeners(uid) {
       if (changed) {
         localStorage.setItem('pos_settings', JSON.stringify(settings));
         refreshPresetOptions();
+        applyBusinessBranding();
       }
     }
   }, err => console.warn('Settings listener:', err));
   firestoreUnsubscribers.push(unsubSettings);
 }
+
+// Process redirect login if applicable
+try {
+  auth.getRedirectResult().then(result => {
+    if (result && result.user) {
+      console.log('Redirect sign-in successful for:', result.user.email);
+    }
+  }).catch(err => {
+    console.warn('Redirect sign-in notice:', err);
+  });
+} catch (e) {}
 
 // Authentication State Listener
 auth.onAuthStateChanged(user => {
@@ -1467,13 +1727,20 @@ auth.onAuthStateChanged(user => {
     currentUserId = user.uid;
     renderAuthUI(user);
     attachFirestoreListeners(user.uid);
-    showToast('স্বাগতম, ' + (user.displayName || user.email) + '! ক্লাউড ডাটা সিঙ্ক হয়েছে');
+    closeAuthModal();
+    applyBusinessBranding();
+    showToast('স্বাগতম, ' + (user.displayName || user.email) + '! ক্লাউড ডাটা সিঙ্ক সক্রিয়');
   } else {
     currentUser = null;
     currentUserId = null;
     firestoreUnsubscribers.forEach(unsub => { try { unsub(); } catch (e) {} });
     firestoreUnsubscribers = [];
     renderAuthUI(null);
+    applyBusinessBranding();
+    // Prompt login modal on initial app launch if not dismissed in this session
+    if (!sessionStorage.getItem('pos_auth_modal_dismissed')) {
+      setTimeout(() => openAuthModal(), 400);
+    }
   }
 });
 
@@ -1645,6 +1912,12 @@ async function saveSettingsToFirebase() {
   if (!currentUserId) return;
   try {
     await getSettingsRef().set({
+      businessName: settings.businessName || '',
+      businessTagline: settings.businessTagline || '',
+      businessPhone: settings.businessPhone || '',
+      businessAddress: settings.businessAddress || '',
+      businessWebsite: settings.businessWebsite || '',
+      businessLogo: settings.businessLogo || '',
       presetItems: settings.presetItems || '',
       expenseCategories: settings.expenseCategories || '',
       costPrices: settings.costPrices || {},
@@ -1937,9 +2210,9 @@ function sendWhatsAppMessage(inv, whatsappWindow = null) {
 
 function generateWhatsAppMessage(inv) {
   const E = EMOJI_OK;
-  
+  const biz = getBusinessInfo();
   let msg = `${E?'🧾':'>>'} *ইনভয়েস নং: ${inv.invoiceNo}*\n\n`;
-  msg += `${E?'👤':'>>'} জনাব/জনাবা, *${inv.customer}* আপনার *ABC COMPUTER*-এর কাজের বিলের পরিমাণ নিম্নরূপ:\n\n`;
+  msg += `${E?'👤':'>>'} জনাব/জনাবা, *${inv.customer}* আপনার *${biz.name}*-এর কাজের বিলের পরিমাণ নিম্নরূপ:\n\n`;
   
   inv.items.forEach((item, i) => {
     msg += `${E?'▸':'>>'} ${item.name}\n`;
@@ -1966,7 +2239,7 @@ function generateWhatsAppMessage(inv) {
   msg += `${E?'➜':'>>'} আমাদের সেবা সম্পর্কে জানাতে: ${BUSINESS.review}\n\n`;
   
   msg += `━━━━━━━━━━━━━━━━━━\n`;
-  msg += `*${BUSINESS.name}* - ${BUSINESS.tagline}`;
+  msg += `*${biz.name}* - ${biz.tagline}`;
   
   return msg;
 }
@@ -1999,11 +2272,12 @@ function resetForm() {
 // ===== Print =====
 function generatePrintHTML(inv) {
   const isSmallBill = inv.items.length <= 4;
+  const biz = getBusinessInfo();
   
   let itemsHtml = inv.items.map((item, i) => `
     <tr>
       <td class="text-center">${toBnNum(i+1)}</td>
-      <td>${item.name}</td>
+      <td>${escapeHtml(item.name)}</td>
       <td class="text-center">${toBnNum(safeNum(item.qty))}</td>
       <td class="text-right">৳${toBnNum(safeNum(item.price))}</td>
       <td class="text-right">৳${toBnNum(safeNum(item.total))}</td>
@@ -2016,13 +2290,20 @@ function generatePrintHTML(inv) {
     totalsHtml += `<div class="line discount"><span>ডিসকাউন্ট:</span><span>-৳${toBnNum(safeNum(inv.discount))}</span></div>`;
   }
 
+  const logoHtml = biz.logo ? `
+    <div class="print-logo-wrap">
+      <img src="${biz.logo}" alt="Logo" class="print-logo-img">
+    </div>
+  ` : '';
+
   return `
     <div class="print-header">
-      <div class="biz-name">${em('🖥️','>>')} ABC COMPUTER</div>
-      <div class="biz-tag">${BUSINESS.tagline}</div>
-      <div class="biz-addr">${em('📍','>>')} ${BUSINESS.address}</div>
-      <div class="biz-addr">${em('📞','>>')} ${BUSINESS.phone} | ${em('🌐','>>')} ${BUSINESS.website}</div>
-      <div class="biz-services">✦ ${BUSINESS.services} ✦</div>
+      ${logoHtml}
+      <div class="biz-name">${biz.logo ? '' : em('🖥️','>>')} ${escapeHtml(biz.name)}</div>
+      <div class="biz-tag">${escapeHtml(biz.tagline)}</div>
+      <div class="biz-addr">${em('📍','>>')} ${escapeHtml(biz.address)}</div>
+      <div class="biz-addr">${em('📞','>>')} ${escapeHtml(biz.phone)} ${biz.website ? `| ${em('🌐','>>')} ${escapeHtml(biz.website)}` : ''}</div>
+      ${biz.services ? `<div class="biz-services">✦ ${escapeHtml(biz.services)} ✦</div>` : ''}
     </div>
 
     <div class="print-inv-no">ইনভয়েস নং: ${inv.invoiceNo || 'N/A'}</div>
@@ -2106,10 +2387,19 @@ function runPrint(buildHtml, inv, callerName) {
       }
     };
     const qrImage = printArea.querySelector('.print-qr-img');
-    if (qrImage && !qrImage.complete) {
-      qrImage.addEventListener('load', startPrint, { once: true });
-      qrImage.addEventListener('error', startPrint, { once: true });
-      setTimeout(startPrint, 2500); // safety net if neither event fires
+    const logoImage = printArea.querySelector('.print-logo-img');
+    const pendingImgs = [qrImage, logoImage].filter(img => img && !img.complete);
+    if (pendingImgs.length > 0) {
+      let done = 0;
+      const onDone = () => {
+        done++;
+        if (done >= pendingImgs.length) startPrint();
+      };
+      pendingImgs.forEach(img => {
+        img.addEventListener('load', onDone, { once: true });
+        img.addEventListener('error', onDone, { once: true });
+      });
+      setTimeout(startPrint, 2500);
     } else {
       setTimeout(startPrint, 100);
     }
@@ -2372,6 +2662,7 @@ function viewInvoice(id) {
   const inv = invoices.find(i => i.id === id);
   if (!inv) return;
   currentInvoiceId = id;
+  const biz = getBusinessInfo();
   const detail = document.getElementById('invoiceDetail');
   detail.innerHTML = `
     <div style="background:linear-gradient(135deg,var(--dark),var(--dark-2));color:white;padding:12px 16px;border-radius:10px;margin-bottom:12px;text-align:center;">
@@ -2379,7 +2670,14 @@ function viewInvoice(id) {
       <div style="font-size:22px;font-weight:700;color:var(--primary);letter-spacing:1px;">${inv.invoiceNo || 'N/A'}</div>
     </div>
     <div style="background:var(--gray-50);padding:15px;border-radius:10px;">
-      <h3 style="color:var(--dark);">👤 ${inv.customer}</h3>
+      ${biz.logo ? `
+        <div style="text-align:center;margin-bottom:8px;">
+          <img src="${biz.logo}" alt="Logo" style="max-height:45px;max-width:140px;object-fit:contain;display:inline-block;">
+        </div>
+      ` : ''}
+      <div style="text-align:center;font-weight:700;color:var(--dark);font-size:16px;">${escapeHtml(biz.name)}</div>
+      <div style="text-align:center;font-size:11px;color:var(--gray-500);margin-bottom:10px;">${escapeHtml(biz.address)} • ${escapeHtml(biz.phone)}</div>
+      <h3 style="color:var(--dark);margin-top:10px;">👤 ${escapeHtml(inv.customer)}</h3>
       ${inv.phone ? `<p style="color:var(--gray-500);font-size:13px;">📱 ${inv.phone}</p>` : ''}
       <p style="color:#94a3b8;font-size:12px;margin:5px 0;">📅 ${formatDate(inv.date)} • ⏰ ${formatTime(inv.date)}</p>
       <hr style="margin:10px 0;border:none;border-top:1px dashed #cbd5e1;">
@@ -2551,11 +2849,27 @@ async function saveSettings() {
     return showToast('কস্ট ও বিক্রয়মূল্য শূন্য বা তার বেশি সংখ্যা হতে হবে', 'error');
   }
 
+  // Save business branding settings
+  const bName = (document.getElementById('settingBizName')?.value || '').trim();
+  const bTag = (document.getElementById('settingBizTagline')?.value || '').trim();
+  const bPhone = (document.getElementById('settingBizPhone')?.value || '').trim();
+  const bAddr = (document.getElementById('settingBizAddress')?.value || '').trim();
+  const bWeb = (document.getElementById('settingBizWebsite')?.value || '').trim();
+  const bLogo = currentLogoDataUrl || (document.getElementById('settingBizLogoUrl')?.value || '').trim();
+
+  settings.businessName = bName;
+  settings.businessTagline = bTag;
+  settings.businessPhone = bPhone;
+  settings.businessAddress = bAddr;
+  settings.businessWebsite = bWeb;
+  settings.businessLogo = bLogo;
+
   settings.presetItems = document.getElementById('presetItems').value;
   settings.expenseCategories = document.getElementById('expenseCategories').value;
   settings.costPrices = costPrices;
   settings.sellingPrices = sellingPrices;
   localStorage.setItem('pos_settings', JSON.stringify(settings));
+  applyBusinessBranding();
   populateExpenseCategoryOptions();
   closeSettings();
   document.getElementById('itemsContainer').innerHTML = '';
@@ -2598,12 +2912,6 @@ document.getElementById('monthFilter').value = now.getFullYear() + '-' + String(
 document.getElementById('settingsPinInput').addEventListener('keydown', event => {
   if (event.key === 'Enter') verifySettingsPin();
 });
-        renderInvoices();
-        updateCurrentInvoiceNo();
-      }
-    });
-  }, 500);
-}
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('./service-worker.js')
