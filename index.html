@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" crossorigin="anonymous"></script>
 <!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
@@ -1598,20 +1598,12 @@ async function loginWithGoogle() {
   provider.setCustomParameters({ prompt: 'select_account' });
   try {
     showLoading('Google দিয়ে সাইন ইন হচ্ছে...');
-    try {
-      await auth.signInWithPopup(provider);
-    } catch (popupErr) {
-      if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/popup-closed-by-user') {
-        await auth.signInWithRedirect(provider);
-        return;
-      }
-      throw popupErr;
-    }
-    hideLoading();
+    await auth.signInWithRedirect(provider);
   } catch (error) {
-    hideLoading();
     console.error('Google Sign-In failed:', error);
     showToast('লগইন ব্যর্থ হয়েছে: ' + (error.message || error), 'error');
+  } finally {
+    hideLoading();
   }
 }
 
@@ -1710,15 +1702,14 @@ function attachFirestoreListeners(uid) {
 }
 
 // Process redirect login if applicable
-try {
-  auth.getRedirectResult().then(result => {
-    if (result && result.user) {
-      console.log('Redirect sign-in successful for:', result.user.email);
-    }
-  }).catch(err => {
-    console.warn('Redirect sign-in notice:', err);
-  });
-} catch (e) {}
+auth.getRedirectResult().then(result => {
+  if (result && result.user) {
+    console.log('Redirect sign-in successful for:', result.user.email);
+  }
+}).catch(error => {
+  console.error('Google redirect sign-in failed:', error);
+  showToast('লগইন ব্যর্থ হয়েছে: ' + (error.message || error), 'error');
+});
 
 // Authentication State Listener
 auth.onAuthStateChanged(user => {
@@ -1909,24 +1900,20 @@ async function saveCashRegisterToFirebase(record) {
 }
 
 async function saveSettingsToFirebase() {
-  if (!currentUserId) return;
-  try {
-    await getSettingsRef().set({
-      businessName: settings.businessName || '',
-      businessTagline: settings.businessTagline || '',
-      businessPhone: settings.businessPhone || '',
-      businessAddress: settings.businessAddress || '',
-      businessWebsite: settings.businessWebsite || '',
-      businessLogo: settings.businessLogo || '',
-      presetItems: settings.presetItems || '',
-      expenseCategories: settings.expenseCategories || '',
-      costPrices: settings.costPrices || {},
-      sellingPrices: settings.sellingPrices || {},
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
-  } catch (error) {
-    console.warn('Firestore settings sync error:', error);
-  }
+  if (!currentUserId) throw new Error('Google sign-in is required to sync settings.');
+  await getSettingsRef().set({
+    businessName: settings.businessName || '',
+    businessTagline: settings.businessTagline || '',
+    businessPhone: settings.businessPhone || '',
+    businessAddress: settings.businessAddress || '',
+    businessWebsite: settings.businessWebsite || '',
+    businessLogo: settings.businessLogo || '',
+    presetItems: settings.presetItems || '',
+    expenseCategories: settings.expenseCategories || '',
+    costPrices: settings.costPrices || {},
+    sellingPrices: settings.sellingPrices || {},
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
 }
 
 function refreshPresetOptions() {
@@ -2879,11 +2866,12 @@ async function saveSettings() {
     showLoading('Firebase ক্লাউডে সেটিংস সেভ হচ্ছে...');
     try {
       await saveSettingsToFirebase();
-      hideLoading();
       showToast('✓ সেটিংস লোকাল ও Firebase ক্লাউডে সেভ হয়েছে');
     } catch (error) {
+      console.error('Firestore settings sync error:', error);
+      showToast('লোকালে সেটিংস সেভ হয়েছে, ক্লাউডে হয়নি: ' + (error.message || error), 'error');
+    } finally {
       hideLoading();
-      showToast('লোকালে সেটিংস সেভ হয়েছে, ক্লাউডে হয়নি: ' + error.message, 'error');
     }
   } else {
     showToast('✓ সেটিংস লোকাল স্টোরেজে সেভ হয়েছে');
