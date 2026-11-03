@@ -87,3 +87,5 @@ service cloud.firestore {
 
 - **Web & PWA**: Run directly in modern web browsers or install as a Progressive Web App (PWA).
 - **Android APK**: Native Android application wrapper with hardware accelerated WebView, system PrintManager integration, and WhatsApp intent dispatch.
+
+Pushes to `main` build a debug APK with GitHub Actions and publish it as a prerelease on GitHub Releases.
