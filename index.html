@@ -1352,18 +1352,31 @@ function generateInvoiceNo(num) {
   return 'ABC-' + String(num).padStart(4, '0');
 }
 
+let toastTimeoutId = null;
+
 function showToast(msg, type='success') {
   const t = document.getElementById('toast');
+  if (toastTimeoutId) clearTimeout(toastTimeoutId);
+  toastTimeoutId = null;
   t.textContent = msg;
   t.className = 'toast show' + (type === 'error' ? ' error' : '') + (type === 'loading' ? ' loading' : '');
-  if (type !== 'loading') setTimeout(() => t.className = 'toast', 3000);
+  if (type !== 'loading') {
+    toastTimeoutId = setTimeout(() => {
+      t.className = 'toast';
+      toastTimeoutId = null;
+    }, 3000);
+  }
 }
 
 function showSyncWarning(message) {
   const t = document.getElementById('toast');
+  if (toastTimeoutId) clearTimeout(toastTimeoutId);
   t.textContent = message;
   t.className = 'toast show error';
-  setTimeout(() => t.className = 'toast', 4000);
+  toastTimeoutId = setTimeout(() => {
+    t.className = 'toast';
+    toastTimeoutId = null;
+  }, 4000);
 }
 
 function showLoading(text='অপেক্ষা করুন...') {
@@ -1599,8 +1612,7 @@ function isAndroidWebView() {
 
 function shouldUseGoogleRedirect() {
   const hostname = window.location.hostname.toLowerCase();
-  return window.location.protocol === 'file:'
-    || hostname === 'localhost'
+  return hostname === 'localhost'
     || hostname === '127.0.0.1'
     || isAndroidWebView();
 }
@@ -1609,7 +1621,7 @@ function getGoogleAuthErrorMessage(error) {
   const code = error && error.code;
   if (code === 'auth/unauthorized-domain') {
     if (window.location.protocol === 'file:') {
-      return 'এই APK file:// origin ব্যবহার করছে, যা Firebase Authorized domains-এ যোগ করা যায় না। Google লগইনের জন্য অ্যাপটি HTTPS ডোমেইনে হোস্ট করুন অথবা Android native Google Sign-In ব্যবহার করুন।';
+      return 'এই APK-এর file:// origin-এ Google লগইন সমর্থিত নয়। লোকাল মোডে কাজ চালিয়ে যান, অথবা HTTPS-এ হোস্ট করা অনুমোদিত অ্যাপ / Android native Google Sign-In ব্যবহার করুন।';
     }
     const hostname = window.location.hostname || '(unknown)';
     return `এই ডোমেইনটি Firebase-এ অনুমোদিত নয়। Firebase Console > Authentication > Settings > Authorized domains-এ "${hostname}" যোগ করুন।`;
@@ -1622,6 +1634,12 @@ function getGoogleAuthErrorMessage(error) {
 
 // Google Sign-In
 async function loginWithGoogle() {
+  if (window.location.protocol === 'file:') {
+    const continueLocally = window.confirm('APK-এর file:// origin থেকে Google লগইন করা যায় না। লোকাল মোডে চালিয়ে যাবেন? Firebase ক্লাউড সিঙ্কের জন্য HTTPS-এ হোস্ট করা অনুমোদিত অ্যাপ অথবা native Android Google Sign-In কনফিগার করতে হবে।');
+    if (continueLocally) showToast('লোকাল মোডে চালু আছে; Firebase ক্লাউড সিঙ্ক বন্ধ।', 'error');
+    return;
+  }
+
   const provider = new firebase.auth.GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
   try {
@@ -1633,7 +1651,9 @@ async function loginWithGoogle() {
         await auth.signInWithPopup(provider);
       } catch (popupError) {
         const code = popupError && popupError.code;
-        if (code !== 'auth/popup-blocked' && code !== 'auth/operation-not-supported-in-this-environment') {
+        if (code !== 'auth/popup-blocked'
+            && code !== 'auth/operation-not-supported-in-this-environment'
+            && code !== 'auth/unauthorized-domain') {
           throw popupError;
         }
         console.warn('Google Sign-In popup unavailable; falling back to redirect:', popupError);
@@ -1656,12 +1676,12 @@ async function logoutUser() {
     firestoreUnsubscribers.forEach(unsub => { try { unsub(); } catch (e) {} });
     firestoreUnsubscribers = [];
     await auth.signOut();
-    hideLoading();
     showToast('সফলভাবে লগআউট হয়েছে');
     openAuthModal();
   } catch (error) {
-    hideLoading();
     showToast('লগআউট সমস্যা: ' + error.message, 'error');
+  } finally {
+    hideLoading();
   }
 }
 
@@ -1830,7 +1850,6 @@ async function refreshFromFirebase() {
       refreshPresetOptions();
     }
 
-    hideLoading();
     updateStats();
     renderInvoices();
     renderCreditorList();
@@ -1839,9 +1858,10 @@ async function refreshFromFirebase() {
     updateCurrentInvoiceNo();
     showToast('✓ Firebase ক্লাউড থেকে সব ডাটা সফলভাবে রিফ্রেশ হয়েছে');
   } catch (error) {
-    hideLoading();
     console.error('Refresh error:', error);
     showToast('সিঙ্ক ত্রুটি: ' + error.message, 'error');
+  } finally {
+    hideLoading();
   }
 }
 
@@ -1858,15 +1878,15 @@ async function testFirebaseConnection() {
     await testDocRef.set({ testedAt: new Date().toISOString(), ok: true });
     const snap = await testDocRef.get();
     await testDocRef.delete();
-    hideLoading();
     if (snap.exists && snap.data().ok) {
       showToast('✓ Firebase সংযোগ ও পারমিশন সম্পূর্ণ সক্রিয়! Project: ' + firebaseConfig.projectId + ' (UID: ' + currentUserId.substring(0, 8) + '...)');
     } else {
       showToast('সংযোগ টেস্ট সম্পন্ন হয়নি', 'error');
     }
   } catch (error) {
-    hideLoading();
     showToast('Firebase পারমিশন ত্রুটি: ' + error.message, 'error');
+  } finally {
+    hideLoading();
   }
 }
 
@@ -1932,11 +1952,14 @@ async function removeExpenseFromFirebase(id) {
 }
 
 async function saveCashRegisterToFirebase(record) {
-  if (!currentUserId) return;
+  if (!currentUserId) return true;
   try {
     await getCashRegisterRef().doc(String(record.id)).set(record, { merge: true });
+    return true;
   } catch (error) {
     console.warn('Firestore cash register sync error:', error);
+    showToast('লোকালি সেভ হয়েছে, কিন্তু ক্যাশ রেজিস্টার ক্লাউডে সিঙ্ক হয়নি: ' + error.message, 'error');
+    return false;
   }
 }
 
@@ -2178,26 +2201,34 @@ async function saveInvoiceOnly() {
     return showToast('সেটিংসে কস্টিং প্রাইস সেট করুন: ' + costResult.missingCostItems.join(', '), 'error');
   }
 
-  showLoading(isEdit ? 'আপডেট করা হচ্ছে...' : 'সেভ করা হচ্ছে...');
+  try {
+    if (isEdit) {
+      const idx = invoices.findIndex(i => i.id === editingInvoiceId);
+      if (idx >= 0) invoices[idx] = invoice; else invoices.unshift(invoice);
+    } else {
+      invoices.unshift(invoice);
+      nextInvoiceNumber++;
+      localStorage.setItem('pos_next_inv_no', nextInvoiceNumber.toString());
+    }
+    localStorage.setItem('pos_invoices', JSON.stringify(invoices));
+    resetForm();
+    updateStats();
+    renderInvoices();
+    updateCurrentInvoiceNo();
 
-  if (isEdit) {
-    const idx = invoices.findIndex(i => i.id === editingInvoiceId);
-    if (idx >= 0) invoices[idx] = invoice; else invoices.unshift(invoice);
-  } else {
-    invoices.unshift(invoice);
-    nextInvoiceNumber++;
-    localStorage.setItem('pos_next_inv_no', nextInvoiceNumber.toString());
+    const action = isEdit ? 'আপডেট হয়েছে: ' : 'সেভ হয়েছে: ';
+    if (currentUserId) {
+      showToast('✓ ইনভয়েস লোকালি ' + action + invoice.invoiceNo + ' — ক্লাউডে সিঙ্ক হচ্ছে');
+      void saveInvoiceToFirebase(invoice).then(cloudSaved => {
+        if (cloudSaved) showToast('✓ ইনভয়েস Firebase ক্লাউডে ' + action + invoice.invoiceNo);
+      });
+    } else {
+      showToast('✓ ইনভয়েস লোকাল স্টোরেজে ' + action + invoice.invoiceNo);
+    }
+  } catch (error) {
+    console.error('Invoice save error:', error);
+    showToast('ইনভয়েস সেভ করা যায়নি: ' + (error.message || error), 'error');
   }
-  localStorage.setItem('pos_invoices', JSON.stringify(invoices));
-
-  const cloudSaved = await saveInvoiceToFirebase(invoice);
-  hideLoading();
-  showToast((cloudSaved && currentUserId ? '✓ ইনভয়েস Firebase ক্লাউডে ' : '✓ ইনভয়েস লোকাল স্টোরেজে ') + (isEdit ? 'আপডেট হয়েছে: ' : 'সেভ হয়েছে: ') + invoice.invoiceNo);
-
-  resetForm();
-  updateStats();
-  renderInvoices();
-  updateCurrentInvoiceNo();
 }
 
 function sendWhatsAppMessage(inv, whatsappWindow = null) {
@@ -2400,6 +2431,8 @@ function runPrint(buildHtml, inv, callerName) {
     printArea.innerHTML = buildHtml(inv);
     const hideToast = () => {
       const t = document.getElementById('toast');
+      if (toastTimeoutId) clearTimeout(toastTimeoutId);
+      toastTimeoutId = null;
       if (t) t.className = 'toast';
     };
     let printed = false;
@@ -2748,17 +2781,25 @@ function closeInvoiceModal() {
 
 async function deleteInvoice(id) {
   if (!confirm('এই ইনভয়েসটি মুছে ফেলবেন?')) return;
-  
-  showLoading('মুছে ফেলা হচ্ছে...');
-  await deleteInvoiceFromFirebase(id);
-  
-  invoices = invoices.filter(i => i.id !== id);
-  localStorage.setItem('pos_invoices', JSON.stringify(invoices));
-  
-  hideLoading();
-  updateStats();
-  renderInvoices();
-  showToast('✓ ইনভয়েস মুছে ফেলা হয়েছে');
+
+  try {
+    invoices = invoices.filter(i => i.id !== id);
+    localStorage.setItem('pos_invoices', JSON.stringify(invoices));
+    updateStats();
+    renderInvoices();
+
+    if (currentUserId) {
+      showToast('✓ ইনভয়েস লোকালি মুছে ফেলা হয়েছে — ক্লাউডে সিঙ্ক হচ্ছে');
+      void deleteInvoiceFromFirebase(id).then(cloudDeleted => {
+        if (cloudDeleted) showToast('✓ ইনভয়েস ক্লাউড থেকেও মুছে ফেলা হয়েছে');
+      });
+    } else {
+      showToast('✓ ইনভয়েস মুছে ফেলা হয়েছে');
+    }
+  } catch (error) {
+    console.error('Invoice delete error:', error);
+    showToast('ইনভয়েস মুছে ফেলা যায়নি: ' + (error.message || error), 'error');
+  }
 }
 
 // ===== Settings =====
@@ -2904,16 +2945,13 @@ async function saveSettings() {
   addItem();
 
   if (currentUserId) {
-    showLoading('Firebase ক্লাউডে সেটিংস সেভ হচ্ছে...');
-    try {
-      await saveSettingsToFirebase();
+    showToast('✓ সেটিংস লোকালি সেভ হয়েছে — Firebase ক্লাউডে সিঙ্ক হচ্ছে');
+    void saveSettingsToFirebase().then(() => {
       showToast('✓ সেটিংস লোকাল ও Firebase ক্লাউডে সেভ হয়েছে');
-    } catch (error) {
+    }).catch(error => {
       console.error('Firestore settings sync error:', error);
       showToast('লোকালে সেটিংস সেভ হয়েছে, ক্লাউডে হয়নি: ' + (error.message || error), 'error');
-    } finally {
-      hideLoading();
-    }
+    });
   } else {
     showToast('✓ সেটিংস লোকাল স্টোরেজে সেভ হয়েছে');
   }
@@ -3034,8 +3072,10 @@ async function saveRegister() {
     localStorage.setItem('pos_cash_register', JSON.stringify(record));
     localSaved = true;
     if (currentUserId) {
-      await saveCashRegisterToFirebase(record);
-      showToast('✅ ক্যাশ ও ব্যালেন্স লোকালি এবং Firebase ক্লাউডে সেভ হয়েছে');
+      showToast('✅ ক্যাশ ও ব্যালেন্স লোকালি সেভ হয়েছে — Firebase ক্লাউডে সিঙ্ক হচ্ছে');
+      void saveCashRegisterToFirebase(record).then(cloudSaved => {
+        if (cloudSaved) showToast('✅ ক্যাশ ও ব্যালেন্স Firebase ক্লাউডেও সেভ হয়েছে');
+      });
     } else {
       showToast('✅ ক্যাশ ও ব্যালেন্স লোকালি সেভ হয়েছে');
     }
