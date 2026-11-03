@@ -130,6 +130,22 @@ class MainActivity : AppCompatActivity() {
 
     inner class WebAppInterface(private val context: Context) {
         @JavascriptInterface
+        fun openHostedApp() {
+            runOnUiThread {
+                try {
+                    startActivity(
+                        Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("https://bedesignermonir.github.io/abc-pos/")
+                        )
+                    )
+                } catch (e: Exception) {
+                    Toast.makeText(context, "ব্রাউজার খোলা যায়নি", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        @JavascriptInterface
         fun printInvoice(jobName: String) {
             runOnUiThread {
                 val printManager = getSystemService(Context.PRINT_SERVICE) as? PrintManager ?: return@runOnUiThread
