@@ -1,4 +1,4 @@
-const CACHE_NAME = 'abc-computer-pos-v2';
+const CACHE_NAME = 'abc-computer-pos-v3-firebase';
 const APP_SHELL = [
   './',
   './index.html',

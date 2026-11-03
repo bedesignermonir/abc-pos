@@ -1,0 +1,6 @@
+{
+  "name": "ABC Computer POS",
+  "description": "Multi-Tenant Cloud POS System for ABC Computer powered by Firebase Firestore and Authentication.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

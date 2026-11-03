@@ -14,6 +14,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Noto Sans Bengali', sans-serif; }
 :root {
@@ -754,14 +758,27 @@ body {
       <div class="logo">A</div>
       <div class="brand-text">
         <h1>ABC COMPUTER</h1>
-        <div class="tagline">আপনার বিশ্বস্ত ডিজিটাল সেবা কেন্দ্র</div>
+        <div class="tagline">আপনার বিশ্বস্ত ডিজিটাল সেবা কেন্দ্র (মাল্টি-টেন্যান্ট ক্লাউড POS)</div>
       </div>
     </div>
     <div class="header-actions">
+      <div id="authHeaderSlot" style="display:flex;align-items:center;"></div>
       <button class="header-btn" onclick="openSettings()">⚙️ সেটিংস</button>
-      <button class="header-btn" onclick="refreshFromSheet()">🔄 রিফ্রেশ</button>
+      <button class="header-btn" onclick="refreshFromFirebase()">🔄 রিফ্রেশ</button>
       <button class="header-btn" onclick="exportData()">📥 ব্যাকআপ</button>
     </div>
+  </div>
+
+  <!-- Multi-Tenant Auth Banner -->
+  <div id="tenantNoticeBanner" style="display:none;background:linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);color:white;padding:12px 18px;border-radius:14px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.15);align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;border-left:5px solid #25d366;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="font-size:24px;">☁️</div>
+      <div>
+        <div style="font-weight:700;font-size:13px;">মাল্টি-টেন্যান্ট ক্লাউড মোড সক্রিয়</div>
+        <div style="font-size:11px;opacity:0.85;">আপনার প্রতিষ্ঠানের সেলস, খরচ ও হিসাব ক্লাউডে সুরক্ষিত রাখতে এবং যেকোনো ডিভাইস থেকে পরিচালনা করতে Google একাউন্ট দিয়ে সাইন-ইন করুন।</div>
+      </div>
+    </div>
+    <button onclick="loginWithGoogle()" class="btn" style="background:#25d366;color:#0f172a;font-weight:700;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12px;">🔑 Google দিয়ে লগইন</button>
   </div>
 
   <!-- Date Filter (dashboard stats period) -->
@@ -1014,12 +1031,20 @@ body {
 <div class="modal" id="settingsModal">
   <div class="modal-content">
     <h2>⚙️ সেটিংস</h2>
-    <div class="form-group">
-      <label>🔗 Google Apps Script URL</label>
-      <input type="text" id="sheetUrl" placeholder="https://script.google.com/macros/s/.../exec">
-      <small style="color:var(--gray-500);font-size:11px;margin-top:4px;display:block;">
-        Apps Script Web App URL (/exec) দিন। Deploy: Execute as “Me”, access “Anyone”; পরিবর্তনের পর নতুন version deploy করুন।
-      </small>
+    <div class="form-group" style="background:var(--gray-50);padding:14px;border-radius:12px;border:1.5px solid var(--gray-200);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <label style="margin:0;color:var(--dark);font-size:14px;font-weight:700;">☁️ Google Firebase ক্লাউড ব্যাকএন্ড</label>
+        <span id="settingsCloudBadge" style="font-size:11px;background:#10b981;color:white;padding:3px 10px;border-radius:12px;font-weight:700;">সক্রিয়</span>
+      </div>
+      <div style="font-size:12px;color:var(--gray-700);line-height:1.6;">
+        <div><strong>প্রজেক্ট আইডি:</strong> <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;">gen-lang-client-0772095030</code></div>
+        <div><strong>বর্তমান টেন্যান্ট:</strong> <span id="settingsUserDisplay" style="font-weight:600;color:var(--primary-dark);">লগইন চেক হচ্ছে...</span></div>
+        <div><strong>আইসোলেটেড ডেটা পাথ:</strong> <code id="settingsDataPath" style="background:#e2e8f0;padding:2px 6px;border-radius:4px;">users/{user_uid}/</code></div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button id="settingsLoginBtn" type="button" class="btn btn-whatsapp" style="padding:7px 12px;font-size:12px;" onclick="loginWithGoogle()">🔑 Google দিয়ে সাইন-ইন</button>
+        <button id="settingsLogoutBtn" type="button" class="btn btn-reset" style="padding:7px 12px;font-size:12px;display:none;" onclick="logoutUser()">🚪 লগআউট</button>
+      </div>
     </div>
     <div class="form-group">
       <label>📋 প্রি-সেট আইটেম (প্রতি লাইনে একটি করে)</label>
@@ -1044,7 +1069,7 @@ body {
 
     <div class="action-btns-3">
       <button class="btn btn-whatsapp" onclick="saveSettings()">💾 সেভ</button>
-      <button class="btn btn-print" onclick="testSheetConnection()">🧪 টেস্ট</button>
+      <button class="btn btn-print" onclick="testFirebaseConnection()">🧪 টেস্ট সংযোগ</button>
       <button class="btn btn-reset" onclick="closeSettings()">বন্ধ</button>
     </div>
   </div>
@@ -1136,29 +1161,8 @@ try { expenses = JSON.parse(localStorage.getItem('pos_expenses') || '[]'); } cat
 if (!Array.isArray(creditors)) creditors = [];
 if (!Array.isArray(expenses)) expenses = [];
 
-// ===== Google Sheets API URL =====
-function getSheetUrl() {
-  return settings.sheetUrl || '';
-}
-
-function normalizeSheetUrl(value) {
-  let url;
-  try {
-    url = new URL(String(value || '').trim());
-  } catch (error) {
-    throw new Error('Google Apps Script-এর সম্পূর্ণ Web App URL দিন। URL অবশ্যই /exec দিয়ে শেষ হতে হবে।');
-  }
-
-  const validPath = /^\/(?:a\/macros\/[^/]+\/|macros\/(?:u\/\d+\/)?)s\/[A-Za-z0-9_-]+\/exec\/?$/.test(url.pathname);
-  if (url.protocol !== 'https:' || url.hostname !== 'script.google.com' ||
-      url.username || url.password || !validPath) {
-    throw new Error('সঠিক Apps Script Web App URL দিন: https://script.google.com/macros/s/DEPLOYMENT_ID/exec');
-  }
-
-  url.search = '';
-  url.hash = '';
-  return url.toString().replace(/\/$/, '');
-}
+// Multi-Tenant Cloud POS System
+let cloudSyncActive = true;
 
 // ===== ইমোজি সাপোর্ট =====
 function supportsEmoji() {
@@ -1244,111 +1248,418 @@ function hideLoading() {
   document.getElementById('loadingOverlay').classList.remove('active');
 }
 
-// ===== Google Sheets API =====
-function buildSheetUrl(action, extraParams = {}, baseUrl = getSheetUrl()) {
-  if (!baseUrl) return '';
+// ===== Google Firebase Multi-Tenant Architecture & Real-Time Sync =====
 
-  const url = new URL(normalizeSheetUrl(baseUrl));
-  url.searchParams.set('action', action);
+// Firebase configuration for project gen-lang-client-0772095030
+const firebaseConfig = {
+  apiKey: "AIzaSyDhcpQ8qv9110uYVHqXa4o1hiimgmzzegU",
+  authDomain: "gen-lang-client-0772095030.firebaseapp.com",
+  projectId: "gen-lang-client-0772095030",
+  storageBucket: "gen-lang-client-0772095030.firebasestorage.app",
+  messagingSenderId: "362558772104",
+  appId: "1:362558772104:web:abcpos"
+};
 
-  Object.entries(extraParams).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== '') {
-      url.searchParams.set(key, String(value));
-    }
-  });
+// Initialize Firebase
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+const auth = firebase.auth();
+const db = firebase.firestore();
 
-  return url.toString();
+// Multi-Tenant Isolation: State of authenticated business owner
+let currentUser = null;
+let currentUserId = null;
+let firestoreUnsubscribers = [];
+
+// Isolated Firestore references under users/{user_uid}/
+function getUserRef(uid = currentUserId) {
+  if (!uid) throw new Error('ব্যবহারকারী লগইন করেননি');
+  return db.collection('users').doc(uid);
+}
+function getSalesRef(uid = currentUserId) {
+  return getUserRef(uid).collection('sales');
+}
+function getExpensesRef(uid = currentUserId) {
+  return getUserRef(uid).collection('expenses');
+}
+function getCreditorsRef(uid = currentUserId) {
+  return getUserRef(uid).collection('creditors');
+}
+function getCashRegisterRef(uid = currentUserId) {
+  return getUserRef(uid).collection('cash_register');
+}
+function getSettingsRef(uid = currentUserId) {
+  return getUserRef(uid).collection('settings').doc('doc');
 }
 
-const SHEET_REQUEST_TIMEOUT_MS = 45000;
-
-function jsonpRequest(requestUrl, timeoutMs = SHEET_REQUEST_TIMEOUT_MS) {
-  return new Promise((resolve, reject) => {
-    const callbackName = `__posJsonp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const script = document.createElement('script');
-    const url = new URL(requestUrl);
-    url.searchParams.set('callback', callbackName);
-    url.searchParams.set('_', String(Date.now()));
-    let finished = false;
-
-    const finish = (error, result) => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timer);
-      try { delete window[callbackName]; } catch (cleanupError) { window[callbackName] = undefined; }
-      if (script.parentNode) script.parentNode.removeChild(script);
-      if (error) reject(error);
-      else resolve(result);
-    };
-
-    const timer = setTimeout(() => {
-      finish(new Error('সংযোগে ৪৫ সেকেন্ডের মধ্যে উত্তর আসেনি। ইন্টারনেট এবং Apps Script deployment পরীক্ষা করুন।'));
-    }, timeoutMs);
-
-    window[callbackName] = result => finish(null, result);
-    script.onerror = () => finish(new Error('Apps Script উত্তর পাওয়া যায়নি। Web App-টি "Execute as: Me" ও "Access: Anyone" দিয়ে নতুন করে deploy (New deployment) করে সর্বশেষ /exec URL Settings-এ সংরক্ষণ করুন।'));
-    script.async = true;
-    script.src = url.toString();
-    document.head.appendChild(script);
+// Enable offline persistence for reliable POS operation without internet
+try {
+  db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+    console.warn('Firestore offline persistence notice:', err.code);
   });
+} catch (e) {
+  console.warn('Persistence exception:', e);
 }
 
-async function postSheetData(payload) {
-  // Apps Script handles this safelisted form POST; the response is opaque in no-cors
-  // mode, so callers confirm writes through the matching JSONP verification endpoint.
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), SHEET_REQUEST_TIMEOUT_MS);
-  try {
-    await fetch(normalizeSheetUrl(getSheetUrl()), {
-      method: 'POST',
-      mode: 'no-cors',
-      redirect: 'follow',
-      credentials: 'omit',
-      cache: 'no-store',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-      body: new URLSearchParams({
-        action: payload.action || '',
-        payload: JSON.stringify(payload)
-      }).toString(),
-      signal: controller.signal
-    });
-    return true;
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      throw new Error('Apps Script-এ POST অনুরোধ ৪৫ সেকেন্ডে সম্পন্ন হয়নি। Deployment ও ইন্টারনেট সংযোগ পরীক্ষা করুন।');
+// Multi-Tenant UI updates
+function renderAuthUI(user) {
+  const slot = document.getElementById('authHeaderSlot');
+  const banner = document.getElementById('tenantNoticeBanner');
+  const userDisp = document.getElementById('settingsUserDisplay');
+  const dataPath = document.getElementById('settingsDataPath');
+  const loginBtn = document.getElementById('settingsLoginBtn');
+  const logoutBtn = document.getElementById('settingsLogoutBtn');
+
+  if (user) {
+    if (banner) banner.style.display = 'none';
+    if (userDisp) userDisp.textContent = (user.displayName || user.email) + ' (' + user.email + ')';
+    if (dataPath) dataPath.textContent = 'users/' + user.uid + '/';
+    if (loginBtn) loginBtn.style.display = 'none';
+    if (logoutBtn) logoutBtn.style.display = 'inline-block';
+
+    if (slot) {
+      slot.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;background:var(--gray-100);padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;margin-right:6px;">
+          <img src="${user.photoURL || 'app-icon-180.png'}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;" alt="Avatar" onerror="this.src='app-icon-180.png'">
+          <span style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dark);">${escapeHtml(user.displayName || user.email.split('@')[0])}</span>
+          <span title="ক্লাউড সিঙ্ক সক্রিয়" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;"></span>
+          <button onclick="logoutUser()" title="লগআউট" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:14px;padding:0 2px;">🚪</button>
+        </div>
+      `;
     }
-    throw new Error('Apps Script-এ সংযোগ করা যায়নি: ' + error.message);
-  } finally {
-    clearTimeout(timeout);
+  } else {
+    if (banner) banner.style.display = 'flex';
+    if (userDisp) userDisp.textContent = 'লগইন করা নেই (লোকাল ড্রাফট মোড)';
+    if (dataPath) dataPath.textContent = 'users/{user_uid}/ (লগইন প্রয়োজন)';
+    if (loginBtn) loginBtn.style.display = 'inline-block';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+
+    if (slot) {
+      slot.innerHTML = `
+        <button class="header-btn" onclick="loginWithGoogle()" style="background:linear-gradient(135deg, #1e3a8a, #0f172a);color:white;display:flex;align-items:center;gap:6px;margin-right:6px;">
+          <span>🔑</span><span>Google লগইন</span>
+        </button>
+      `;
+    }
   }
 }
 
-function getSheetSettingsFromResponse(remoteSettings) {
-  const normalized = { ...settings };
-  ['presetItems', 'expenseCategories', 'costPrices', 'sellingPrices'].forEach(key => {
-    // Google Sheet-এর মানই প্রাধান্য পায় (টেস্ট/সিঙ্কে ক্যাশে-ক্লিয়ার হওয়া সেটআপ ফিরে আসে);
-    // শিটে কী না থাকলে বা খালি থাকলে লোকাল মান অক্ষুণ্ণ থাকে — কোনো ডাটা-লস হয় না।
-    if (!Object.prototype.hasOwnProperty.call(remoteSettings || {}, key)) return;
-    const rawValue = remoteSettings[key];
-    if (rawValue === '' || rawValue === null || rawValue === undefined) return;
-    const value = rawValue;
-    if (key === 'presetItems' || key === 'expenseCategories') {
-      normalized[key] = String(value || '');
-      return;
-    }
+// Google Sign-In
+async function loginWithGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  try {
+    showLoading('Google দিয়ে সাইন ইন হচ্ছে...');
     try {
-      normalized[key] = typeof value === 'string' ? JSON.parse(value) : value;
-    } catch (error) {
-      console.error(`Invalid ${key} in Google Sheet settings`, error);
+      await auth.signInWithPopup(provider);
+    } catch (popupErr) {
+      if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/popup-closed-by-user') {
+        await auth.signInWithRedirect(provider);
+        return;
+      }
+      throw popupErr;
     }
-  });
-  settings = normalized;
-  localStorage.setItem('pos_settings', JSON.stringify(settings));
+    hideLoading();
+  } catch (error) {
+    hideLoading();
+    console.error('Google Sign-In failed:', error);
+    showToast('লগইন ব্যর্থ হয়েছে: ' + (error.message || error), 'error');
+  }
+}
+
+// Logout
+async function logoutUser() {
+  if (!confirm('আপনি কি নিশ্চিত যে আপনার একাউন্ট থেকে লগআউট করতে চান?')) return;
+  try {
+    showLoading('লগআউট হচ্ছে...');
+    firestoreUnsubscribers.forEach(unsub => { try { unsub(); } catch (e) {} });
+    firestoreUnsubscribers = [];
+    await auth.signOut();
+    hideLoading();
+    showToast('সফলভাবে লগআউট হয়েছে');
+  } catch (error) {
+    hideLoading();
+    showToast('লগআউট সমস্যা: ' + error.message, 'error');
+  }
+}
+
+// Attach real-time Firestore listeners for isolated tenant data
+function attachFirestoreListeners(uid) {
+  firestoreUnsubscribers.forEach(unsub => { try { unsub(); } catch (e) {} });
+  firestoreUnsubscribers = [];
+
+  // 1. Sales / Invoices Listener
+  const unsubSales = getSalesRef(uid).orderBy('date', 'desc').onSnapshot(snap => {
+    invoices = snap.docs.map(doc => doc.data());
+    localStorage.setItem('pos_invoices', JSON.stringify(invoices));
+    let maxNum = 0;
+    invoices.forEach(inv => {
+      const match = String(inv.invoiceNo || '').match(/(\d+)$/);
+      if (match) {
+        const n = parseInt(match[1]);
+        if (n > maxNum) maxNum = n;
+      }
+    });
+    nextInvoiceNumber = maxNum > 0 ? maxNum + 1 : 1;
+    localStorage.setItem('pos_next_inv_no', nextInvoiceNumber.toString());
+    updateStats();
+    renderInvoices();
+    updateCurrentInvoiceNo();
+  }, err => console.warn('Sales listener:', err));
+  firestoreUnsubscribers.push(unsubSales);
+
+  // 2. Expenses Listener
+  const unsubExpenses = getExpensesRef(uid).orderBy('date', 'desc').onSnapshot(snap => {
+    expenses = snap.docs.map(doc => doc.data());
+    saveExpenses();
+    renderExpenseList();
+    renderFinanceSummary();
+  }, err => console.warn('Expenses listener:', err));
+  firestoreUnsubscribers.push(unsubExpenses);
+
+  // 3. Creditors Listener
+  const unsubCreditors = getCreditorsRef(uid).onSnapshot(snap => {
+    creditors = snap.docs.map(doc => doc.data());
+    saveCreditors();
+    renderCreditorList();
+    updateNetAssetsCard();
+    renderFinanceSummary();
+  }, err => console.warn('Creditors listener:', err));
+  firestoreUnsubscribers.push(unsubCreditors);
+
+  // 4. Cash Register Listener
+  const unsubCash = getCashRegisterRef(uid).orderBy('date', 'desc').limit(1).onSnapshot(snap => {
+    if (!snap.empty) {
+      const latest = snap.docs[0].data();
+      loadRegister(latest);
+      localStorage.setItem('pos_cash_register', JSON.stringify(latest));
+      updateRegisterTotals();
+      updateNetAssetsCard();
+    }
+  }, err => console.warn('Cash listener:', err));
+  firestoreUnsubscribers.push(unsubCash);
+
+  // 5. Settings Listener
+  const unsubSettings = getSettingsRef(uid).onSnapshot(snap => {
+    if (snap.exists) {
+      const remote = snap.data();
+      let changed = false;
+      ['presetItems', 'expenseCategories', 'costPrices', 'sellingPrices'].forEach(k => {
+        if (remote[k] !== undefined && JSON.stringify(remote[k]) !== JSON.stringify(settings[k])) {
+          settings[k] = remote[k];
+          changed = true;
+        }
+      });
+      if (changed) {
+        localStorage.setItem('pos_settings', JSON.stringify(settings));
+        refreshPresetOptions();
+      }
+    }
+  }, err => console.warn('Settings listener:', err));
+  firestoreUnsubscribers.push(unsubSettings);
+}
+
+// Authentication State Listener
+auth.onAuthStateChanged(user => {
+  if (user) {
+    currentUser = user;
+    currentUserId = user.uid;
+    renderAuthUI(user);
+    attachFirestoreListeners(user.uid);
+    showToast('স্বাগতম, ' + (user.displayName || user.email) + '! ক্লাউড ডাটা সিঙ্ক হয়েছে');
+  } else {
+    currentUser = null;
+    currentUserId = null;
+    firestoreUnsubscribers.forEach(unsub => { try { unsub(); } catch (e) {} });
+    firestoreUnsubscribers = [];
+    renderAuthUI(null);
+  }
+});
+
+// Refresh all data from Firestore
+async function refreshFromFirebase() {
+  if (!currentUserId) {
+    showToast('অনুরোধ করতে অনুগ্রহ করে প্রথমে Google দিয়ে লগইন করুন', 'error');
+    loginWithGoogle();
+    return;
+  }
+  showLoading('Firebase ক্লাউড থেকে ডাটা রিফ্রেশ হচ্ছে...');
+  try {
+    const [salesSnap, credSnap, expSnap, cashSnap, setSnap] = await Promise.all([
+      getSalesRef().orderBy('date', 'desc').get(),
+      getCreditorsRef().get(),
+      getExpensesRef().orderBy('date', 'desc').get(),
+      getCashRegisterRef().orderBy('date', 'desc').limit(1).get(),
+      getSettingsRef().get()
+    ]);
+
+    invoices = salesSnap.docs.map(doc => doc.data());
+    localStorage.setItem('pos_invoices', JSON.stringify(invoices));
+
+    let maxNum = 0;
+    invoices.forEach(inv => {
+      const match = String(inv.invoiceNo || '').match(/(\d+)$/);
+      if (match) {
+        const n = parseInt(match[1]);
+        if (n > maxNum) maxNum = n;
+      }
+    });
+    nextInvoiceNumber = maxNum > 0 ? maxNum + 1 : 1;
+    localStorage.setItem('pos_next_inv_no', nextInvoiceNumber.toString());
+
+    creditors = credSnap.docs.map(doc => doc.data());
+    saveCreditors();
+
+    expenses = expSnap.docs.map(doc => doc.data());
+    saveExpenses();
+
+    if (!cashSnap.empty) {
+      const latest = cashSnap.docs[0].data();
+      loadRegister(latest);
+      localStorage.setItem('pos_cash_register', JSON.stringify(latest));
+      updateRegisterTotals();
+    }
+
+    if (setSnap.exists) {
+      const remote = setSnap.data();
+      if (remote.presetItems !== undefined) settings.presetItems = remote.presetItems;
+      if (remote.expenseCategories !== undefined) settings.expenseCategories = remote.expenseCategories;
+      if (remote.costPrices !== undefined) settings.costPrices = remote.costPrices;
+      if (remote.sellingPrices !== undefined) settings.sellingPrices = remote.sellingPrices;
+      localStorage.setItem('pos_settings', JSON.stringify(settings));
+      refreshPresetOptions();
+    }
+
+    hideLoading();
+    updateStats();
+    renderInvoices();
+    renderCreditorList();
+    renderExpenseList();
+    renderFinanceSummary();
+    updateCurrentInvoiceNo();
+    showToast('✓ Firebase ক্লাউড থেকে সব ডাটা সফলভাবে রিফ্রেশ হয়েছে');
+  } catch (error) {
+    hideLoading();
+    console.error('Refresh error:', error);
+    showToast('সিঙ্ক ত্রুটি: ' + error.message, 'error');
+  }
+}
+
+// Test Firebase connection
+async function testFirebaseConnection() {
+  if (!currentUserId) {
+    showToast('কানেকশন টেস্ট করতে প্রথমে Google দিয়ে লগইন করুন', 'error');
+    loginWithGoogle();
+    return;
+  }
+  showLoading('Firebase সংযোগ ও নিরাপত্তা পারমিশন পরীক্ষা হচ্ছে...');
+  try {
+    const testDocRef = getUserRef().collection('healthcheck').doc('test');
+    await testDocRef.set({ testedAt: new Date().toISOString(), ok: true });
+    const snap = await testDocRef.get();
+    await testDocRef.delete();
+    hideLoading();
+    if (snap.exists && snap.data().ok) {
+      showToast('✓ Firebase সংযোগ ও পারমিশন সম্পূর্ণ সক্রিয়! Project: ' + firebaseConfig.projectId + ' (UID: ' + currentUserId.substring(0, 8) + '...)');
+    } else {
+      showToast('সংযোগ টেস্ট সম্পন্ন হয়নি', 'error');
+    }
+  } catch (error) {
+    hideLoading();
+    showToast('Firebase পারমিশন ত্রুটি: ' + error.message, 'error');
+  }
+}
+
+// Firebase CRUD Operations
+async function saveInvoiceToFirebase(invoice) {
+  if (!currentUserId) return true;
+  try {
+    await getSalesRef().doc(String(invoice.id)).set(invoice, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Firestore save invoice error:', error);
+    showToast('ক্লাউড সিঙ্ক সমস্যা: ' + error.message, 'error');
+    return false;
+  }
+}
+
+async function deleteInvoiceFromFirebase(id) {
+  if (!currentUserId) return true;
+  try {
+    await getSalesRef().doc(String(id)).delete();
+    return true;
+  } catch (error) {
+    console.error('Firestore delete invoice error:', error);
+    showToast('ক্লাউড থেকে মুছে ফেলা যায়নি: ' + error.message, 'error');
+    return false;
+  }
+}
+
+async function saveCreditorToFirebase(creditor) {
+  if (!currentUserId) return;
+  try {
+    await getCreditorsRef().doc(String(creditor.id)).set(creditor, { merge: true });
+  } catch (error) {
+    console.warn('Firestore creditor sync error:', error);
+  }
+}
+
+async function removeCreditorFromFirebase(id) {
+  if (!currentUserId) return;
+  try {
+    await getCreditorsRef().doc(String(id)).delete();
+  } catch (error) {
+    console.warn('Firestore remove creditor error:', error);
+  }
+}
+
+async function saveExpenseToFirebase(expense) {
+  if (!currentUserId) return;
+  try {
+    await getExpensesRef().doc(String(expense.id)).set(expense, { merge: true });
+  } catch (error) {
+    console.warn('Firestore expense sync error:', error);
+  }
+}
+
+async function removeExpenseFromFirebase(id) {
+  if (!currentUserId) return;
+  try {
+    await getExpensesRef().doc(String(id)).delete();
+  } catch (error) {
+    console.warn('Firestore remove expense error:', error);
+  }
+}
+
+async function saveCashRegisterToFirebase(record) {
+  if (!currentUserId) return;
+  try {
+    await getCashRegisterRef().doc(String(record.id)).set(record, { merge: true });
+  } catch (error) {
+    console.warn('Firestore cash register sync error:', error);
+  }
+}
+
+async function saveSettingsToFirebase() {
+  if (!currentUserId) return;
+  try {
+    await getSettingsRef().set({
+      presetItems: settings.presetItems || '',
+      expenseCategories: settings.expenseCategories || '',
+      costPrices: settings.costPrices || {},
+      sellingPrices: settings.sellingPrices || {},
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (error) {
+    console.warn('Firestore settings sync error:', error);
+  }
 }
 
 function refreshPresetOptions() {
   document.querySelectorAll('.item-row').forEach(row => {
     const select = row.querySelector('select');
+    if (!select) return;
     const selected = select.value;
     const presets = (settings.presetItems || '').split('\n').map(item => item.trim()).filter(Boolean);
     select.innerHTML = '<option value="">-- বাছাই --</option>';
@@ -1367,276 +1678,8 @@ function refreshPresetOptions() {
   });
 }
 
-async function loadFromSheet() {
-  const url = getSheetUrl();
-  if (!url) {
-    console.log('Sheet URL not set, using localStorage');
-    return false;
-  }
-
-  try {
-    showLoading('শিট থেকে ডাটা লোড হচ্ছে...');
-    const payload = await jsonpRequest(buildSheetUrl('getAll'));
-    if (!payload || !payload.success || !Array.isArray(payload.data)) {
-      throw new Error(payload && payload.message
-        ? payload.message
-        : 'Apps Script থেকে ইনভয়েস ডাটা পাওয়া যায়নি। সর্বশেষ deployment আপডেট করুন।');
-    }
-    const remoteSettings = await jsonpRequest(buildSheetUrl('getSettings', { pin: SETTINGS_PIN }));
-    if (remoteSettings.success) getSheetSettingsFromResponse(remoteSettings.settings || {});
-
-    const data = Array.isArray(payload.data) ? payload.data : [];
-    invoices = data.map(normalizeSheetInvoice);
-
-    localStorage.setItem('pos_invoices', JSON.stringify(invoices));
-    if (payload.nextNumber) {
-      nextInvoiceNumber = Number(payload.nextNumber);
-      localStorage.setItem('pos_next_inv_no', nextInvoiceNumber.toString());
-    }
-
-    refreshPresetOptions();
-    hideLoading();
-    return true;
-  } catch (error) {
-    console.error('Load error:', error);
-    hideLoading();
-    // সংযোগ ব্যর্থ হলেও অ্যাপ localStorage-এর ডাটা দিয়ে চলবে — শুধু সতর্কবার্তা দেখানো হয়
-    console.warn('Google Sheets থেকে লোড ব্যর্থ:', error);
-    showToast('⚠ Google Sheet-এর সাথে সংযোগ হয়নি: ' + error.message, 'error');
-    return false;
-  }
-}
-
-function normalizeSheetInvoice(invoice) {
-  let items = invoice.items;
-  if (typeof items === 'string') {
-    try {
-      items = JSON.parse(items);
-    } catch (error) {
-      items = parseReadableInvoiceItems(items);
-    }
-  }
-  if (!Array.isArray(items)) {
-    throw new Error('Google Sheet-এর ইনভয়েস আইটেম তালিকা সঠিক নয়');
-  }
-
-  items = items.map(item => {
-    const qty = safeNum(item && item.qty);
-    const price = safeNum(item && item.price);
-    return {
-      name: String(item && item.name || ''),
-      qty,
-      price,
-      costPrice: safeNum(item && item.costPrice),
-      total: qty * price
-    };
-  });
-
-  const itemsSubtotal = items.reduce((sum, item) => sum + item.total, 0);
-  const savedSubtotal = safeNum(invoice.subtotal);
-  const subtotal = items.length ? itemsSubtotal : savedSubtotal;
-  const discount = safeNum(invoice.discount);
-  const calculatedTotal = Math.max(0, subtotal - discount);
-  const itemCostTotal = items.reduce((sum, item) => sum + item.costPrice * item.qty, 0);
-  const costTotal = itemCostTotal || safeNum(invoice.costTotal);
-
-  return {
-    id: invoice.id,
-    invoiceNo: invoice.invoiceNo || '',
-    customer: String(invoice.customer || invoice.customerName || ''),
-    phone: String(invoice.phone || ''),
-    date: invoice.date || new Date().toISOString(),
-    items,
-    subtotal,
-    discount,
-    total: calculatedTotal,
-    costTotal,
-    netProfit: calculatedTotal - costTotal,
-    notes: invoice.notes || ''
-  };
-}
-
-function parseReadableInvoiceItems(value) {
-  const items = [];
-  const pattern = /([^,]+?)\s+\((\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)TK\)/g;
-  let match;
-  while ((match = pattern.exec(value)) !== null) {
-    items.push({
-      name: match[1].trim(),
-      qty: Number(match[2]),
-      price: Number(match[3]),
-      costPrice: 0,
-      total: Number(match[2]) * Number(match[3])
-    });
-  }
-  if (!items.length) throw new Error('শিটের পণ্যের বিবরণ পড়া যায়নি');
-  return items;
-}
-
-async function saveToSheet(invoice) {
-  const url = getSheetUrl();
-  if (!url) {
-    return true;
-  }
-
-  // POST (no-cors) সফল হলেও response opaque থাকে, তাই ব্যর্থ হলে ১ বার
-  // রিট্রাই করা নিরাপদ (সার্ভারে upsert হয়); চূড়ান্ত সাফল্য JSONP verify দিয়ে নির্ধারিত।
-  let postError = '';
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      await postSheetData({ action: 'saveInvoice', invoice: invoice });
-      postError = '';
-      break;
-    } catch (error) {
-      postError = error.message;
-      await new Promise(resolve => setTimeout(resolve, 800));
-    }
-  }
-
-  try {
-    const result = await jsonpRequest(buildSheetUrl('verifyInvoice', { id: invoice.id }));
-    if (result.success && result.inSales) return true;
-    showToast('Sales শিটে ইনভয়েস সেভ হয়েছে কিনা যাচাই করা যায়নি। Apps Script deployment পরীক্ষা করুন।', 'error');
-    return false;
-  } catch (error) {
-    showToast('শিটে সেভ যাচাই করা যায়নি: ' + (postError || error.message), 'error');
-    return false;
-  }
-}
-
-async function deleteFromSheet(id) {
-  const url = getSheetUrl();
-  if (!url) return true;
-
-  let postError = '';
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      await postSheetData({ action: 'deleteInvoice', id });
-      postError = '';
-      break;
-    } catch (error) {
-      postError = error.message;
-      await new Promise(resolve => setTimeout(resolve, 800));
-    }
-  }
-
-  try {
-    const result = await jsonpRequest(buildSheetUrl('verifyDelete', { id }));
-    if (result.success && !result.inSales) return true;
-    if (postError) showToast('মুছে ফেলার অনুরোধে সমস্যা: ' + postError, 'error');
-    return false;
-  } catch (error) {
-    showToast('Google Sheet-এ মুছে ফেলা যাচাই করা যায়নি: ' + error.message, 'error');
-    return false;
-  }
-}
-
-async function refreshFromSheet() {
-  const success = await loadFromSheet();
-  if (success) {
-    updateStats();
-    renderInvoices();
-    updateCurrentInvoiceNo();
-    showToast('✓ ডাটা রিফ্রেশ হয়েছে');
-  }
-}
-
-async function testSheetConnection() {
-  const urlInput = document.getElementById('sheetUrl');
-  const url = (urlInput ? urlInput.value : '').trim();
-  if (!url) {
-    showToast('অনুগ্রহ করে URL দিন', 'error');
-    return;
-  }
-
-  try {
-    normalizeSheetUrl(url);
-  } catch (error) {
-    showToast(error.message, 'error');
-    return;
-  }
-
-  showLoading('সংযোগ পরীক্ষা ও সেটিংস লোড হচ্ছে...');
-
-  let connectionOk = false;
-  let invoiceCount = 0;
-  try {
-    const result = await jsonpRequest(buildSheetUrl('test', {}, url));
-    connectionOk = !!(result && result.success);
-    invoiceCount = (result && result.count) || 0;
-  } catch (error) {
-    hideLoading();
-    showToast('সংযোগ ব্যর্থ: ' + error.message + ' Deploy as: Me; access: Anyone; URL must end in /exec.', 'error');
-    return;
-  }
-
-  // টেস্টের সাথে সাথেই Settings শিট থেকে সম্পূর্ণ কনফিগারেশন এনে ফর্মে বসানো হয়
-  let settingsLoaded = false;
-  let settingsError = '';
-  try {
-    const remote = await jsonpRequest(buildSheetUrl('getSettings', { pin: SETTINGS_PIN }, url));
-    if (remote && remote.success) {
-      getSheetSettingsFromResponse(remote.settings || {});
-      settingsLoaded = true;
-    } else {
-      settingsError = (remote && remote.message) || 'Settings শিট থেকে ডাটা পাওয়া যায়নি';
-    }
-  } catch (error) {
-    settingsError = error.message;
-  }
-
-  // Creditors শিট থেকে পাওনাদারদের নামও নিয়ে আসে (খরচ ড্রপডাউনের জন্য)
-  let creditorCount = 0;
-  try {
-    const credRes = await jsonpRequest(buildSheetUrl('listCreditors', {}, url));
-    if (credRes && credRes.success && Array.isArray(credRes.creditors) && credRes.creditors.length) {
-      creditors = credRes.creditors.map(c => ({
-        id: safeNum(c.id), name: String(c.name || ''), taken: safeNum(c.taken),
-        paid: safeNum(c.paid), due: safeNum(c.taken) - safeNum(c.paid),
-        date: c.date || new Date().toISOString()
-      }));
-      saveCreditors();
-      renderCreditorList();
-      creditorCount = creditors.length;
-    }
-  } catch (error) {
-    console.warn('Creditors লোড হয়নি:', error.message);
-  }
-
-  let cashRegisterLoaded = false;
-  try {
-    if (!localStorage.getItem('pos_cash_register')) {
-      const cashRes = await jsonpRequest(buildSheetUrl('listCash', {}, url));
-      if (cashRes && cashRes.success && Array.isArray(cashRes.records) && cashRes.records.length) {
-        const latest = cashRes.records.slice().sort((a, b) =>
-          String(b.date || '').localeCompare(String(a.date || '')))[0];
-        if (loadRegister(latest)) {
-          localStorage.setItem('pos_cash_register', JSON.stringify(latest));
-          updateRegisterTotals();
-          cashRegisterLoaded = true;
-        }
-      }
-    }
-  } catch (error) {
-    console.warn('ক্যাশ রেজিস্টার শিট থেকে লোড হয়নি:', error.message);
-  }
-
-  if (settingsLoaded) {
-    populateSettingsFormFromCurrent();
-  }
-
-  hideLoading();
-  if (settingsLoaded) {
-    showToast('✓ সংযোগ সফল! ' + toBnNum(invoiceCount) + ' টি ইনভয়েস, সেটিংস, প্রিসেট আইটেম/কস্ট, খরচের তালিকা, ' + toBnNum(creditorCount) + ' জন পাওনাদার' + (cashRegisterLoaded ? ' এবং ক্যাশ রেজিস্টার' : '') + ' লোড হয়েছে — "সেভ" চাপলে লোকাল + শিটে জমা হবে');
-  } else {
-    showToast('✓ সংযোগ সফল (' + toBnNum(invoiceCount) + ' ইনভয়েস), কিন্তু সেটিংস লোড হয়নি: ' + settingsError, 'error');
-  }
-}
-
-// সেটিংস মডালের সব ইনপুটে বর্তমান (শিট থেকে আনা) মান বসায়
+// সেটিংস মডালের সব ইনপুটে বর্তমান মান বসায়
 function populateSettingsFormFromCurrent() {
-  const sheetUrlEl = document.getElementById('sheetUrl');
-  if (sheetUrlEl) sheetUrlEl.value = settings.sheetUrl || '';
   const presetEl = document.getElementById('presetItems');
   if (presetEl) presetEl.value = settings.presetItems || '';
   const expCatEl = document.getElementById('expenseCategories');
@@ -1836,35 +1879,19 @@ async function saveInvoiceOnly() {
 
   showLoading(isEdit ? 'আপডেট করা হচ্ছে...' : 'সেভ করা হচ্ছে...');
 
-  const hasSheetUrl = Boolean(getSheetUrl());
-  const sheetSuccess = await saveToSheet(invoice);
-
-  if (!sheetSuccess) {
-    hideLoading();
-    if (!isEdit) {
-      const pending = JSON.parse(localStorage.getItem('pos_unsent_invoices') || '[]');
-      pending.push(invoice);
-      localStorage.setItem('pos_unsent_invoices', JSON.stringify(pending));
-    }
-    showToast('❌ ডাটা Google Sheet-এ দেওয়া যায়নি। আবার চেষ্টা করুন।', 'error');
-    return;
-  }
-
   if (isEdit) {
     const idx = invoices.findIndex(i => i.id === editingInvoiceId);
     if (idx >= 0) invoices[idx] = invoice; else invoices.unshift(invoice);
   } else {
     invoices.unshift(invoice);
-    const pending = JSON.parse(localStorage.getItem('pos_unsent_invoices') || '[]');
-    const remaining = pending.filter(item => item.id !== invoice.id);
-    localStorage.setItem('pos_unsent_invoices', JSON.stringify(remaining));
     nextInvoiceNumber++;
     localStorage.setItem('pos_next_inv_no', nextInvoiceNumber.toString());
   }
   localStorage.setItem('pos_invoices', JSON.stringify(invoices));
 
+  const cloudSaved = await saveInvoiceToFirebase(invoice);
   hideLoading();
-  showToast((hasSheetUrl ? '✓ ইনভয়েস শিটে ' : '✓ ইনভয়েস লোকাল স্টোরেজে ') + (isEdit ? 'আপডেট হয়েছে: ' : 'সেভ হয়েছে: ') + invoice.invoiceNo);
+  showToast((cloudSaved && currentUserId ? '✓ ইনভয়েস Firebase ক্লাউডে ' : '✓ ইনভয়েস লোকাল স্টোরেজে ') + (isEdit ? 'আপডেট হয়েছে: ' : 'সেভ হয়েছে: ') + invoice.invoiceNo);
 
   resetForm();
   updateStats();
@@ -2397,11 +2424,7 @@ async function deleteInvoice(id) {
   if (!confirm('এই ইনভয়েসটি মুছে ফেলবেন?')) return;
   
   showLoading('মুছে ফেলা হচ্ছে...');
-  const deletedFromSheet = await deleteFromSheet(id);
-  if (!deletedFromSheet) {
-    hideLoading();
-    return showToast('ইনভয়েসটি Google Sheet থেকে যাচাই করে মুছতে পারেনি', 'error');
-  }
+  await deleteInvoiceFromFirebase(id);
   
   invoices = invoices.filter(i => i.id !== id);
   localStorage.setItem('pos_invoices', JSON.stringify(invoices));
@@ -2507,39 +2530,6 @@ function closeSettings() {
   document.getElementById('settingsModal').classList.remove('active');
 }
 
-async function saveSettingsToSheet() {
-  let postError = '';
-  try {
-    await postSheetData({
-      action: 'saveSettings',
-      pin: SETTINGS_PIN,
-      settings: {
-        presetItems: settings.presetItems,
-        expenseCategories: settings.expenseCategories || '',
-        costPrices: settings.costPrices,
-        sellingPrices: settings.sellingPrices
-      }
-    });
-  } catch (error) {
-    postError = error.message;
-  }
-
-  try {
-    const result = await jsonpRequest(buildSheetUrl('getSettings', { pin: SETTINGS_PIN }));
-    const remoteSettings = result && result.settings;
-    const settingsMatch = result && result.success && remoteSettings &&
-      remoteSettings.presetItems === settings.presetItems &&
-      String(remoteSettings.expenseCategories || '') === String(settings.expenseCategories || '') &&
-      JSON.stringify(JSON.parse(remoteSettings.costPrices || '{}')) === JSON.stringify(settings.costPrices) &&
-      JSON.stringify(JSON.parse(remoteSettings.sellingPrices || '{}')) === JSON.stringify(settings.sellingPrices);
-    if (!settingsMatch) {
-      throw new Error('Google Sheet-এ সংরক্ষিত সেটিংস মেলেনি। PIN এবং deployment পরীক্ষা করুন।');
-    }
-  } catch (error) {
-    throw new Error((postError ? postError + ' ' : '') + error.message);
-  }
-}
-
 async function saveSettings() {
   const costPrices = {};
   const sellingPrices = {};
@@ -2561,16 +2551,6 @@ async function saveSettings() {
     return showToast('কস্ট ও বিক্রয়মূল্য শূন্য বা তার বেশি সংখ্যা হতে হবে', 'error');
   }
 
-  const sheetUrl = document.getElementById('sheetUrl').value.trim();
-  if (sheetUrl) {
-    try {
-      settings.sheetUrl = normalizeSheetUrl(sheetUrl);
-    } catch (error) {
-      return showToast(error.message, 'error');
-    }
-  } else {
-    settings.sheetUrl = '';
-  }
   settings.presetItems = document.getElementById('presetItems').value;
   settings.expenseCategories = document.getElementById('expenseCategories').value;
   settings.costPrices = costPrices;
@@ -2581,15 +2561,15 @@ async function saveSettings() {
   document.getElementById('itemsContainer').innerHTML = '';
   addItem();
 
-  if (settings.sheetUrl) {
-    showLoading('সেটিংস সেভ হচ্ছে...');
+  if (currentUserId) {
+    showLoading('Firebase ক্লাউডে সেটিংস সেভ হচ্ছে...');
     try {
-      await saveSettingsToSheet();
+      await saveSettingsToFirebase();
       hideLoading();
-      showToast('✓ সেটিংস লোকাল ও Google Sheet-এ সেভ হয়েছে');
+      showToast('✓ সেটিংস লোকাল ও Firebase ক্লাউডে সেভ হয়েছে');
     } catch (error) {
       hideLoading();
-      showToast('লোকালে সেটিংস সেভ হয়েছে, Google Sheet-এ হয়নি: ' + error.message, 'error');
+      showToast('লোকালে সেটিংস সেভ হয়েছে, ক্লাউডে হয়নি: ' + error.message, 'error');
     }
   } else {
     showToast('✓ সেটিংস লোকাল স্টোরেজে সেভ হয়েছে');
@@ -2618,13 +2598,6 @@ document.getElementById('monthFilter').value = now.getFullYear() + '-' + String(
 document.getElementById('settingsPinInput').addEventListener('keydown', event => {
   if (event.key === 'Enter') verifySettingsPin();
 });
-
-// Auto-load from sheet on startup
-if (getSheetUrl()) {
-  setTimeout(() => {
-    loadFromSheet().then(success => {
-      if (success) {
-        updateStats();
         renderInvoices();
         updateCurrentInvoiceNo();
       }
@@ -2723,23 +2696,16 @@ async function saveRegister() {
     };
     localStorage.setItem('pos_cash_register', JSON.stringify(record));
     localSaved = true;
-    if (getSheetUrl()) {
-      await postSheetData({ action: 'saveCashRegister', record: record });
-      const result = await jsonpRequest(buildSheetUrl('verifyRecord', {
-        kind: 'cash',
-        id: record.id
-      }));
-      if (!result.success || !result.found) {
-        throw new Error('Google Sheet-এ ক্যাশ রেকর্ড যাচাই করা যায়নি');
-      }
-      showToast('✅ ক্যাশ ও ব্যালেন্স লোকালি এবং Google Sheet-এ সেভ হয়েছে');
+    if (currentUserId) {
+      await saveCashRegisterToFirebase(record);
+      showToast('✅ ক্যাশ ও ব্যালেন্স লোকালি এবং Firebase ক্লাউডে সেভ হয়েছে');
     } else {
-      showToast('✅ ক্যাশ ও ব্যালেন্স লোকালি সেভ হয়েছে (Google Sheet URL সেট করা নেই)');
+      showToast('✅ ক্যাশ ও ব্যালেন্স লোকালি সেভ হয়েছে');
     }
   } catch (error) {
     console.error('ক্যাশ রেজিস্টার সেভ ত্রুটি:', error);
     showToast((localSaved
-      ? 'লোকালি সেভ হয়েছে, কিন্তু Google Sheet-এ সিঙ্ক হয়নি: '
+      ? 'লোকালি সেভ হয়েছে, কিন্তু ক্লাউডে সিঙ্ক হয়নি: '
       : 'সেভ করা যায়নি: ') + error.message, 'error');
   }
 }
@@ -2811,32 +2777,18 @@ function saveCreditors() { try { localStorage.setItem('pos_creditors', JSON.stri
 function saveExpenses()  { try { localStorage.setItem('pos_expenses',  JSON.stringify(expenses));  } catch (e) {} }
 
 // --- Google Sheet ব্যাকআপ (ব্যাকএন্ড কনফিগার থাকলে; লোকাল ডাটার মূল উৎস localStorage-ই থাকে) ---
-// খরচের শিটে items JSON সহ সম্পূর্ণ রেকর্ড যায় (saveExpense action)।
+// --- Firebase Firestore সিঙ্ক ---
 async function backupCreditorToSheet(c) {
-  if (!getSheetUrl()) return;
-  try { await postSheetData({ action: 'saveCreditor', creditor: c }); }
-  catch (error) { console.warn('পাওনাদার শিট ব্যাকআপ হয়নি:', error.message); }
+  await saveCreditorToFirebase(c);
 }
 async function removeCreditorFromSheet(id) {
-  if (!getSheetUrl()) return;
-  try { await postSheetData({ action: 'deleteCreditor', id: id }); }
-  catch (error) { console.warn('পাওনাদার শিট ডিলিট হয়নি:', error.message); }
+  await removeCreditorFromFirebase(id);
 }
 async function backupExpenseToSheet(e) {
-  if (!getSheetUrl()) return;
-  try {
-    await postSheetData({ action: 'saveExpense', expense: e });
-    const result = await jsonpRequest(buildSheetUrl('verifyRecord', { kind: 'expense', id: e.id }));
-    if (!result.success || !result.found) throw new Error('Google Sheet-এ খরচের রেকর্ড যাচাই করা যায়নি');
-  } catch (error) {
-    console.error('খরচ শিট ব্যাকআপ হয়নি:', error);
-    showSyncWarning('লোকালি খরচ সেভ হয়েছে, কিন্তু Google Sheet-এ সিঙ্ক হয়নি: ' + error.message);
-  }
+  await saveExpenseToFirebase(e);
 }
 async function removeExpenseFromSheet(id) {
-  if (!getSheetUrl()) return;
-  try { await postSheetData({ action: 'deleteExpense', id: id }); }
-  catch (error) { console.warn('খরচ শিট ডিলিট হয়নি:', error.message); }
+  await removeExpenseFromFirebase(id);
 }
 
 function escapeHtml(s) {
