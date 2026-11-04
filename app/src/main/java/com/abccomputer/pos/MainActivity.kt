@@ -16,14 +16,44 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
+    private var pendingGoogleSignInCallback: String? = null
+    private val googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val callbackId = pendingGoogleSignInCallback ?: return@registerForActivityResult
+        pendingGoogleSignInCallback = null
+
+        try {
+            val account = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+                .getResult(ApiException::class.java)
+            val idToken = account.idToken
+            if (idToken.isNullOrBlank()) {
+                resolveGoogleSignIn(callbackId, error = "Google did not return an ID token.")
+            } else {
+                resolveGoogleSignIn(callbackId, idToken = idToken)
+            }
+        } catch (error: ApiException) {
+            val message = if (error.statusCode == 12501) {
+                "Google Sign-In was cancelled."
+            } else {
+                error.localizedMessage ?: "Google Sign-In failed (status ${error.statusCode})."
+            }
+            resolveGoogleSignIn(callbackId, error = message)
+        } catch (error: Exception) {
+            resolveGoogleSignIn(callbackId, error = error.localizedMessage ?: "Google Sign-In failed.")
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -128,7 +158,37 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun resolveGoogleSignIn(callbackId: String, idToken: String? = null, error: String? = null) {
+        val script = "if (typeof window.onNativeGoogleSignInResult === 'function') window.onNativeGoogleSignInResult(" +
+            "${JSONObject.quote(callbackId)}, " +
+            "${idToken?.let { JSONObject.quote(it) } ?: "null"}, " +
+            "${error?.let { JSONObject.quote(it) } ?: "null"});"
+        webView.evaluateJavascript(script, null)
+    }
+
     inner class WebAppInterface(private val context: Context) {
+        @JavascriptInterface
+        fun signInWithGoogle(callbackId: String) {
+            runOnUiThread {
+                if (pendingGoogleSignInCallback != null) {
+                    resolveGoogleSignIn(callbackId, error = "Google Sign-In is already in progress.")
+                    return@runOnUiThread
+                }
+
+                pendingGoogleSignInCallback = callbackId
+                val options = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                    .requestIdToken(getString(R.string.google_web_client_id))
+                    .requestEmail()
+                    .build()
+                try {
+                    googleSignInLauncher.launch(GoogleSignIn.getClient(this@MainActivity, options).signInIntent)
+                } catch (error: Exception) {
+                    pendingGoogleSignInCallback = null
+                    resolveGoogleSignIn(callbackId, error = error.localizedMessage ?: "Google Sign-In could not be started.")
+                }
+            }
+        }
+
         @JavascriptInterface
         fun openHostedApp() {
             runOnUiThread {

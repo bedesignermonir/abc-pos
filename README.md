@@ -9,7 +9,7 @@ A simple, Bengali-language point-of-sale and bookkeeping app for everyday shop m
 - Manage products, prices, and business details.
 - Share invoices with customers through WhatsApp.
 - Keep working offline and download a backup of your records.
-- Sign in with Google in a supported browser to use cloud sync across devices.
+- Sign in with Google in a supported browser or the Android app to use cloud sync across devices.
 
 ## Use the web app
 
@@ -22,4 +22,4 @@ Open [ABC COMPUTER POS](https://bedesignermonir.github.io/abc-pos/) in a modern 
 3. If Android asks, allow installation from the browser or file manager you used to download it.
 4. Open ABC COMPUTER POS and start managing your shop.
 
-For Google sign-in and cloud sync on a phone, use the web app in your browser. The APK can open the web app for you from its sign-in screen. Records kept locally in the APK do not automatically transfer to the browser.
+The Android APK supports native Google Sign-In and cloud sync. The Android OAuth client in Google Cloud must match the app ID (`com.abccomputer.pos`) and signing-certificate SHA-1 used for the APK. Records kept locally in the APK do not automatically transfer to the browser.

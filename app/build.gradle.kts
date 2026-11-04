@@ -55,4 +55,5 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.webkit)
+    implementation(libs.play.services.auth)
 }
