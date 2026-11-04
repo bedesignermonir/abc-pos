@@ -3213,18 +3213,16 @@
       if (!user || user.email !== MASTER_ADMIN_EMAIL) return false;
       try {
         const profileRef = getUserRef(user.uid);
-        const profileSnapshot = await profileRef.get();
-        if (!profileSnapshot.exists) return false;
-        const profile = profileSnapshot.data();
-        if (profile.accountStatus === 'approved' && profile.status === 'approved' && profile.role === 'Admin') {
-          return true;
-        }
-        await profileRef.update({
+        await profileRef.set({
+          email: user.email,
+          displayName: user.displayName || '',
+          photoURL: user.photoURL || '',
           accountStatus: 'approved',
           status: 'approved',
           role: 'Admin',
+          tenantId: BUSINESS_TENANT_ID,
           updatedAt: new Date().toISOString()
-        });
+        }, { merge: true });
         return true;
       } catch (error) {
         showFirestoreOperationError(error, 'মাস্টার অ্যাডমিন প্রোফাইল স্বয়ংক্রিয়ভাবে ঠিক হয়নি');

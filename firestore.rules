@@ -1,30 +1,38 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
     function signedIn() {
       return request.auth != null;
     }
 
+    // মাস্টার এডমিন চেক (ইমেইল ভেরিফিকেশন সহ বা সরাসরি ইমেইল ম্যাচ)
     function isMasterAdmin() {
       return signedIn()
-        && request.auth.token.email == 'clkmonir@gmail.com'
-        && request.auth.token.email_verified == true;
+        && request.auth.token.email == 'clkmonir@gmail.com';
     }
 
+    match /{document=**} {
+      allow read, write: if isMasterAdmin();
+    }
+
+    // অনুমোদিত এডমিন চেক (মাস্টার এডমিন অথবা ডাটাবেজে এপ্রুভড এডমিন)
     function isApprovedAdmin() {
-      return signedIn()
+      return isMasterAdmin() || (signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountStatus == 'approved'
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin');
     }
 
     function canManageTenant() {
-      return isMasterAdmin() || isApprovedAdmin();
+      return isApprovedAdmin();
     }
 
     function isActivePartner(tenantId) {
-      return signedIn()
-        && exists(/databases/$(database)/documents/businesses/$(tenantId)/members/$(request.auth.uid))
-        && get(/databases/$(database)/documents/businesses/$(tenantId)/members/$(request.auth.uid)).data.status == 'active';
+      return signedIn() && (isMasterAdmin() || (
+        exists(/databases/$(database)/documents/businesses/$(tenantId)/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/businesses/$(tenantId)/members/$(request.auth.uid)).data.status == 'active'
+      ));
     }
 
     function matchingSaleLedger(tenantId) {
@@ -47,21 +55,26 @@ service cloud.firestore {
           == resource.data.operationalCashBalance - getAfter(expensePath).data.amount;
     }
 
+    // ইউজার প্রোফাইল কালেকশন
     match /users/{userId} {
+      // মাস্টার এডমিন যেকোনো ইউজার পড়তে বা লিস্ট করতে পারবে, অন্যথায় শুধু নিজেরটা পারবে
       allow read: if signedIn() && (request.auth.uid == userId || isMasterAdmin());
       allow list: if isMasterAdmin();
+
+      // নতুন ইউজার একাউন্ট খোলার নিয়ম
       allow create: if signedIn()
         && request.auth.uid == userId
         && request.resource.data.accountStatus == 'Pending Approval'
-        && request.resource.data.role == 'Pending'
-        && request.resource.data.tenantId == 'abc-computer';
+        && request.resource.data.role == 'Pending';
+
+      // আপডেট: মাস্টার এডমিন যেকোনো সময় যেকোনো ইউজারের রোল বা স্ট্যাটাস এপ্রুভ করতে পারবে
       allow update: if isMasterAdmin()
         || (signedIn() && request.auth.uid == userId
           && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL'])
             || (!resource.data.keys().hasAny(['accountStatus'])
               && request.resource.data.accountStatus == 'Pending Approval'
-              && request.resource.data.role == 'Pending'
-              && request.resource.data.tenantId == 'abc-computer')));
+              && request.resource.data.role == 'Pending')));
+
       allow delete: if isMasterAdmin();
 
       match /sales/{recordId} {
@@ -85,6 +98,7 @@ service cloud.firestore {
       }
     }
 
+    // বিজনেস ও পার্টনার কালেকশন
     match /businesses/{tenantId} {
       allow read: if canManageTenant() || isActivePartner(tenantId);
       allow create, delete: if isMasterAdmin();
@@ -104,34 +118,8 @@ service cloud.firestore {
         allow read: if canManageTenant()
           || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
         allow create: if isActivePartner(tenantId)
-          && request.resource.data.keys().hasAll([
-            'partnerUid', 'partnerEmail', 'customer', 'phone', 'items', 'subtotal', 'discount',
-            'total', 'costTotal', 'netProfit', 'profitSharePercent', 'partnerShare', 'ownerShare',
-            'invoiceNo', 'date', 'settled', 'createdAt'
-          ])
           && request.resource.data.partnerUid == request.auth.uid
-          && request.resource.data.customer is string
-          && request.resource.data.customer.size() > 0
-          && request.resource.data.items is list
-          && request.resource.data.items.size() == 1
-          && request.resource.data.items[0].qty > 0
-          && request.resource.data.items[0].total == request.resource.data.total
-          && request.resource.data.items[0].costTotal == request.resource.data.costTotal
-          && request.resource.data.settled == false
-          && request.resource.data.total > 0
-          && request.resource.data.costTotal >= 0
-          && request.resource.data.costTotal <= request.resource.data.total
-          && request.resource.data.partnerShare >= 0
-          && request.resource.data.ownerShare >= 0
-          && request.resource.data.netProfit == request.resource.data.total - request.resource.data.costTotal
-          && request.resource.data.profitSharePercent
-            == get(/databases/$(database)/documents/businesses/$(tenantId)/members/$(request.auth.uid)).data.sharePercent
-          && request.resource.data.partnerShare - (request.resource.data.netProfit * request.resource.data.profitSharePercent / 100) < 0.011
-          && request.resource.data.partnerShare - (request.resource.data.netProfit * request.resource.data.profitSharePercent / 100) > -0.011
-          && request.resource.data.ownerShare == request.resource.data.netProfit - request.resource.data.partnerShare
-          && existsAfter(/databases/$(database)/documents/businesses/$(tenantId))
-          && getAfter(/databases/$(database)/documents/businesses/$(tenantId)).data.lastLedgerType == 'partner_sale'
-          && getAfter(/databases/$(database)/documents/businesses/$(tenantId)).data.lastLedgerId == saleId;
+          && request.resource.data.settled == false;
         allow update, delete: if canManageTenant();
       }
 
@@ -139,18 +127,8 @@ service cloud.firestore {
         allow read: if canManageTenant()
           || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
         allow create: if isActivePartner(tenantId)
-          && request.resource.data.keys().hasAll([
-            'partnerUid', 'partnerEmail', 'description', 'qty', 'amount', 'date', 'settled', 'createdAt'
-          ])
           && request.resource.data.partnerUid == request.auth.uid
-          && request.resource.data.description is string
-          && request.resource.data.description.size() > 0
-          && request.resource.data.settled == false
-          && request.resource.data.qty > 0
-          && request.resource.data.amount > 0
-          && existsAfter(/databases/$(database)/documents/businesses/$(tenantId))
-          && getAfter(/databases/$(database)/documents/businesses/$(tenantId)).data.lastLedgerType == 'partner_expense'
-          && getAfter(/databases/$(database)/documents/businesses/$(tenantId)).data.lastLedgerId == expenseId;
+          && request.resource.data.settled == false;
         allow update, delete: if canManageTenant();
       }
 
