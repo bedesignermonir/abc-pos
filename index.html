@@ -1754,6 +1754,8 @@ let currentUserId = null;
 let firestoreUnsubscribers = [];
 let syncStatusCheckId = 0;
 let cashHistoryRecords = [];
+let firestoreReconnectTimer = null;
+let firestoreReconnectAttempts = 0;
 
 // Isolated Firestore references under users/{user_uid}/
 function getUserRef(uid = currentUserId) {
@@ -1790,6 +1792,9 @@ const firestorePersistenceReady = db.enablePersistence({ synchronizeTabs: true }
     } else {
       console.error('Firestore persistence could not be enabled; using in-memory cache:', error);
     }
+    if (currentUserId) {
+      setSyncStatus('pending', 'অফলাইন ক্যাশ চালু হয়নি · অনলাইনে সিঙ্ক চলবে');
+    }
     return false;
   });
 window.firebaseServices.persistenceReady = firestorePersistenceReady;
@@ -1808,6 +1813,27 @@ function setSyncStatus(state, message) {
   }
 }
 
+function isFirestoreOfflineError(error) {
+  const message = String(error && error.message || '');
+  return !navigator.onLine
+    || ['unavailable', 'deadline-exceeded', 'network-request-failed'].includes(error && error.code)
+    || /client is offline|network unavailable|network error/i.test(message);
+}
+
+function waitForPendingWritesWithTimeout(timeoutMs = 15000) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const error = new Error('Firebase acknowledgement timed out.');
+      error.code = 'deadline-exceeded';
+      reject(error);
+    }, timeoutMs);
+  });
+  const pendingWrites = Promise.resolve().then(() => db.waitForPendingWrites());
+  return Promise.race([pendingWrites, timeout])
+    .finally(() => clearTimeout(timeoutId));
+}
+
 async function checkSyncStatus() {
   const checkId = ++syncStatusCheckId;
   if (!currentUserId) {
@@ -1821,14 +1847,19 @@ async function checkSyncStatus() {
   setSyncStatus('pending', 'Firebase-এ সিঙ্কের অবস্থা যাচাই হচ্ছে…');
   try {
     await firestorePersistenceReady;
-    await db.waitForPendingWrites();
+    await waitForPendingWritesWithTimeout();
     if (checkId === syncStatusCheckId && currentUserId && navigator.onLine) {
       setSyncStatus('synced', 'Firebase-এর সঙ্গে সিঙ্ক হয়েছে');
     }
   } catch (error) {
     if (checkId === syncStatusCheckId) {
       console.error('Firebase sync status check failed:', error);
-      setSyncStatus('error', 'সিঙ্ক যাচাই করা যায়নি · আবার চেষ্টা করুন');
+      if (isFirestoreOfflineError(error)) {
+        setSyncStatus('offline', 'ইন্টারনেট সংযোগ নেই · ডেটা লোকালি সংরক্ষিত');
+        scheduleFirestoreReconnect();
+      } else {
+        setSyncStatus('error', 'সিঙ্ক যাচাই করা যায়নি · আবার চেষ্টা করুন');
+      }
     }
   }
 }
@@ -1847,17 +1878,22 @@ async function forceSyncNow() {
   setSyncStatus('syncing', 'পেন্ডিং ডেটা Firebase-এ পাঠানো হচ্ছে…');
   try {
     await firestorePersistenceReady;
-    await db.waitForPendingWrites();
+    await waitForPendingWritesWithTimeout();
     const refreshed = await refreshFromFirebase();
     if (!refreshed) {
       setSyncStatus('error', 'ডেটা রিফ্রেশ হয়নি · আবার চেষ্টা করুন');
       return;
     }
-    await checkSyncStatus();
   } catch (error) {
     console.error('Force sync failed:', error);
-    setSyncStatus('error', 'সিঙ্ক ব্যর্থ হয়েছে · ' + (error.message || 'আবার চেষ্টা করুন'));
-    showToast('সিঙ্ক ব্যর্থ হয়েছে: ' + (error.message || error), 'error');
+    if (isFirestoreOfflineError(error)) {
+      setSyncStatus('offline', 'ইন্টারনেট সংযোগ অস্থির · ডেটা লোকালি সংরক্ষিত, পরে আবার সিঙ্ক হবে');
+      showToast('ইন্টারনেট সংযোগ অস্থির। ডেটা ডিভাইসে সংরক্ষিত আছে; সংযোগ ফিরে এলে আবার সিঙ্ক করুন।', 'error');
+      scheduleFirestoreReconnect();
+    } else {
+      setSyncStatus('error', 'সিঙ্ক ব্যর্থ হয়েছে · আবার চেষ্টা করুন');
+      showToast('সিঙ্ক ব্যর্থ হয়েছে: ' + (error.message || error), 'error');
+    }
   }
 }
 
@@ -2182,7 +2218,63 @@ async function logoutUser() {
 // Attach real-time Firestore listeners for isolated tenant data
 function handleFirestoreSyncError(label, error) {
   console.warn(label + ' listener:', error);
-  if (currentUserId) setSyncStatus('error', 'Firebase ' + label + ' সিঙ্ক হয়নি · ' + (error.message || 'আবার চেষ্টা করুন'));
+  if (!currentUserId) return;
+  const isOffline = isFirestoreOfflineError(error);
+  setSyncStatus(
+    isOffline ? 'offline' : 'error',
+    isOffline
+      ? 'ইন্টারনেট সংযোগ বিচ্ছিন্ন · লোকাল/ক্যাশ ডেটা ব্যবহার হচ্ছে'
+      : 'Firebase ' + label + ' সিঙ্ক হয়নি · আবার চেষ্টা করুন'
+  );
+  if (isOffline) scheduleFirestoreReconnect();
+}
+
+function handleFirestoreSnapshot(snapshot, label) {
+  if (snapshot.metadata.fromCache) {
+    if (!navigator.onLine) {
+      setSyncStatus('offline', label + ' · ক্যাশ ডেটা দেখানো হচ্ছে, ইন্টারনেট এলে সিঙ্ক হবে');
+    } else {
+      setSyncStatus('pending', label + ' · Firebase-এর সঙ্গে সংযোগ হচ্ছে…');
+    }
+    return;
+  }
+  firestoreReconnectAttempts = 0;
+  if (firestoreReconnectTimer) {
+    clearTimeout(firestoreReconnectTimer);
+    firestoreReconnectTimer = null;
+  }
+  setSyncStatus('synced', 'Firebase-এর সঙ্গে সিঙ্ক হয়েছে');
+}
+
+function scheduleFirestoreReconnect() {
+  if (!currentUserId || firestoreReconnectTimer) return;
+  const delay = Math.min(30000, 1000 * (2 ** Math.min(firestoreReconnectAttempts, 5)));
+  firestoreReconnectAttempts += 1;
+  firestoreReconnectTimer = setTimeout(() => {
+    firestoreReconnectTimer = null;
+    void reconnectFirestore();
+  }, delay);
+}
+
+async function reconnectFirestore() {
+  const uid = currentUserId;
+  if (!uid) return;
+  if (!navigator.onLine) {
+    setSyncStatus('offline', 'ইন্টারনেট নেই · ডেটা লোকালি সংরক্ষিত, সংযোগ এলে আবার চেষ্টা হবে');
+    return;
+  }
+  if (firestoreReconnectTimer) {
+    clearTimeout(firestoreReconnectTimer);
+    firestoreReconnectTimer = null;
+  }
+  try {
+    await db.enableNetwork();
+    await attachFirestoreListeners(uid);
+  } catch (error) {
+    console.error('Firestore reconnect failed:', error);
+    setSyncStatus('error', 'Firebase পুনরায় সংযোগ করতে পারেনি · আবার চেষ্টা করা হবে');
+    scheduleFirestoreReconnect();
+  }
 }
 
 async function attachFirestoreListeners(uid) {
@@ -2192,8 +2284,8 @@ async function attachFirestoreListeners(uid) {
   firestoreUnsubscribers = [];
 
   // 1. Sales / Invoices Listener
-  const unsubSales = getSalesRef(uid).orderBy('date', 'desc').onSnapshot(snap => {
-    invoices = snap.docs.map(doc => doc.data());
+  const unsubSales = getSalesRef(uid).orderBy('date', 'desc').onSnapshot({ includeMetadataChanges: true }, snap => {
+    invoices = snap.docs.map(doc => normalizeInvoiceFinancials(doc.data()));
     localStorage.setItem('pos_invoices', JSON.stringify(invoices));
     let maxNum = 0;
     invoices.forEach(inv => {
@@ -2208,30 +2300,33 @@ async function attachFirestoreListeners(uid) {
     updateStats();
     renderInvoices();
     updateCurrentInvoiceNo();
+    handleFirestoreSnapshot(snap, 'বিক্রয়');
   }, err => handleFirestoreSyncError('বিক্রয়', err));
   firestoreUnsubscribers.push(unsubSales);
 
   // 2. Expenses Listener
-  const unsubExpenses = getExpensesRef(uid).orderBy('date', 'desc').onSnapshot(snap => {
+  const unsubExpenses = getExpensesRef(uid).orderBy('date', 'desc').onSnapshot({ includeMetadataChanges: true }, snap => {
     expenses = snap.docs.map(doc => doc.data());
     saveExpenses();
     renderExpenseList();
     renderFinanceSummary();
+    handleFirestoreSnapshot(snap, 'খরচ');
   }, err => handleFirestoreSyncError('খরচ', err));
   firestoreUnsubscribers.push(unsubExpenses);
 
   // 3. Creditors Listener
-  const unsubCreditors = getCreditorsRef(uid).onSnapshot(snap => {
+  const unsubCreditors = getCreditorsRef(uid).onSnapshot({ includeMetadataChanges: true }, snap => {
     creditors = snap.docs.map(doc => doc.data());
     saveCreditors();
     renderCreditorList();
     updateNetAssetsCard();
     renderFinanceSummary();
+    handleFirestoreSnapshot(snap, 'পাওনাদার');
   }, err => handleFirestoreSyncError('পাওনাদার', err));
   firestoreUnsubscribers.push(unsubCreditors);
 
   // 4. Cash Register Listener
-  const unsubCash = getCashRegisterRef(uid).orderBy('date', 'desc').limit(30).onSnapshot(snap => {
+  const unsubCash = getCashRegisterRef(uid).orderBy('date', 'desc').limit(30).onSnapshot({ includeMetadataChanges: true }, snap => {
     cashHistoryRecords = snap.docs.map(doc => doc.data());
     renderCashHistory();
     if (cashHistoryRecords.length) {
@@ -2241,11 +2336,12 @@ async function attachFirestoreListeners(uid) {
       updateRegisterTotals();
       updateNetAssetsCard();
     }
+    handleFirestoreSnapshot(snap, 'ক্যাশ');
   }, err => handleFirestoreSyncError('ক্যাশ', err));
   firestoreUnsubscribers.push(unsubCash);
 
   // 5. Settings Listener
-  const unsubSettings = getSettingsRef(uid).onSnapshot(snap => {
+  const unsubSettings = getSettingsRef(uid).onSnapshot({ includeMetadataChanges: true }, snap => {
     if (snap.exists) {
       const remote = snap.data();
       let changed = false;
@@ -2259,8 +2355,12 @@ async function attachFirestoreListeners(uid) {
         localStorage.setItem('pos_settings', JSON.stringify(settings));
         refreshPresetOptions();
         applyBusinessBranding();
+        updateStats();
+        renderInvoices();
+        renderFinanceSummary();
       }
     }
+    handleFirestoreSnapshot(snap, 'সেটিংস');
   }, err => handleFirestoreSyncError('সেটিংস', err));
   firestoreUnsubscribers.push(unsubSettings);
 }
@@ -2284,7 +2384,7 @@ auth.onAuthStateChanged(user => {
     currentUserId = user.uid;
     renderAuthUI(user);
     if (!alreadyRendered) {
-      attachFirestoreListeners(user.uid);
+      void attachFirestoreListeners(user.uid).catch(error => handleFirestoreSyncError('ডেটা', error));
       applyBusinessBranding();
       showToast('স্বাগতম, ' + (user.displayName || user.email) + '! ক্লাউড ডাটা সিঙ্ক সক্রিয়');
     }
@@ -2296,6 +2396,10 @@ auth.onAuthStateChanged(user => {
     currentUser = null;
     currentUserId = null;
     authBootstrapped = false;
+    if (firestoreReconnectTimer) {
+      clearTimeout(firestoreReconnectTimer);
+      firestoreReconnectTimer = null;
+    }
     firestoreUnsubscribers.forEach(unsub => { try { unsub(); } catch (e) {} });
     firestoreUnsubscribers = [];
     renderAuthUI(null);
@@ -2307,8 +2411,40 @@ auth.onAuthStateChanged(user => {
   }
 });
 
-window.addEventListener('online', checkSyncStatus);
-window.addEventListener('offline', () => setSyncStatus('offline', 'ইন্টারনেট নেই · ডেটা লোকালি সংরক্ষিত'));
+window.addEventListener('online', () => {
+  firestoreReconnectAttempts = 0;
+  void reconnectFirestore();
+});
+window.addEventListener('offline', () => {
+  setSyncStatus('offline', 'ইন্টারনেট নেই · ডেটা লোকালি সংরক্ষিত');
+});
+
+async function getFirestoreSnapshotWithFallback(query, label) {
+  if (!navigator.onLine) {
+    try {
+      return await query.get({ source: 'cache' });
+    } catch (error) {
+      console.warn('Firestore cache unavailable for ' + label + ':', error);
+      throw new Error(label + ' এর ক্যাশ ডেটা পাওয়া যায়নি। ইন্টারনেট সংযোগ করে আবার চেষ্টা করুন।');
+    }
+  }
+  try {
+    return await query.get({ source: 'server' });
+  } catch (serverError) {
+    console.warn('Firestore server fetch failed for ' + label + '; trying cache:', serverError);
+    try {
+      const cachedSnapshot = await query.get({ source: 'cache' });
+      if (currentUserId) {
+        setSyncStatus('pending', label + ' · ক্যাশ ডেটা দেখানো হচ্ছে, Firebase-এ পুনরায় চেষ্টা হচ্ছে');
+        scheduleFirestoreReconnect();
+      }
+      return cachedSnapshot;
+    } catch (cacheError) {
+      console.error('Firestore cache fallback failed for ' + label + ':', cacheError);
+      throw new Error(label + ' Firebase থেকে বা ক্যাশ থেকে লোড হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।');
+    }
+  }
+}
 
 // Refresh all data from Firestore
 async function refreshFromFirebase() {
@@ -2317,23 +2453,18 @@ async function refreshFromFirebase() {
     openAuthModal();
     return false;
   }
-  if (!navigator.onLine) {
-    setSyncStatus('offline', 'ইন্টারনেট নেই · ডিভাইসের লোকাল ডেটা অক্ষত আছে');
-    showToast('ইন্টারনেট সংযোগ নেই। সংযোগ ফিরে এলে Firebase নিজে থেকে আবার সিঙ্ক করবে।', 'error');
-    return false;
-  }
-  showLoading('Firebase ক্লাউড থেকে ডাটা রিফ্রেশ হচ্ছে...');
+  showLoading(navigator.onLine ? 'Firebase ক্লাউড থেকে ডাটা রিফ্রেশ হচ্ছে...' : 'ডিভাইসের ক্যাশ থেকে ডাটা লোড হচ্ছে...');
   try {
     await firestorePersistenceReady;
     const [salesSnap, credSnap, expSnap, cashSnap, setSnap] = await Promise.all([
-      getSalesRef().orderBy('date', 'desc').get(),
-      getCreditorsRef().get(),
-      getExpensesRef().orderBy('date', 'desc').get(),
-      getCashRegisterRef().orderBy('date', 'desc').limit(30).get(),
-      getSettingsRef().get()
+      getFirestoreSnapshotWithFallback(getSalesRef().orderBy('date', 'desc'), 'বিক্রয়'),
+      getFirestoreSnapshotWithFallback(getCreditorsRef(), 'পাওনাদার'),
+      getFirestoreSnapshotWithFallback(getExpensesRef().orderBy('date', 'desc'), 'খরচ'),
+      getFirestoreSnapshotWithFallback(getCashRegisterRef().orderBy('date', 'desc').limit(30), 'ক্যাশ'),
+      getFirestoreSnapshotWithFallback(getSettingsRef(), 'সেটিংস')
     ]);
 
-    invoices = salesSnap.docs.map(doc => doc.data());
+    invoices = salesSnap.docs.map(doc => normalizeInvoiceFinancials(doc.data()));
     localStorage.setItem('pos_invoices', JSON.stringify(invoices));
 
     let maxNum = 0;
@@ -2378,11 +2509,21 @@ async function refreshFromFirebase() {
     renderExpenseList();
     renderFinanceSummary();
     updateCurrentInvoiceNo();
-    showToast('✓ Firebase ক্লাউড থেকে সব ডাটা সফলভাবে রিফ্রেশ হয়েছে');
+    const usedCache = [salesSnap, credSnap, expSnap, cashSnap, setSnap].some(snap => snap.metadata.fromCache);
+    if (usedCache) {
+      setSyncStatus('offline', 'ক্যাশ ডেটা দেখানো হচ্ছে · অনলাইনে এলে Firebase সিঙ্ক হবে');
+      showToast('ইন্টারনেট দুর্বল/বন্ধ। সর্বশেষ ক্যাশ ডেটা দেখানো হয়েছে।', 'error');
+    } else {
+      setSyncStatus('synced', 'Firebase-এর সঙ্গে সিঙ্ক হয়েছে');
+      showToast('✓ Firebase ক্লাউড থেকে সব ডাটা সফলভাবে রিফ্রেশ হয়েছে');
+    }
     return true;
   } catch (error) {
     console.error('Refresh error:', error);
-    showToast('সিঙ্ক ত্রুটি: ' + error.message, 'error');
+    setSyncStatus(navigator.onLine ? 'error' : 'offline', navigator.onLine
+      ? 'Firebase ডেটা রিফ্রেশ হয়নি · আবার চেষ্টা করুন'
+      : 'ইন্টারনেট নেই · লোকাল ডেটা অক্ষত আছে');
+    showToast('ডেটা রিফ্রেশ হয়নি। লোকাল ডেটা অক্ষত আছে; ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।', 'error');
     return false;
   } finally {
     hideLoading();
@@ -2396,12 +2537,17 @@ async function testFirebaseConnection() {
     openAuthModal();
     return;
   }
+  if (!navigator.onLine) {
+    setSyncStatus('offline', 'ইন্টারনেট নেই · সংযোগ ফিরে এলে পরীক্ষা করুন');
+    showToast('ইন্টারনেট সংযোগ ছাড়া Firebase পরীক্ষা করা যাবে না।', 'error');
+    return;
+  }
   showLoading('Firebase সংযোগ ও নিরাপত্তা পারমিশন পরীক্ষা হচ্ছে...');
   try {
     await firestorePersistenceReady;
     const testDocRef = getUserRef().collection('healthcheck').doc('test');
     await testDocRef.set({ testedAt: new Date().toISOString(), ok: true });
-    const snap = await testDocRef.get();
+    const snap = await testDocRef.get({ source: 'server' });
     await testDocRef.delete();
     if (snap.exists && snap.data().ok) {
       showToast('✓ Firebase সংযোগ ও পারমিশন সম্পূর্ণ সক্রিয়! Project: ' + firebaseConfig.projectId + ' (UID: ' + currentUserId.substring(0, 8) + '...)');
@@ -2546,7 +2692,7 @@ function populateSettingsFormFromCurrent() {
 }
 
 // ===== Items Management =====
-function addItem(name='', qty=1, price=0) {
+function addItem(name='', qty=1, price, costPrice) {
   const container = document.getElementById('itemsContainer');
   const presets = (settings.presetItems || '').split('\n').map(item => item.trim()).filter(Boolean);
   const row = document.createElement('div');
@@ -2559,8 +2705,10 @@ function addItem(name='', qty=1, price=0) {
   });
   
   const isCustom = name && !presets.includes(name);
-  const initialPrice = price || Number((settings.sellingPrices || {})[name] || 0);
-  const initialCost = Number((settings.costPrices || {})[name] || 0);
+  const initialPrice = price == null ? Number((settings.sellingPrices || {})[name] || 0) : safeNum(price);
+  const initialCost = costPrice == null
+    ? Number((settings.costPrices || {})[name] || 0)
+    : safeNum(costPrice);
   row.innerHTML = `
     <div class="item-description">
       <select onchange="updateItem(this); calculateRowTotal(this.closest('.item-row')); calculateTotal()">
@@ -2661,32 +2809,85 @@ function getItems() {
   return items;
 }
 
+function normalizeInvoiceFinancials(invoice) {
+  const costPrices = settings.costPrices || {};
+  const items = (Array.isArray(invoice.items) ? invoice.items : []).map(item => {
+    const qty = safeNum(item.qty);
+    const price = safeNum(item.price);
+    const normalized = { ...item, qty, price, total: Number((qty * price).toFixed(2)) };
+    if (item.costPrice !== undefined && item.costPrice !== null && item.costPrice !== '') {
+      normalized.costPrice = safeNum(item.costPrice);
+    }
+    return normalized;
+  });
+  const subtotal = items.length
+    ? Number(items.reduce((sum, item) => sum + item.total, 0).toFixed(2))
+    : safeNum(invoice.subtotal);
+  const discount = safeNum(invoice.discount);
+  const total = items.length
+    ? Number(Math.max(0, subtotal - discount).toFixed(2))
+    : safeNum(invoice.total);
+  const hasCompleteItemCosts = items.length > 0 && items.every(item =>
+    item.costPrice !== undefined || Object.prototype.hasOwnProperty.call(costPrices, item.name));
+  const storedCost = invoice.costTotal !== undefined && invoice.costTotal !== null && invoice.costTotal !== ''
+    && Number.isFinite(Number(invoice.costTotal));
+  const costTotal = hasCompleteItemCosts || !storedCost
+    ? Number(items.reduce((sum, item) => {
+      const unitCost = item.costPrice !== undefined
+        ? item.costPrice
+        : Object.prototype.hasOwnProperty.call(costPrices, item.name) ? costPrices[item.name] : 0;
+      return sum + safeNum(unitCost) * item.qty;
+    }, 0).toFixed(2))
+    : safeNum(invoice.costTotal);
+
+  return {
+    ...invoice,
+    items,
+    subtotal,
+    discount,
+    total,
+    costTotal,
+    netProfit: Number((total - costTotal).toFixed(2))
+  };
+}
+
+invoices = invoices.map(normalizeInvoiceFinancials);
+localStorage.setItem('pos_invoices', JSON.stringify(invoices));
+
 function calculateInvoiceCost(invoice) {
   const costPrices = settings.costPrices || {};
   const presets = new Set((settings.presetItems || '').split('\n').map(item => item.trim()).filter(Boolean));
   const missingCostItems = [...new Set(invoice.items
-    .filter(item => presets.has(item.name) && !Object.prototype.hasOwnProperty.call(costPrices, item.name))
+    .filter(item => presets.has(item.name)
+      && !Object.prototype.hasOwnProperty.call(costPrices, item.name)
+      && (item.costPrice === undefined || item.costPrice === null || item.costPrice === ''))
     .map(item => item.name))];
 
   if (missingCostItems.length) return { missingCostItems };
 
   let costTotal = 0;
   invoice.items = invoice.items.map(item => {
-    const costPrice = safeNum(Object.prototype.hasOwnProperty.call(costPrices, item.name)
-      ? costPrices[item.name]
-      : item.costPrice);
-    const itemCost = safeNum(costPrice) * safeNum(item.qty);
+    const qty = safeNum(item.qty);
+    const price = safeNum(item.price);
+    const costPrice = safeNum(item.costPrice !== undefined
+      ? item.costPrice
+      : Object.prototype.hasOwnProperty.call(costPrices, item.name) ? costPrices[item.name] : 0);
+    const lineTotal = qty * price;
+    const itemCost = costPrice * qty;
     costTotal += itemCost;
     return {
       ...item,
       costPrice,
-      qty: safeNum(item.qty),
-      price: safeNum(item.price),
-      total: safeNum(item.total),
+      qty,
+      price,
+      total: Number(lineTotal.toFixed(2)),
       costTotal: Number(itemCost.toFixed(2))
     };
   });
 
+  invoice.subtotal = Number(invoice.items.reduce((sum, item) => sum + safeNum(item.total), 0).toFixed(2));
+  invoice.discount = safeNum(invoice.discount);
+  invoice.total = Number(Math.max(0, invoice.subtotal - invoice.discount).toFixed(2));
   invoice.costTotal = Number(costTotal.toFixed(2));
   invoice.netProfit = Number((safeNum(invoice.total) - invoice.costTotal).toFixed(2));
 
@@ -2723,6 +2924,7 @@ async function saveInvoiceOnly() {
     phone: phone,
     items: items,
     subtotal: subtotal,
+    total: total,
     discount: discount,
     discountAmount: discountAmount,
     discountType: discountType,
@@ -3034,14 +3236,7 @@ function printCurrent() {
 
 // ===== Stats =====
 function getInvoiceCostTotal(inv) {
-  if (Number.isFinite(Number(inv.costTotal))) return Number(inv.costTotal);
-  let cost = 0;
-  (inv.items || []).forEach(item => {
-    const qty = Number(item.qty) || 0;
-    const unitCost = Number.isFinite(Number(item.costPrice)) ? Number(item.costPrice) : 0;
-    cost += qty * unitCost;
-  });
-  return Number(cost.toFixed(2));
+  return normalizeInvoiceFinancials(inv).costTotal;
 }
 
 // ===== Stats Date Period Filter =====
@@ -3256,7 +3451,7 @@ function editInvoice(id) {
   const container = document.getElementById('itemsContainer');
   container.innerHTML = '';
   if (Array.isArray(inv.items) && inv.items.length) {
-    inv.items.forEach(item => addItem(item.name || '', item.qty || 1, item.price || 0));
+    inv.items.forEach(item => addItem(item.name || '', item.qty || 1, item.price || 0, item.costPrice));
   } else {
     addItem();
   }
@@ -3279,6 +3474,7 @@ function editInvoice(id) {
 function viewInvoice(id) {
   const inv = invoices.find(i => i.id === id);
   if (!inv) return;
+  const financials = normalizeInvoiceFinancials(inv);
   currentInvoiceId = id;
   const biz = getBusinessInfo();
   const detail = document.getElementById('invoiceDetail');
@@ -3299,7 +3495,7 @@ function viewInvoice(id) {
       ${inv.phone ? `<p style="color:var(--gray-500);font-size:13px;">📱 ${inv.phone}</p>` : ''}
       <p style="color:#94a3b8;font-size:12px;margin:5px 0;">📅 ${formatDate(inv.date)} • ⏰ ${formatTime(inv.date)}</p>
       <hr style="margin:10px 0;border:none;border-top:1px dashed #cbd5e1;">
-      ${inv.items.map(i => `
+      ${financials.items.map(i => `
         <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--gray-100);">
           <span>${i.name} × ${toBnNum(safeNum(i.qty))}</span>
           <span style="font-weight:700;">${formatMoney(i.total)}</span>
@@ -3307,26 +3503,28 @@ function viewInvoice(id) {
       `).join('')}
       <div style="display:flex;justify-content:space-between;padding:5px 0;color:var(--gray-500);">
         <span>সাবটোটাল</span>
-        <span>${formatMoney(safeNum(inv.subtotal))}</span>
+        <span>${formatMoney(financials.subtotal)}</span>
       </div>
-      ${safeNum(inv.discount) > 0 ? `
+      ${safeNum(financials.discount) > 0 ? `
         <div style="display:flex;justify-content:space-between;padding:5px 0;color:var(--danger);">
           <span>ডিসকাউন্ট</span>
-          <span>-${formatMoney(safeNum(inv.discount))}</span>
+          <span>-${formatMoney(financials.discount)}</span>
         </div>
       ` : ''}
       <div style="display:flex;justify-content:space-between;padding:10px 0;margin-top:8px;border-top:2px solid var(--primary);font-size:18px;font-weight:700;color:var(--success);">
         <span>সর্বমোট</span>
-        <span>${formatMoney(inv.total)}</span>
+        <span>${formatMoney(financials.total)}</span>
       </div>
-      ${Number.isFinite(Number(inv.costTotal)) ? `
-        <div style="margin-top:12px;padding:12px;background:#ecfdf5;border-radius:10px;">
-          <div style="display:flex;justify-content:space-between;font-weight:700;color:var(--dark);">
+      <div style="margin-top:12px;padding:12px;background:#ecfdf5;border-radius:10px;">
+        <div style="display:flex;justify-content:space-between;font-weight:700;color:var(--dark);">
             <span>মোট কস্ট</span>
-            <span>${formatMoney(safeNum(inv.costTotal))}</span>
-          </div>
+            <span>${formatMoney(financials.costTotal)}</span>
         </div>
-      ` : ''}
+        <div style="display:flex;justify-content:space-between;font-weight:700;color:${financials.netProfit >= 0 ? 'var(--success)' : 'var(--danger)'};margin-top:6px;">
+          <span>লাভ</span>
+          <span>${formatMoney(financials.netProfit)}</span>
+        </div>
+      </div>
     </div>
   `;
   document.getElementById('invoiceModal').classList.add('active');
