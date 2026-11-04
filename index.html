@@ -21,6 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-analytics-compat.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Noto Sans Bengali', sans-serif; }
 :root {
@@ -1567,23 +1568,33 @@ function hideLoading() {
 
 // ===== Google Firebase Multi-Tenant Architecture & Real-Time Sync =====
 
-// Firebase configuration for project gen-lang-client-0772095030
+// Firebase configuration for project abc-pos-webapp
 const firebaseConfig = {
-  apiKey: "AIzaSyDhcpQ8qv9110uYVHqXa4o1hiimgmzzegU",
-  authDomain: "gen-lang-client-0772095030.firebaseapp.com",
-  projectId: "gen-lang-client-0772095030",
-  storageBucket: "gen-lang-client-0772095030.firebasestorage.app",
-  messagingSenderId: "362558772104",
-  appId: "1:362558772104:web:abcpos"
+  apiKey: "AIzaSyCyqeeiDFEfhQLB4VrGra-UKVXORbnHyGA",
+  authDomain: "abc-pos-webapp.firebaseapp.com",
+  projectId: "abc-pos-webapp",
+  storageBucket: "abc-pos-webapp.firebasestorage.app",
+  messagingSenderId: "316988028882",
+  appId: "1:316988028882:web:319f8a418a5bf1fea8fa0b",
+  measurementId: "G-6TBPGJM44V"
 };
 
-// Correct OAuth Web Client ID for Firebase Google Sign-In
-const GOOGLE_WEB_CLIENT_ID = "362558772104-4gpg7uka6ak4jn7sq6ub5mcgblv0mdh7.apps.googleusercontent.com";
-
-// Initialize Firebase
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
-}
+// Initialize once so authentication, analytics, and Firestore share the same app.
+const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
+let analytics = null;
+window.firebaseServices = { app, auth: null, db: null, analytics: null, persistenceReady: null };
+const analyticsReady = firebase.analytics.isSupported()
+  .then(supported => {
+    if (!supported) return null;
+    analytics = firebase.analytics(app);
+    window.firebaseServices.analytics = analytics;
+    return analytics;
+  })
+  .catch(error => {
+    console.warn('Firebase Analytics is unavailable in this browser:', error);
+    return null;
+  });
+window.firebaseServices.analyticsReady = analyticsReady;
 
 // ===== Dynamic Business Profile & Branding Model =====
 function getBusinessInfo() {
@@ -1722,15 +1733,17 @@ function closeAuthModal() {
   if (modal) modal.classList.remove('active');
 }
 
-const auth = firebase.auth();
+const auth = firebase.auth(app);
 // Explicit persistence: keep the session across reloads/redirects to avoid login loops
 try {
-  auth.setPersistence(firebase.auth.Auth.Persistence.BROWSER_LOCAL)
+  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
     .catch(pErr => console.warn('Auth persistence set failed:', pErr));
 } catch (pErr) {
   console.warn('Auth persistence unsupported:', pErr);
 }
-const db = firebase.firestore();
+const db = firebase.firestore(app);
+window.firebaseServices.auth = auth;
+window.firebaseServices.db = db;
 
 // Multi-Tenant Isolation: State of authenticated business owner
 let currentUser = null;
@@ -1760,14 +1773,23 @@ function getSettingsRef(uid = currentUserId) {
   return getUserRef(uid).collection('settings').doc('doc');
 }
 
-// Enable offline persistence for reliable POS operation without internet
-try {
-  db.enablePersistence({ synchronizeTabs: true }).catch(err => {
-    console.warn('Firestore offline persistence notice:', err.code);
+// Start multi-tab IndexedDB persistence before any Firestore reads or listeners.
+const firestorePersistenceReady = db.enablePersistence({ synchronizeTabs: true })
+  .then(() => {
+    console.info('Firestore multi-tab offline persistence enabled.');
+    return true;
+  })
+  .catch(error => {
+    if (error.code === 'failed-precondition') {
+      console.warn('Firestore persistence is disabled because another tab already owns the cache; using in-memory cache.');
+    } else if (error.code === 'unimplemented') {
+      console.warn('Firestore persistence is unsupported in this browser; using in-memory cache.');
+    } else {
+      console.error('Firestore persistence could not be enabled; using in-memory cache:', error);
+    }
+    return false;
   });
-} catch (e) {
-  console.warn('Persistence exception:', e);
-}
+window.firebaseServices.persistenceReady = firestorePersistenceReady;
 
 // Multi-Tenant UI updates
 function setSyncStatus(state, message) {
@@ -1795,6 +1817,7 @@ async function checkSyncStatus() {
   }
   setSyncStatus('pending', 'Firebase-এ সিঙ্কের অবস্থা যাচাই হচ্ছে…');
   try {
+    await firestorePersistenceReady;
     await db.waitForPendingWrites();
     if (checkId === syncStatusCheckId && currentUserId && navigator.onLine) {
       setSyncStatus('synced', 'Firebase-এর সঙ্গে সিঙ্ক হয়েছে');
@@ -1820,6 +1843,7 @@ async function forceSyncNow() {
   }
   setSyncStatus('syncing', 'পেন্ডিং ডেটা Firebase-এ পাঠানো হচ্ছে…');
   try {
+    await firestorePersistenceReady;
     await db.waitForPendingWrites();
     const refreshed = await refreshFromFirebase();
     if (!refreshed) {
@@ -1956,7 +1980,8 @@ async function loginWithEmail() {
     return;
   }
   // Explicitly keep the session in localStorage before authenticating
-  try { await auth.setPersistence(firebase.auth.Auth.Persistence.BROWSER_LOCAL); } catch (e) {}
+  try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }
+  catch (error) { console.warn('Auth persistence set failed during sign-in:', error); }
   try {
     showLoading('লগইন হচ্ছে...');
     // a) First attempt: sign in with existing credentials
@@ -2039,7 +2064,8 @@ async function saveAccountPassword() {
   const password = ((passEl && passEl.value) || '');
   if (!password) { showToast('নতুন পাসওয়ার্ড লিখুন।', 'error'); return; }
   if (password.length < 6) { showToast('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।', 'error'); return; }
-  try { await auth.setPersistence(firebase.auth.Auth.Persistence.BROWSER_LOCAL); } catch (e) {}
+  try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }
+  catch (error) { console.warn('Auth persistence set failed during sign-in:', error); }
   try {
     showLoading('পাসওয়ার্ড সংরক্ষণ হচ্ছে...');
     // If this account has no password provider yet — link a fresh Email/Password credential.
@@ -2082,13 +2108,12 @@ async function linkEmailCredential() {
 // Google Sign-In — always popup-based (in-session) to avoid redirect loops; falls back to redirect only when popups are unsupported
 async function loginWithGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
-  // Use the correct OAuth Web Client ID so the token is accepted by this Firebase project
-  try { provider.setClientId(GOOGLE_WEB_CLIENT_ID); } catch (e) {}
   provider.addScope('email');
   provider.addScope('profile');
   provider.setCustomParameters({ prompt: 'select_account' });
   // Explicitly set browserLocalPersistence BEFORE triggering authentication
-  try { await auth.setPersistence(firebase.auth.Auth.Persistence.BROWSER_LOCAL); } catch (e) {}
+  try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }
+  catch (error) { console.warn('Auth persistence set failed during sign-in:', error); }
   try {
     showLoading('Google দিয়ে সাইন ইন হচ্ছে...');
     try {
@@ -2147,7 +2172,9 @@ function handleFirestoreSyncError(label, error) {
   if (currentUserId) setSyncStatus('error', 'Firebase ' + label + ' সিঙ্ক হয়নি · ' + (error.message || 'আবার চেষ্টা করুন'));
 }
 
-function attachFirestoreListeners(uid) {
+async function attachFirestoreListeners(uid) {
+  await firestorePersistenceReady;
+  if (currentUserId !== uid) return;
   firestoreUnsubscribers.forEach(unsub => { try { unsub(); } catch (e) {} });
   firestoreUnsubscribers = [];
 
@@ -2277,8 +2304,14 @@ async function refreshFromFirebase() {
     openAuthModal();
     return false;
   }
+  if (!navigator.onLine) {
+    setSyncStatus('offline', 'ইন্টারনেট নেই · ডিভাইসের লোকাল ডেটা অক্ষত আছে');
+    showToast('ইন্টারনেট সংযোগ নেই। সংযোগ ফিরে এলে Firebase নিজে থেকে আবার সিঙ্ক করবে।', 'error');
+    return false;
+  }
   showLoading('Firebase ক্লাউড থেকে ডাটা রিফ্রেশ হচ্ছে...');
   try {
+    await firestorePersistenceReady;
     const [salesSnap, credSnap, expSnap, cashSnap, setSnap] = await Promise.all([
       getSalesRef().orderBy('date', 'desc').get(),
       getCreditorsRef().get(),
@@ -2352,6 +2385,7 @@ async function testFirebaseConnection() {
   }
   showLoading('Firebase সংযোগ ও নিরাপত্তা পারমিশন পরীক্ষা হচ্ছে...');
   try {
+    await firestorePersistenceReady;
     const testDocRef = getUserRef().collection('healthcheck').doc('test');
     await testDocRef.set({ testedAt: new Date().toISOString(), ok: true });
     const snap = await testDocRef.get();
