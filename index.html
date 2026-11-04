@@ -775,6 +775,92 @@ body {
     print-color-adjust: exact;
   }
 }
+
+/* ===== Responsive tab dashboard ===== */
+body { background: #f1f5f9; padding: 18px; color: var(--dark); }
+.container { max-width: 1180px; }
+.header {
+  border: 1px solid var(--gray-200);
+  border-top: 4px solid var(--primary);
+  border-radius: 18px;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 18px rgba(15,23,42,.06);
+}
+.header::before { display: none; }
+.header-actions { align-items: center; }
+.header-btn { background: var(--gray-100); }
+.profile-button {
+  width: 44px; height: 44px; padding: 3px; border: 2px solid var(--gray-200);
+  border-radius: 50%; background: white; cursor: pointer; overflow: hidden;
+}
+.profile-button img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.app-nav {
+  display: flex; gap: 6px; padding: 7px; margin-bottom: 16px;
+  background: white; border: 1px solid var(--gray-200); border-radius: 16px;
+  box-shadow: 0 4px 18px rgba(15,23,42,.05);
+}
+.app-nav button {
+  flex: 1; min-height: 46px; border: 0; border-radius: 11px; background: transparent;
+  color: var(--gray-500); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: background .2s, color .2s, transform .2s;
+}
+.app-nav button:hover { background: var(--gray-50); color: var(--dark); }
+.app-nav button[aria-current="page"] { color: #047857; background: #ecfdf5; }
+.tab-panel { animation: tabReveal .2s ease-out; }
+@keyframes tabReveal { from { opacity: .7; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.tab-panel[hidden] { display: none !important; }
+.panel-heading { margin: 4px 0 14px; color: var(--dark); font-size: 20px; }
+.metric-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.metric-card {
+  padding: 18px; background: white; border: 1px solid var(--gray-200);
+  border-radius: 16px; box-shadow: 0 4px 16px rgba(15,23,42,.04);
+}
+.metric-card .label { color: var(--gray-500); font-size: 12px; font-weight: 700; }
+.metric-card .value { margin-top: 6px; color: var(--dark); font-size: 23px; font-weight: 700; }
+.card { border: 1px solid var(--gray-200); box-shadow: 0 4px 18px rgba(15,23,42,.05); }
+.stat-card { border: 1px solid var(--gray-200); box-shadow: 0 4px 18px rgba(15,23,42,.05); }
+.stat-card .label { padding-right: 22px; }
+.sync-status {
+  margin: 10px 0; padding: 10px 12px; border-radius: 10px; background: white;
+  border: 1px solid var(--gray-200); color: var(--gray-700); font-size: 12px; font-weight: 700;
+}
+.sync-status[data-state="synced"] { color: #047857; background: #ecfdf5; border-color: #a7f3d0; }
+.sync-status[data-state="pending"] { color: #92400e; background: #fffbeb; border-color: #fde68a; }
+.sync-status[data-state="offline"], .sync-status[data-state="error"] { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+.sync-now-button { width: 100%; margin-top: 8px; }
+.cash-history-row {
+  display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px;
+  margin-top: 8px; border: 1px solid var(--gray-200); border-radius: 11px; background: white;
+}
+.cash-history-row strong { color: var(--dark); }
+.cash-history-row span { color: var(--gray-500); font-size: 12px; }
+@media (max-width: 600px) {
+  body { padding: 8px 8px 92px; }
+  .header { padding: 12px; margin-bottom: 10px; border-radius: 14px; }
+  .brand { gap: 9px; }
+  .logo { width: 42px; height: 42px; border-radius: 11px; font-size: 22px; }
+  .brand-text h1 { font-size: 17px; }
+  .brand-text .tagline { display: none; }
+  .header-actions { gap: 5px; }
+  .header-actions .header-btn { padding: 8px 9px; font-size: 11px; }
+  .profile-button { width: 40px; height: 40px; }
+  .app-nav {
+    position: fixed; z-index: 900; left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom));
+    margin: 0; padding: 6px; gap: 3px; border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(15,23,42,.18);
+  }
+  .app-nav button { min-width: 0; min-height: 54px; padding: 5px 2px; font-size: 10px; line-height: 1.25; }
+  .metric-strip { gap: 8px; }
+  .metric-card { padding: 14px; }
+  .metric-card .value { font-size: 19px; }
+}
+@media (min-width: 960px) {
+  .app-nav { position: sticky; top: 8px; z-index: 800; }
+}
+@media print {
+  body { background: white; padding: 0; }
+  .app-nav { display: none !important; }
+}
 </style>
 </head>
 <body>
@@ -792,7 +878,6 @@ body {
     </div>
     <div class="header-actions">
       <div id="authHeaderSlot" style="display:flex;align-items:center;"></div>
-      <button class="header-btn" onclick="openSettings()">⚙️ সেটিংস</button>
       <button class="header-btn" onclick="refreshFromFirebase()">🔄 রিফ্রেশ</button>
       <button class="header-btn" onclick="exportData()">📥 ব্যাকআপ</button>
     </div>
@@ -810,7 +895,27 @@ body {
     <button onclick="openAuthModal()" class="btn" style="background:#25d366;color:#0f172a;font-weight:700;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12px;">🔑 লগইন</button>
   </div>
 
+  <nav class="app-nav" aria-label="প্রধান নেভিগেশন">
+    <button type="button" data-tab="sales" aria-current="page" onclick="switchTab('sales')">🛒 বিক্রয়</button>
+    <button type="button" data-tab="expenses" onclick="switchTab('expenses')">🧾 খরচ</button>
+    <button type="button" data-tab="cash" onclick="switchTab('cash')">💵 ক্যাশ</button>
+    <button type="button" data-tab="creditors" onclick="switchTab('creditors')">🤝 পাওনা</button>
+    <button type="button" data-tab="dashboard" onclick="switchTab('dashboard')">📊 ড্যাশবোর্ড</button>
+  </nav>
+
+  <section class="tab-panel" id="salesPanel" data-tab-panel="sales">
+  <h2 class="panel-heading">বিক্রয়</h2>
+  <div class="metric-strip">
+    <div class="metric-card">
+      <div class="label">আজকের প্রফিট</div>
+      <div class="value" id="todayProfit">৳০</div>
+    </div>
+  </div>
+
   <!-- Date Filter (dashboard stats period) -->
+  </section>
+  <section class="tab-panel" id="dashboardPanel" data-tab-panel="dashboard" hidden>
+  <h2 class="panel-heading">ড্যাশবোর্ড</h2>
   <div class="filter-row" style="margin-bottom:12px;">
     <select id="periodSelect" onchange="onPeriodChange()" style="padding:9px 12px;border:2px solid var(--gray-200);border-radius:10px;font-size:13px;flex:1;min-width:130px;background:#fff;">
       <option value="today" selected>📅 আজকে</option>
@@ -840,8 +945,10 @@ body {
       <div class="sublabel" id="netAssetsBreakdown">ক্যাশ + ডিজিটাল − পাওনাদার বকেয়া</div>
     </div>
   </div>
+  </section>
 
   <!-- Main Grid -->
+  <section class="tab-panel" data-tab-panel="sales">
   <div class="main-grid">
     <!-- Left: New Invoice -->
     <div>
@@ -937,8 +1044,11 @@ body {
       </div>
     </div>
   </div>
+  </section>
 
   <!-- Daily Cash & Balance Register -->
+  <section class="tab-panel" id="cashPanel" data-tab-panel="cash" hidden>
+  <h2 class="panel-heading">ক্যাশ / ব্যালেন্স</h2>
   <div class="card">
     <div class="card-header">
       <div class="icon-box">💵</div>
@@ -966,8 +1076,18 @@ body {
       <div class="gt-breakdown" id="grandBalanceBreakdown">ক্যাশ ৳০ + ডিজিটাল ৳০</div>
     </div>
   </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="icon-box">🕘</div>
+      <h2>ব্যালেন্স ইতিহাস</h2>
+    </div>
+    <div id="cashHistoryList"><div class="empty">কোনো ক্যাশ রেকর্ড নেই</div></div>
+  </div>
+  </section>
 
   <!-- Creditors / Loans (পাওনাদার হিসাব) -->
+  <section class="tab-panel" id="creditorsPanel" data-tab-panel="creditors" hidden>
+  <h2 class="panel-heading">পাওনাদার / ঋণ</h2>
   <div class="card">
     <div class="card-header">
       <div class="icon-box">🤝</div>
@@ -990,8 +1110,21 @@ body {
     </div>
     <div id="creditorList" style="margin-top:12px;"></div>
   </div>
+  </section>
 
   <!-- Expenses (খরচ হিসাব) -->
+  <section class="tab-panel" id="expensesPanel" data-tab-panel="expenses" hidden>
+  <h2 class="panel-heading">খরচ</h2>
+  <div class="metric-strip">
+    <div class="metric-card">
+      <div class="label">আজকের খরচ</div>
+      <div class="value" id="todayExpenses">৳০</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">এই মাসের খরচ</div>
+      <div class="value" id="monthExpenses">৳০</div>
+    </div>
+  </div>
   <div class="card">
     <div class="card-header">
       <div class="icon-box">🧾</div>
@@ -1035,8 +1168,10 @@ body {
     </div>
     <div id="expenseList"></div>
   </div>
+  </section>
 
   <!-- Financial Summary (আর্থিক সারসংক্ষেপ) -->
+  <section class="tab-panel" data-tab-panel="dashboard" hidden>
   <div class="card">
     <div class="card-header">
       <div class="icon-box">📈</div>
@@ -1053,6 +1188,7 @@ body {
       <div class="gt-breakdown" id="netPositionBreakdown">মোট আয় ৳০ − মোট খরচ ৳০ − পাওনাদারে বকেয়া ৳০</div>
     </div>
   </div>
+  </section>
 </div>
 </div>
 
@@ -1128,6 +1264,8 @@ body {
           <div id="settingsUserEmail" style="color:var(--gray-500);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">user@gmail.com</div>
         </div>
       </div>
+      <div id="syncStatus" class="sync-status" data-state="offline" role="status" aria-live="polite">লোকাল ডেটা · Google-এ সাইন-ইন করুন</div>
+      <button id="syncNowButton" type="button" class="btn btn-save sync-now-button" onclick="forceSyncNow()">🔄 এখনই সিঙ্ক করুন</button>
 
       <div style="font-size:12px;color:var(--gray-700);line-height:1.6;">
         <div><strong>বর্তমান টেন্যান্ট:</strong> <span id="settingsUserDisplay" style="font-weight:600;color:var(--primary-dark);">লগইন চেক হচ্ছে...</span></div>
@@ -1271,6 +1409,19 @@ body {
 </div>
 
 <script>
+function switchTab(tabName) {
+  const validTabs = ['sales', 'expenses', 'cash', 'creditors', 'dashboard'];
+  if (!validTabs.includes(tabName)) return;
+  document.querySelectorAll('[data-tab-panel]').forEach(panel => {
+    panel.hidden = panel.dataset.tabPanel !== tabName;
+  });
+  document.querySelectorAll('.app-nav [data-tab]').forEach(button => {
+    if (button.dataset.tab === tabName) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 // ===== ব্যবসার স্থায়ী তথ্য =====
 const BUSINESS = {
   name: "ABC COMPUTER",
@@ -1585,6 +1736,8 @@ const db = firebase.firestore();
 let currentUser = null;
 let currentUserId = null;
 let firestoreUnsubscribers = [];
+let syncStatusCheckId = 0;
+let cashHistoryRecords = [];
 
 // Isolated Firestore references under users/{user_uid}/
 function getUserRef(uid = currentUserId) {
@@ -1617,18 +1770,90 @@ try {
 }
 
 // Multi-Tenant UI updates
+function setSyncStatus(state, message) {
+  const status = document.getElementById('syncStatus');
+  const button = document.getElementById('syncNowButton');
+  if (status) {
+    status.dataset.state = state;
+    status.textContent = message;
+  }
+  if (button) {
+    button.disabled = state === 'syncing';
+    button.textContent = state === 'synced' ? '✓ সব সিঙ্ক হয়েছে · আবার সিঙ্ক করুন' : '🔄 এখনই সিঙ্ক করুন';
+  }
+}
+
+async function checkSyncStatus() {
+  const checkId = ++syncStatusCheckId;
+  if (!currentUserId) {
+    setSyncStatus('offline', 'লোকাল ডেটা · Google-এ সাইন-ইন করুন');
+    return;
+  }
+  if (!navigator.onLine) {
+    setSyncStatus('offline', 'ইন্টারনেট নেই · ডেটা লোকালি সংরক্ষিত');
+    return;
+  }
+  setSyncStatus('pending', 'Firebase-এ সিঙ্কের অবস্থা যাচাই হচ্ছে…');
+  try {
+    await db.waitForPendingWrites();
+    if (checkId === syncStatusCheckId && currentUserId && navigator.onLine) {
+      setSyncStatus('synced', 'Firebase-এর সঙ্গে সিঙ্ক হয়েছে');
+    }
+  } catch (error) {
+    if (checkId === syncStatusCheckId) {
+      console.error('Firebase sync status check failed:', error);
+      setSyncStatus('error', 'সিঙ্ক যাচাই করা যায়নি · আবার চেষ্টা করুন');
+    }
+  }
+}
+
+async function forceSyncNow() {
+  if (!currentUserId) {
+    setSyncStatus('offline', 'সিঙ্ক করতে Google-এ সাইন-ইন করুন');
+    openAuthModal();
+    return;
+  }
+  if (!navigator.onLine) {
+    setSyncStatus('offline', 'ইন্টারনেট নেই · সংযোগ ফিরে এলে আবার চেষ্টা করুন');
+    showToast('ইন্টারনেট সংযোগ ছাড়া এখন সিঙ্ক করা যাবে না', 'error');
+    return;
+  }
+  setSyncStatus('syncing', 'পেন্ডিং ডেটা Firebase-এ পাঠানো হচ্ছে…');
+  try {
+    await db.waitForPendingWrites();
+    const refreshed = await refreshFromFirebase();
+    if (!refreshed) {
+      setSyncStatus('error', 'ডেটা রিফ্রেশ হয়নি · আবার চেষ্টা করুন');
+      return;
+    }
+    await checkSyncStatus();
+  } catch (error) {
+    console.error('Force sync failed:', error);
+    setSyncStatus('error', 'সিঙ্ক ব্যর্থ হয়েছে · ' + (error.message || 'আবার চেষ্টা করুন'));
+    showToast('সিঙ্ক ব্যর্থ হয়েছে: ' + (error.message || error), 'error');
+  }
+}
+
 function renderAuthUI(user) {
   const slot = document.getElementById('authHeaderSlot');
   const banner = document.getElementById('tenantNoticeBanner');
   const userDisp = document.getElementById('settingsUserDisplay');
   const loginBtn = document.getElementById('settingsLoginBtn');
   const logoutBtn = document.getElementById('settingsLogoutBtn');
+  const profileCard = document.getElementById('settingsUserProfileCard');
+  const profilePhoto = document.getElementById('settingsUserPhoto');
+  const profileName = document.getElementById('settingsUserName');
+  const profileEmail = document.getElementById('settingsUserEmail');
 
   if (user) {
     if (banner) banner.style.display = 'none';
     if (userDisp) userDisp.textContent = (user.displayName || user.email) + ' (' + user.email + ')';
     if (loginBtn) loginBtn.style.display = 'none';
     if (logoutBtn) logoutBtn.style.display = 'inline-block';
+    if (profileCard) profileCard.style.display = 'flex';
+    if (profilePhoto) profilePhoto.src = user.photoURL || 'app-icon-180.png';
+    if (profileName) profileName.textContent = user.displayName || user.email || 'ব্যবহারকারী';
+    if (profileEmail) profileEmail.textContent = user.email || '';
 
     // In-app password setup card inside Settings — visible for any authenticated session
     const passCard = document.getElementById('settingsPasswordSetupCard');
@@ -1644,20 +1869,16 @@ function renderAuthUI(user) {
     if (savePassBtn) savePassBtn.textContent = hasPassword ? '💾 পাসওয়ার্ড আপডেট করুন' : '💾 পাসওয়ার্ড সংরক্ষণ করুন';
 
     if (slot) {
-      slot.innerHTML = `
-        <div style="display:flex;align-items:center;gap:8px;background:var(--gray-100);padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;margin-right:6px;">
-          <img src="${user.photoURL || 'app-icon-180.png'}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;" alt="Avatar" onerror="this.src='app-icon-180.png'">
-          <span style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dark);">${escapeHtml(user.displayName || user.email.split('@')[0])}</span>
-          <span title="ক্লাউড সিঙ্ক সক্রিয়" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;"></span>
-          <button onclick="logoutUser()" title="লগআউট" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:14px;padding:0 2px;">🚪</button>
-        </div>
-      `;
+      const avatar = user.photoURL || 'app-icon-180.png';
+      slot.innerHTML = `<button type="button" class="profile-button" onclick="openSettings()" aria-label="প্রোফাইল ও সেটিংস" title="${escapeHtml(user.displayName || user.email || 'প্রোফাইল')}"><img src="${escapeHtml(avatar)}" alt="" onerror="this.src='app-icon-180.png'"></button>`;
     }
+    checkSyncStatus();
   } else {
     if (banner) banner.style.display = 'flex';
     if (userDisp) userDisp.textContent = 'লগইন করা নেই (লোকাল ড্রাফট মোড)';
     if (loginBtn) loginBtn.style.display = 'inline-block';
     if (logoutBtn) logoutBtn.style.display = 'none';
+    if (profileCard) profileCard.style.display = 'none';
 
     if (slot) {
       slot.innerHTML = `
@@ -1666,6 +1887,8 @@ function renderAuthUI(user) {
         </button>
       `;
     }
+    syncStatusCheckId++;
+    setSyncStatus('offline', 'লোকাল ডেটা · Google-এ সাইন-ইন করুন');
   }
 }
 
@@ -1919,6 +2142,11 @@ async function logoutUser() {
 }
 
 // Attach real-time Firestore listeners for isolated tenant data
+function handleFirestoreSyncError(label, error) {
+  console.warn(label + ' listener:', error);
+  if (currentUserId) setSyncStatus('error', 'Firebase ' + label + ' সিঙ্ক হয়নি · ' + (error.message || 'আবার চেষ্টা করুন'));
+}
+
 function attachFirestoreListeners(uid) {
   firestoreUnsubscribers.forEach(unsub => { try { unsub(); } catch (e) {} });
   firestoreUnsubscribers = [];
@@ -1940,7 +2168,7 @@ function attachFirestoreListeners(uid) {
     updateStats();
     renderInvoices();
     updateCurrentInvoiceNo();
-  }, err => console.warn('Sales listener:', err));
+  }, err => handleFirestoreSyncError('বিক্রয়', err));
   firestoreUnsubscribers.push(unsubSales);
 
   // 2. Expenses Listener
@@ -1949,7 +2177,7 @@ function attachFirestoreListeners(uid) {
     saveExpenses();
     renderExpenseList();
     renderFinanceSummary();
-  }, err => console.warn('Expenses listener:', err));
+  }, err => handleFirestoreSyncError('খরচ', err));
   firestoreUnsubscribers.push(unsubExpenses);
 
   // 3. Creditors Listener
@@ -1959,19 +2187,21 @@ function attachFirestoreListeners(uid) {
     renderCreditorList();
     updateNetAssetsCard();
     renderFinanceSummary();
-  }, err => console.warn('Creditors listener:', err));
+  }, err => handleFirestoreSyncError('পাওনাদার', err));
   firestoreUnsubscribers.push(unsubCreditors);
 
   // 4. Cash Register Listener
-  const unsubCash = getCashRegisterRef(uid).orderBy('date', 'desc').limit(1).onSnapshot(snap => {
-    if (!snap.empty) {
-      const latest = snap.docs[0].data();
+  const unsubCash = getCashRegisterRef(uid).orderBy('date', 'desc').limit(30).onSnapshot(snap => {
+    cashHistoryRecords = snap.docs.map(doc => doc.data());
+    renderCashHistory();
+    if (cashHistoryRecords.length) {
+      const latest = cashHistoryRecords[0];
       loadRegister(latest);
       localStorage.setItem('pos_cash_register', JSON.stringify(latest));
       updateRegisterTotals();
       updateNetAssetsCard();
     }
-  }, err => console.warn('Cash listener:', err));
+  }, err => handleFirestoreSyncError('ক্যাশ', err));
   firestoreUnsubscribers.push(unsubCash);
 
   // 5. Settings Listener
@@ -1991,7 +2221,7 @@ function attachFirestoreListeners(uid) {
         applyBusinessBranding();
       }
     }
-  }, err => console.warn('Settings listener:', err));
+  }, err => handleFirestoreSyncError('সেটিংস', err));
   firestoreUnsubscribers.push(unsubSettings);
 }
 
@@ -2037,12 +2267,15 @@ auth.onAuthStateChanged(user => {
   }
 });
 
+window.addEventListener('online', checkSyncStatus);
+window.addEventListener('offline', () => setSyncStatus('offline', 'ইন্টারনেট নেই · ডেটা লোকালি সংরক্ষিত'));
+
 // Refresh all data from Firestore
 async function refreshFromFirebase() {
   if (!currentUserId) {
     showToast('অনুরোধ করতে অনুগ্রহ করে প্রথমে লগইন করুন', 'error');
     openAuthModal();
-    return;
+    return false;
   }
   showLoading('Firebase ক্লাউড থেকে ডাটা রিফ্রেশ হচ্ছে...');
   try {
@@ -2050,7 +2283,7 @@ async function refreshFromFirebase() {
       getSalesRef().orderBy('date', 'desc').get(),
       getCreditorsRef().get(),
       getExpensesRef().orderBy('date', 'desc').get(),
-      getCashRegisterRef().orderBy('date', 'desc').limit(1).get(),
+      getCashRegisterRef().orderBy('date', 'desc').limit(30).get(),
       getSettingsRef().get()
     ]);
 
@@ -2074,8 +2307,10 @@ async function refreshFromFirebase() {
     expenses = expSnap.docs.map(doc => doc.data());
     saveExpenses();
 
-    if (!cashSnap.empty) {
-      const latest = cashSnap.docs[0].data();
+    cashHistoryRecords = cashSnap.docs.map(doc => doc.data());
+    renderCashHistory();
+    if (cashHistoryRecords.length) {
+      const latest = cashHistoryRecords[0];
       loadRegister(latest);
       localStorage.setItem('pos_cash_register', JSON.stringify(latest));
       updateRegisterTotals();
@@ -2098,9 +2333,11 @@ async function refreshFromFirebase() {
     renderFinanceSummary();
     updateCurrentInvoiceNo();
     showToast('✓ Firebase ক্লাউড থেকে সব ডাটা সফলভাবে রিফ্রেশ হয়েছে');
+    return true;
   } catch (error) {
     console.error('Refresh error:', error);
     showToast('সিঙ্ক ত্রুটি: ' + error.message, 'error');
+    return false;
   } finally {
     hideLoading();
   }
@@ -2136,6 +2373,7 @@ async function saveInvoiceToFirebase(invoice) {
   if (!currentUserId) return true;
   try {
     await getSalesRef().doc(String(invoice.id)).set(invoice, { merge: true });
+    void checkSyncStatus();
     return true;
   } catch (error) {
     console.error('Firestore save invoice error:', error);
@@ -2148,6 +2386,7 @@ async function deleteInvoiceFromFirebase(id) {
   if (!currentUserId) return true;
   try {
     await getSalesRef().doc(String(id)).delete();
+    void checkSyncStatus();
     return true;
   } catch (error) {
     console.error('Firestore delete invoice error:', error);
@@ -2160,6 +2399,7 @@ async function saveCreditorToFirebase(creditor) {
   if (!currentUserId) return;
   try {
     await getCreditorsRef().doc(String(creditor.id)).set(creditor, { merge: true });
+    void checkSyncStatus();
   } catch (error) {
     console.warn('Firestore creditor sync error:', error);
   }
@@ -2169,6 +2409,7 @@ async function removeCreditorFromFirebase(id) {
   if (!currentUserId) return;
   try {
     await getCreditorsRef().doc(String(id)).delete();
+    void checkSyncStatus();
   } catch (error) {
     console.warn('Firestore remove creditor error:', error);
   }
@@ -2178,6 +2419,7 @@ async function saveExpenseToFirebase(expense) {
   if (!currentUserId) return;
   try {
     await getExpensesRef().doc(String(expense.id)).set(expense, { merge: true });
+    void checkSyncStatus();
   } catch (error) {
     console.warn('Firestore expense sync error:', error);
   }
@@ -2187,6 +2429,7 @@ async function removeExpenseFromFirebase(id) {
   if (!currentUserId) return;
   try {
     await getExpensesRef().doc(String(id)).delete();
+    void checkSyncStatus();
   } catch (error) {
     console.warn('Firestore remove expense error:', error);
   }
@@ -2196,6 +2439,7 @@ async function saveCashRegisterToFirebase(record) {
   if (!currentUserId) return true;
   try {
     await getCashRegisterRef().doc(String(record.id)).set(record, { merge: true });
+    void checkSyncStatus();
     return true;
   } catch (error) {
     console.warn('Firestore cash register sync error:', error);
@@ -2219,6 +2463,7 @@ async function saveSettingsToFirebase() {
     sellingPrices: settings.sellingPrices || {},
     updatedAt: new Date().toISOString()
   }, { merge: true });
+  void checkSyncStatus();
 }
 
 function refreshPresetOptions() {
@@ -2800,6 +3045,30 @@ function updateStats() {
 
   // নিট মূলধন/সম্পদ (পাওনাদার বাদ দিয়ে) — রিয়েল-টাইম: ক্যাশ + MFS/ব্যাংক − পাওনাদার বকেয়া
   updateNetAssetsCard();
+  updateDailyMetrics();
+}
+
+function updateDailyMetrics() {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrow = new Date(todayStart);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const todayPeriod = { start: todayStart, end: tomorrow };
+  const monthPeriod = { start: monthStart, end: new Date(now.getFullYear(), now.getMonth() + 1, 1) };
+  const todaySales = invoices.filter(inv => isInPeriod(inv, todayPeriod));
+  const todayGrossProfit = todaySales.reduce((sum, inv) =>
+    sum + safeNum(inv.total) - getInvoiceCostTotal(inv), 0);
+  const todayExpenseTotal = expenses.filter(expense => isInPeriod(expense, todayPeriod))
+    .reduce((sum, expense) => sum + safeNum(expense.amount), 0);
+  const monthExpenseTotal = expenses.filter(expense => isInPeriod(expense, monthPeriod))
+    .reduce((sum, expense) => sum + safeNum(expense.amount), 0);
+  const profitEl = document.getElementById('todayProfit');
+  const todayExpenseEl = document.getElementById('todayExpenses');
+  const monthExpenseEl = document.getElementById('monthExpenses');
+  if (profitEl) profitEl.textContent = formatMoney(todayGrossProfit - todayExpenseTotal);
+  if (todayExpenseEl) todayExpenseEl.textContent = formatMoney(todayExpenseTotal);
+  if (monthExpenseEl) monthExpenseEl.textContent = formatMoney(monthExpenseTotal);
 }
 
 // নিট মূলধন কার্ড: মোট ক্যাশ + মোট ডিজিটাল (MFS/রিচার্জ/ব্যাংক) ব্যালেন্স থেকে সব পাওনাদারের বকেয়া বিয়োগ
@@ -3272,6 +3541,7 @@ function updateRegisterTotals() {
     if (cashEl) cashEl.textContent = formatMoney(cash);
     if (grandEl) grandEl.textContent = formatMoney(grand);
     if (breakEl) breakEl.textContent = 'ক্যাশ ' + formatMoney(cash) + ' + ডিজিটাল ' + formatMoney(digital);
+    updateNetAssetsCard();
   } catch (error) {
     console.error('রেজিস্টার হিসাব ত্রুটি:', error);
   }
@@ -3311,6 +3581,8 @@ async function saveRegister() {
         [account.key, data.balances[account.key]]))
     };
     localStorage.setItem('pos_cash_register', JSON.stringify(record));
+    cashHistoryRecords = [record].concat(cashHistoryRecords.filter(item => item.id !== record.id));
+    renderCashHistory();
     localSaved = true;
     if (currentUserId) {
       showToast('✅ ক্যাশ ও ব্যালেন্স লোকালি সেভ হয়েছে — Firebase ক্লাউডে সিঙ্ক হচ্ছে');
@@ -3356,6 +3628,10 @@ function loadRegister(sourceData) {
     }
     const denominations = parseRegisterMap(data.denominations, 'Denominations');
     const balances = parseRegisterMap(data.balances, 'Balances');
+    if (!sourceData) {
+      cashHistoryRecords = [data];
+      renderCashHistory();
+    }
     CASH_DENOMS.forEach(d => {
       const el = document.getElementById('denom_' + d);
       if (el) {
@@ -3382,6 +3658,22 @@ function resetRegister() {
   BALANCE_ACCOUNTS.forEach(a => { const el = document.getElementById('bal_' + a.key); if (el) el.value = ''; });
   updateRegisterTotals();
   showToast('🔄 রেজিস্টার রিসেট হয়েছে (সেভ করা পুরোনো রেকর্ড মোবাইলে থাকবে — নতুন মান সেভ করলে আপডেট হবে)');
+}
+
+function renderCashHistory() {
+  const list = document.getElementById('cashHistoryList');
+  if (!list) return;
+  const records = cashHistoryRecords.slice().sort((a, b) =>
+    String(b.date || '').localeCompare(String(a.date || '')));
+  if (!records.length) {
+    list.innerHTML = '<div class="empty">কোনো ক্যাশ রেকর্ড নেই</div>';
+    return;
+  }
+  list.innerHTML = records.map(record => `
+    <div class="cash-history-row">
+      <div><strong>${escapeHtml(record.date || 'তারিখ নেই')}</strong><br><span>ক্যাশ ${formatMoney(record.cashTotal)} · ডিজিটাল ${formatMoney(record.digitalTotal)}</span></div>
+      <strong>${formatMoney(record.grandTotal)}</strong>
+    </div>`).join('');
 }
 
 buildRegisterUI();
@@ -3850,13 +4142,15 @@ function computeFinanceSummary() {
 function renderFinanceSummary() {
   const grid = document.getElementById('financeSummaryGrid');
   if (!grid) return;
+  updateDailyMetrics();
   const s = computeFinanceSummary();
   const cells = [
     { label: '🛒 মোট বিক্রি (সব)', value: formatMoney(s.totalSales), cls: 'sc-blue' },
     { label: '📦 মোট কস্ট (সব)', value: formatMoney(s.totalCost), cls: '' },
-    { label: '📈 নিট লাভ (সব)', value: formatMoney(s.grossProfit), cls: s.grossProfit >= 0 ? 'sc-green' : 'sc-red' },
+    { label: '📈 মোট লাভ (সব)', value: formatMoney(s.grossProfit), cls: s.grossProfit >= 0 ? 'sc-green' : 'sc-red' },
     { label: '💸 মোট খরচ', value: formatMoney(s.totalExpenses), cls: 'sc-red' },
-    { label: '🤝 পাওনাদারে বকেয়া', value: formatMoney(s.totalDue), cls: 'sc-red' }
+    { label: '🤝 পাওনাদার / বকেয়া', value: formatMoney(s.totalDue), cls: 'sc-red' },
+    { label: '✅ খরচ বাদে নিট লাভ', value: formatMoney(s.netPosition), cls: s.netPosition >= 0 ? 'sc-green' : 'sc-red' }
   ];
   grid.innerHTML = cells.map(c => `
     <div class="summary-cell">
