@@ -1,12 +1,13 @@
-const CACHE_NAME = 'abc-computer-pos-v4-pwa';
+const CACHE_NAME = 'abc-computer-pos-v5-pwa';
+const ICON_VER = '?v=20261104a';
 const APP_SHELL = [
   './',
   './index.html',
-  './manifest.json',
-  './app-icon.svg',
-  './app-icon-180.png',
-  './app-icon-192.png',
-  './app-icon-512.png',
+  './manifest.json' + ICON_VER,
+  './app-icon.svg' + ICON_VER,
+  './app-icon-180.png' + ICON_VER,
+  './app-icon-192.png' + ICON_VER,
+  './app-icon-512.png' + ICON_VER,
   './QR.PNG'
 ];
 
