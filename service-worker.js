@@ -1,10 +1,10 @@
-const CACHE_NAME = 'abc-computer-pos-v5-pwa';
-const ICON_VER = '?v=20261104a';
+const CACHE_NAME = 'abc-computer-pos-v6-pwa';
+const ICON_VER = '?v=20261104b';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.json' + ICON_VER,
-  './app-icon.svg' + ICON_VER,
+  './abclogo.svg' + ICON_VER,
   './app-icon-180.png' + ICON_VER,
   './app-icon-192.png' + ICON_VER,
   './app-icon-512.png' + ICON_VER,
