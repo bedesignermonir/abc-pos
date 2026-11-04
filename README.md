@@ -24,7 +24,7 @@ Firebase Web config ব্রাউজারে ব্যবহারের জ�
 node scripts/build-site.js .
 ```
 
-GitHub Pages-এর জন্য repository **Settings → Secrets and variables → Actions**-এ `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_STORAGE_BUCKET`, `FIREBASE_MESSAGING_SENDER_ID`, `FIREBASE_APP_ID`, এবং `FIREBASE_MEASUREMENT_ID` secrets যোগ করুন। এরপর **Settings → Pages → Build and deployment → Source**-এ **GitHub Actions** নির্বাচন করুন। `main` branch-এ push হলে workflow কনফিগারেশনসহ site তৈরি ও deploy করবে। প্রকাশিত `firebase-config.js`-এ config থাকবে—এটি Firebase Web SDK-এর স্বাভাবিক আচরণ।
+GitHub Pages-এর জন্য repository **Settings → Secrets and variables → Actions**-এ `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_STORAGE_BUCKET`, `FIREBASE_MESSAGING_SENDER_ID`, `FIREBASE_APP_ID`, এবং `FIREBASE_MEASUREMENT_ID` secrets (বা repository variables) যোগ করুন। এরপর **Settings → Pages → Build and deployment → Source**-এ **GitHub Actions** নির্বাচন করুন। `main` branch-এ push হলে workflow কনফিগারেশনসহ site তৈরি ও deploy করবে। প্রকাশিত `firebase-config.js`-এ config থাকবে—এটি Firebase Web SDK-এর স্বাভাবিক আচরণ।
 
 ## সুবিধাসমূহ
 
