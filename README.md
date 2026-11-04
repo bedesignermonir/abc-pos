@@ -20,6 +20,12 @@ Firebase Web config অ্যাপের HTML-এ আছে এবং ব্র
 
 GitHub Pages workflow সরাসরি repository root-এর static files deploy করে; কোনো build command বা Firebase Actions secret/variable প্রয়োজন নেই। Repository **Settings → Pages → Build and deployment → Source**-এ **GitHub Actions** নির্বাচন করুন। `main` branch-এ push হলে workflow site deploy করবে.
 
+## অ্যাকাউন্ট অনুমোদন ও Firestore Rules
+
+`clkmonir@gmail.com` মাস্টার অ্যাডমিন হিসেবে স্বয়ংক্রিয়ভাবে অনুমোদিত। অন্য সব অ্যাকাউন্ট প্রথমে অনুমোদনের অপেক্ষায় থাকবে; মাস্টার অ্যাডমিনের Admin Panel থেকে তাদের `Admin` অথবা `Partner/Staff` হিসেবে অনুমোদন করতে হবে।
+
+GitHub Pages কেবল PWA ফাইল প্রকাশ করে, Firestore Security Rules নয়। এই পরিবর্তনের আগে Firebase CLI-তে `abc-pos-webapp` প্রজেক্টে অ্যাডমিন হিসেবে লগইন করে নতুন rules প্রকাশ করুন: `firebase deploy --only firestore:rules --project abc-pos-webapp`। এরপর `main`-এ push করলে GitHub Actions থেকে PWA প্রকাশ হবে।
+
 ## সুবিধাসমূহ
 
 - বিক্রয়, খরচ, ক্যাশ/ব্যালেন্স, পাওনাদার এবং ড্যাশবোর্ডের জন্য আলাদা ট্যাব।

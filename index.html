@@ -61,6 +61,123 @@
       margin: 0 auto;
     }
 
+    .access-gate {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(15, 23, 42, 0.96);
+      color: #fff;
+      text-align: center;
+    }
+
+    .access-gate[hidden] {
+      display: none;
+    }
+
+    .access-gate-content {
+      width: min(100%, 440px);
+    }
+
+    .access-gate h2 {
+      margin-bottom: 12px;
+      font-size: 22px;
+    }
+
+    .access-gate p {
+      line-height: 1.8;
+    }
+
+    .access-gate button {
+      margin: 18px 6px 0;
+      padding: 10px 16px;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .role-panel {
+      margin: 12px 0;
+      padding: 16px;
+      background: #fff;
+      border-radius: 12px;
+    }
+
+    .role-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .role-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .role-row:last-child {
+      border-bottom: 0;
+    }
+
+    .role-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .role-actions select,
+    .role-actions button,
+    .role-form input {
+      padding: 9px 10px;
+      border: 1px solid var(--gray-200);
+      border-radius: 7px;
+    }
+
+    .role-form {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    .role-form label {
+      display: grid;
+      gap: 5px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .role-form button {
+      align-self: end;
+      padding: 10px;
+      border: 0;
+      border-radius: 7px;
+      background: var(--primary-dark);
+      color: #fff;
+      cursor: pointer;
+    }
+
+    .role-record {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .role-record:last-child {
+      border-bottom: 0;
+    }
+
+    @media (max-width: 600px) {
+      .role-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
     /* ===== Header ===== */
     .header {
       background: white;
@@ -1792,7 +1909,16 @@
 
 <body>
 
-  <div class="no-print">
+  <div id="accessGate" class="access-gate" role="alert" aria-live="assertive">
+    <div class="access-gate-content">
+      <h2 id="accessGateTitle">অ্যাকাউন্ট যাচাই হচ্ছে</h2>
+      <p id="accessGateMessage">অনুগ্রহ করে অপেক্ষা করুন...</p>
+      <button id="accessGateLogin" type="button" onclick="openAuthModal()">সাইন-ইন</button>
+      <button id="accessGateLogout" type="button" onclick="logoutUser()" hidden>লগআউট</button>
+    </div>
+  </div>
+
+  <div class="no-print" inert>
     <div class="container">
       <!-- Header -->
       <div class="header">
@@ -1805,8 +1931,8 @@
         </div>
         <div class="header-actions">
           <div id="authHeaderSlot" style="display:flex;align-items:center;"></div>
-          <button class="header-btn" onclick="refreshFromFirebase()">🔄 রিফ্রেশ</button>
-          <button class="header-btn" onclick="exportData()">📥 ব্যাকআপ</button>
+          <button class="header-btn" id="headerRefreshButton" onclick="refreshFromFirebase()">🔄 রিফ্রেশ</button>
+          <button class="header-btn" id="headerExportButton" onclick="exportData()">📥 ব্যাকআপ</button>
         </div>
       </div>
 
@@ -1832,7 +1958,71 @@
         <button type="button" data-tab="cash" onclick="switchTab('cash')">💵 ক্যাশ</button>
         <button type="button" data-tab="creditors" onclick="switchTab('creditors')">🤝 পাওনা</button>
         <button type="button" data-tab="dashboard" onclick="switchTab('dashboard')">📊 ড্যাশবোর্ড</button>
+        <button type="button" data-tab="partner" onclick="switchTab('partner')" hidden>🤝 পার্টনার</button>
+        <button type="button" data-tab="admin" onclick="switchTab('admin')" hidden>🛡️ অ্যাডমিন</button>
       </nav>
+
+      <section class="tab-panel" id="partnerPanel" data-tab-panel="partner" hidden>
+        <h2 class="panel-heading">আমার পার্টনার ড্যাশবোর্ড</h2>
+        <button type="button" class="btn btn-reset" onclick="logoutUser()">🚪 লগআউট</button>
+        <div class="metric-strip">
+          <div class="metric-card">
+            <div class="label">আজকের বিক্রি</div>
+            <div class="value" id="partnerTodaySales">৳০</div>
+          </div>
+          <div class="metric-card">
+            <div class="label">আমার লাভের অংশ (<span id="partnerSharePercent">৪০</span>%)</div>
+            <div class="value" id="partnerTodayShare">৳০</div>
+          </div>
+          <div class="metric-card">
+            <div class="label">মালিকের অংশ (<span id="ownerSharePercent">৬০</span>%)</div>
+            <div class="value" id="ownerTodayShare">৳০</div>
+          </div>
+          <div class="metric-card">
+            <div class="label">হস্তান্তর বাকি</div>
+            <div class="value" id="partnerPendingCash">৳০</div>
+          </div>
+        </div>
+        <div class="role-panel">
+          <h3>নতুন বিক্রি</h3>
+          <form id="partnerSaleForm" class="role-form" onsubmit="savePartnerSale(event)">
+            <label>কাস্টমারের নাম<input id="partnerCustomer" required maxlength="120"></label>
+            <label>ফোন নম্বর<input id="partnerPhone" maxlength="40"></label>
+            <label>আইটেমের বিবরণ<input id="partnerItemName" required maxlength="160"></label>
+            <label>পরিমাণ<input id="partnerItemQty" type="number" min="1" step="1" value="1" required></label>
+            <label>মোট বিক্রয় (৳)<input id="partnerSaleTotal" type="number" min="0.01" step="0.01" required></label>
+            <label>মোট কস্ট (৳)<input id="partnerSaleCost" type="number" min="0" step="0.01" value="0" required></label>
+            <button type="submit">বিক্রি সংরক্ষণ</button>
+          </form>
+        </div>
+        <div class="role-panel">
+          <label for="partnerHistoryDate">তারিখ অনুযায়ী রেকর্ড</label>
+          <input id="partnerHistoryDate" type="date" onchange="renderPartnerDashboard()">
+          <div id="partnerSalesHistory" class="role-list"></div>
+        </div>
+        <div class="role-panel">
+          <h3>কাস্টম খরচ</h3>
+          <form id="partnerExpenseForm" class="role-form" onsubmit="savePartnerExpense(event)">
+            <label>বিবরণ<input id="partnerExpenseDescription" required maxlength="180"></label>
+            <label>পরিমাণ<input id="partnerExpenseQty" type="number" min="1" step="1" value="1" required></label>
+            <label>মোট খরচ (৳)<input id="partnerExpenseAmount" type="number" min="0.01" step="0.01" required></label>
+            <button type="submit">খরচ সংরক্ষণ</button>
+          </form>
+          <div id="partnerExpensesHistory" class="role-list"></div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="adminPanel" data-tab-panel="admin" hidden>
+        <h2 class="panel-heading">পার্টনার ব্যবস্থাপনা ও সেটেলমেন্ট</h2>
+        <div class="role-panel">
+          <h3>অ্যাকাউন্ট অনুমোদন</h3>
+          <div id="pendingUsersList" class="role-list"></div>
+        </div>
+        <div class="role-panel">
+          <h3>পার্টনার ও পাওনা</h3>
+          <div id="adminPartnersList" class="role-list"></div>
+        </div>
+      </section>
 
       <section class="tab-panel" id="salesPanel" data-tab-panel="sales">
         <h2 class="panel-heading">বিক্রয়</h2>
@@ -2397,7 +2587,10 @@
 
   <script>
     function switchTab(tabName) {
-      const validTabs = ['sales', 'expenses', 'cash', 'creditors', 'dashboard'];
+      const validTabs = ['sales', 'expenses', 'cash', 'creditors', 'dashboard', 'partner', 'admin'];
+      if (!currentUser || currentAccess.role === 'Pending') return;
+      if (currentAccess.role === 'Partner/Staff' && tabName !== 'partner') return;
+      if (tabName === 'admin' && !isMasterAdmin()) return;
       if (!validTabs.includes(tabName)) return;
       document.querySelectorAll('[data-tab-panel]').forEach(panel => {
         panel.hidden = panel.dataset.tabPanel !== tabName;
@@ -2511,6 +2704,12 @@
 
     function generateInvoiceNo(num) {
       return 'ABC-' + String(num).padStart(4, '0');
+    }
+
+    function localDateKey(value = new Date()) {
+      const date = value instanceof Date ? value : new Date(value);
+      if (isNaN(date.getTime())) return '';
+      return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
     }
 
     let toastTimeoutId = null;
@@ -2734,6 +2933,17 @@
     // Multi-Tenant Isolation: State of authenticated business owner
     let currentUser = null;
     let currentUserId = null;
+    const MASTER_ADMIN_EMAIL = 'clkmonir@gmail.com';
+    const BUSINESS_TENANT_ID = 'abc-computer';
+    const PENDING_APPROVAL_MESSAGE = 'আপনার অ্যাকাউন্টটি অনুমোদন অপেক্ষমাণ রয়েছে। এডমিনের অনুমতির পর ব্যবহার করতে পারবেন।';
+    let currentAccess = { role: 'Pending', status: 'pending' };
+    let partnerSales = [];
+    let partnerExpenses = [];
+    let partnerSettlements = [];
+    let businessCashBalance = 0;
+    let businessUnsubscribers = [];
+    let accountProfileUnsubscribe = null;
+    const settlingPartnerIds = new Set();
     let firestoreUnsubscribers = [];
     let cashHistoryRecords = [];
     let firestoreReconnectTimer = null;
@@ -2765,6 +2975,120 @@
     }
     function getPresetsRef(uid = currentUserId) {
       return getUserRef(uid).collection('settings').doc('presets');
+    }
+
+    function getBusinessRef() {
+      return db.collection('businesses').doc(BUSINESS_TENANT_ID);
+    }
+    function getMembersRef() {
+      return getBusinessRef().collection('members');
+    }
+    function getPartnerSalesRef() {
+      return getBusinessRef().collection('partner_sales');
+    }
+    function getPartnerExpensesRef() {
+      return getBusinessRef().collection('partner_expenses');
+    }
+
+    function isMasterAdmin(user = currentUser) {
+      return Boolean(user && user.emailVerified
+        && String(user.email || '').toLowerCase() === MASTER_ADMIN_EMAIL);
+    }
+
+    function updateAccessGate(message, title = 'অ্যাকাউন্ট যাচাই হচ্ছে') {
+      const gate = document.getElementById('accessGate');
+      const titleEl = document.getElementById('accessGateTitle');
+      const messageEl = document.getElementById('accessGateMessage');
+      const loginButton = document.getElementById('accessGateLogin');
+      const logoutButton = document.getElementById('accessGateLogout');
+      if (titleEl) titleEl.textContent = title;
+      if (messageEl) messageEl.textContent = message;
+      if (loginButton) loginButton.hidden = Boolean(currentUser);
+      if (logoutButton) logoutButton.hidden = !currentUser;
+      if (gate) gate.hidden = !message;
+    }
+
+    function applyRoleVisibility() {
+      const role = currentAccess.role;
+      const isPartner = role === 'Partner/Staff';
+      const isAdmin = role === 'Admin' || isMasterAdmin();
+      const appContent = document.querySelector('.no-print');
+      const refreshButton = document.getElementById('headerRefreshButton');
+      const exportButton = document.getElementById('headerExportButton');
+      if (refreshButton) refreshButton.hidden = isPartner;
+      if (exportButton) exportButton.hidden = isPartner;
+      const partnerTab = document.querySelector('.app-nav [data-tab="partner"]');
+      const adminTab = document.querySelector('.app-nav [data-tab="admin"]');
+      if (partnerTab) partnerTab.hidden = !isPartner;
+      if (adminTab) adminTab.hidden = !isMasterAdmin();
+
+      if (isPartner) {
+        if (appContent) appContent.inert = false;
+        document.querySelector('.app-nav').style.display = 'none';
+        document.querySelectorAll('[data-tab-panel]').forEach(panel => {
+          panel.hidden = panel.id !== 'partnerPanel';
+        });
+        document.getElementById('partnerPanel').hidden = false;
+        updateAccessGate('');
+        return;
+      }
+
+      document.querySelector('.app-nav').style.display = '';
+      document.querySelectorAll('[data-tab-panel]').forEach(panel => {
+        panel.hidden = panel.dataset.tabPanel !== 'sales' && panel.dataset.tabPanel !== 'dashboard'
+          ? true
+          : panel.hidden;
+      });
+      document.getElementById('partnerPanel').hidden = true;
+      document.getElementById('adminPanel').hidden = true;
+      if (isMasterAdmin()) {
+        if (appContent) appContent.inert = false;
+        updateAccessGate('');
+        return;
+      }
+      if (isAdmin) {
+        if (appContent) appContent.inert = false;
+        updateAccessGate('');
+        return;
+      }
+      if (appContent) appContent.inert = true;
+      updateAccessGate(PENDING_APPROVAL_MESSAGE, 'অনুমোদন প্রয়োজন');
+    }
+
+    async function resolveUserAccess(user) {
+      if (isMasterAdmin(user)) {
+        currentAccess = { role: 'Admin', status: 'approved', email: user.email };
+        return currentAccess;
+      }
+
+      const profileRef = getUserRef(user.uid);
+      try {
+        const profileSnapshot = await profileRef.get();
+        const profile = profileSnapshot.exists ? profileSnapshot.data() : {};
+        if (!profileSnapshot.exists || !profile.accountStatus) {
+          trackFirestoreWrite(() => profileRef.set({
+            email: user.email || '',
+            displayName: user.displayName || '',
+            photoURL: user.photoURL || '',
+            accountStatus: 'Pending Approval',
+            role: 'Pending',
+            tenantId: BUSINESS_TENANT_ID,
+            createdAt: new Date().toISOString()
+          }, { merge: true }), 'অ্যাকাউন্ট অনুমোদন প্রোফাইল');
+          currentAccess = { ...profile, role: 'Pending', status: 'Pending Approval', accountStatus: 'Pending Approval' };
+          return currentAccess;
+        }
+        currentAccess = {
+          ...profile,
+          role: profile.accountStatus === 'approved' ? profile.role : 'Pending',
+          status: profile.accountStatus
+        };
+        return currentAccess;
+      } catch (error) {
+        showFirestoreOperationError(error, 'অ্যাকাউন্ট অনুমতি যাচাই হয়নি');
+        currentAccess = { role: 'Pending', status: 'pending' };
+        return currentAccess;
+      }
     }
 
     // Start multi-tab IndexedDB persistence before any Firestore reads or listeners.
@@ -3384,6 +3708,82 @@
       }, err => handleFirestoreSyncError('প্রি-সেট', err));
       firestoreUnsubscribers.push(unsubPresets);
     }
+    function stopBusinessListeners() {
+      businessUnsubscribers.forEach(unsubscribe => { try { unsubscribe(); } catch (error) { } });
+      businessUnsubscribers = [];
+    }
+
+    function stopUserDataListeners() {
+      firestoreUnsubscribers.forEach(unsubscribe => { try { unsubscribe(); } catch (error) { } });
+      firestoreUnsubscribers = [];
+      stopBusinessListeners();
+    }
+
+    async function ensureBusinessWorkspace() {
+      const businessRef = getBusinessRef();
+      try {
+        const snapshot = await businessRef.get();
+        if (!snapshot.exists) {
+          await businessRef.set({
+            name: BUSINESS.name,
+            operationalCashBalance: Math.max(0, registerCashTotal()),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+        }
+      } catch (error) {
+        showFirestoreOperationError(error, 'ব্যবসার সেটেলমেন্ট হিসাব লোড হয়নি');
+      }
+    }
+
+    function startRoleSession(user, access) {
+      if (!user || currentUserId !== user.uid) return;
+      currentAccess = access;
+      applyRoleVisibility();
+      if (access.role !== 'Admin' && access.role !== 'Partner/Staff') {
+        stopUserDataListeners();
+        return;
+      }
+
+      if (access.role === 'Partner/Staff') {
+        stopUserDataListeners();
+        void attachPartnerListeners(user.uid);
+        return;
+      }
+
+      void attachFirestoreListeners(user.uid).catch(error => handleFirestoreSyncError('ডেটা', error));
+      if (isMasterAdmin(user)) {
+        void ensureBusinessWorkspace().then(() => attachAdminManagementListeners());
+      } else {
+        stopBusinessListeners();
+      }
+    }
+
+    function watchAccountProfile(user) {
+      if (isMasterAdmin(user)) return;
+      if (accountProfileUnsubscribe) accountProfileUnsubscribe();
+      const profileRef = getUserRef(user.uid);
+      accountProfileUnsubscribe = profileRef.onSnapshot(snapshot => {
+        if (currentUserId !== user.uid || !snapshot.exists) return;
+        const profile = snapshot.data();
+        const nextAccess = {
+          ...profile,
+          role: profile.accountStatus === 'approved' && ['Admin', 'Partner/Staff'].includes(profile.role)
+            ? profile.role
+            : 'Pending',
+          status: profile.accountStatus || 'pending'
+        };
+        const roleChanged = nextAccess.role !== currentAccess.role || nextAccess.status !== currentAccess.status;
+        const shareChanged = nextAccess.sharePercent !== currentAccess.sharePercent;
+        currentAccess = nextAccess;
+        if (roleChanged) {
+          startRoleSession(user, nextAccess);
+          if (nextAccess.role !== 'Pending') showToast('আপনার অ্যাকাউন্ট অনুমোদিত হয়েছে ✓');
+        } else if (shareChanged && nextAccess.role === 'Partner/Staff') {
+          renderPartnerDashboard();
+        }
+      }, error => handleFirestoreSyncError('অনুমোদন', error));
+    }
 
     // Process redirect login if applicable
     auth.getRedirectResult().then(result => {
@@ -3397,40 +3797,419 @@
 
     // Authentication State Listener — guard against re-entrant loops so the dashboard renders once and only once per session
     let authBootstrapped = false;
-    auth.onAuthStateChanged(user => {
+    auth.onAuthStateChanged(async user => {
       if (user) {
         const alreadyRendered = authBootstrapped && currentUserId === user.uid;
         currentUser = user;
         currentUserId = user.uid;
+        updateAccessGate('অ্যাকাউন্টের অনুমতি যাচাই হচ্ছে...', 'অ্যাকাউন্ট যাচাই');
         renderAuthUI(user);
         if (!alreadyRendered) {
-          void attachFirestoreListeners(user.uid).catch(error => handleFirestoreSyncError('ডেটা', error));
           applyBusinessBranding();
-          showToast('স্বাগতম, ' + (user.displayName || user.email) + '! ক্লাউড ডাটা সিঙ্ক সক্রিয়');
+          const access = await resolveUserAccess(user);
+          if (auth.currentUser && auth.currentUser.uid === user.uid) {
+            startRoleSession(user, access);
+            if (!alreadyRendered && access.role !== 'Pending') {
+              showToast('স্বাগতম, ' + (user.displayName || user.email) + '!');
+            }
+            watchAccountProfile(user);
+          }
         }
         authBootstrapped = true;
-        // Authenticated: immediately dismiss login modal & clear any "dismissed" flag — never loop back to login state
         sessionStorage.removeItem('pos_auth_modal_dismissed');
         closeAuthModal();
       } else {
         currentUser = null;
         currentUserId = null;
+        currentAccess = { role: 'Pending', status: 'pending' };
+        if (accountProfileUnsubscribe) {
+          accountProfileUnsubscribe();
+          accountProfileUnsubscribe = null;
+        }
         authBootstrapped = false;
         firestoreSnapshotStates = Object.create(null);
         if (firestoreReconnectTimer) {
           clearTimeout(firestoreReconnectTimer);
           firestoreReconnectTimer = null;
         }
-        firestoreUnsubscribers.forEach(unsub => { try { unsub(); } catch (e) { } });
-        firestoreUnsubscribers = [];
+        stopUserDataListeners();
         renderAuthUI(null);
         applyBusinessBranding();
+        updateAccessGate('POS ব্যবহার করতে সাইন-ইন করুন।', 'সাইন-ইন প্রয়োজন');
         // Prompt login modal on initial app launch if not dismissed in this session
         if (!sessionStorage.getItem('pos_auth_modal_dismissed')) {
           setTimeout(() => openAuthModal(), 400);
         }
       }
     });
+
+    let adminMembers = [];
+    let adminPartnerSales = [];
+    let adminPartnerExpenses = [];
+    let adminSettlements = [];
+    let adminUserProfiles = [];
+
+    async function attachPartnerListeners(uid) {
+      await firestorePersistenceReady;
+      if (currentUserId !== uid || currentAccess.role !== 'Partner/Staff') return;
+      stopBusinessListeners();
+      partnerSales = [];
+      partnerExpenses = [];
+      partnerSettlements = [];
+      renderPartnerDashboard();
+      const salesUnsubscribe = getPartnerSalesRef().where('partnerUid', '==', uid)
+        .onSnapshot(snapshot => {
+          partnerSales = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }))
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          renderPartnerDashboard();
+        }, error => handleFirestoreSyncError('পার্টনার বিক্রয়', error));
+      const expensesUnsubscribe = getPartnerExpensesRef().where('partnerUid', '==', uid)
+        .onSnapshot(snapshot => {
+          partnerExpenses = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }))
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          renderPartnerDashboard();
+        }, error => handleFirestoreSyncError('পার্টনার খরচ', error));
+      const settlementsUnsubscribe = getBusinessRef().collection('settlements').where('partnerUid', '==', uid)
+        .onSnapshot(snapshot => {
+          partnerSettlements = snapshot.docs.map(doc => doc.data());
+          renderPartnerDashboard();
+        }, error => handleFirestoreSyncError('পার্টনার সেটেলমেন্ট', error));
+      const businessUnsubscribe = getBusinessRef().onSnapshot(snapshot => {
+        if (!snapshot.exists) return;
+        businessCashBalance = Math.max(0, safeNum(snapshot.data().operationalCashBalance));
+        renderPartnerDashboard();
+      }, error => handleFirestoreSyncError('অপারেশনাল ক্যাশ', error));
+      businessUnsubscribers.push(salesUnsubscribe, expensesUnsubscribe, settlementsUnsubscribe, businessUnsubscribe);
+      const dateInput = document.getElementById('partnerHistoryDate');
+      if (dateInput && !dateInput.value) dateInput.value = localDateKey();
+    }
+
+    function renderPartnerDashboard() {
+      const dayInput = document.getElementById('partnerHistoryDate');
+      const selectedDay = dayInput && dayInput.value;
+      const selectedSales = partnerSales.filter(sale => !selectedDay || localDateKey(sale.date) === selectedDay);
+      const today = localDateKey();
+      const todaySales = partnerSales.filter(sale => localDateKey(sale.date) === today);
+      const todayTotal = todaySales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
+      const todayPartnerShare = todaySales.reduce((sum, sale) => sum + safeNum(sale.partnerShare), 0);
+      const todayOwnerShare = todaySales.reduce((sum, sale) => sum + safeNum(sale.ownerShare), 0);
+      const partnerPercent = Math.min(100, Math.max(0, safeNum(currentAccess.sharePercent ?? 40)));
+      const settledSales = new Set(partnerSettlements.flatMap(settlement => settlement.salesIds || []));
+      const settledExpenses = new Set(partnerSettlements.flatMap(settlement => settlement.expenseIds || []));
+      const pendingCash = partnerSales.filter(sale => !settledSales.has(sale.docId)).reduce((sum, sale) => sum + safeNum(sale.total), 0)
+        - partnerExpenses.filter(expense => !settledExpenses.has(expense.docId)).reduce((sum, expense) => sum + safeNum(expense.amount), 0);
+      document.getElementById('partnerTodaySales').textContent = formatMoney(todayTotal);
+      document.getElementById('partnerTodayShare').textContent = formatMoney(todayPartnerShare);
+      document.getElementById('ownerTodayShare').textContent = formatMoney(todayOwnerShare);
+      document.getElementById('partnerSharePercent').textContent = toBnNum(partnerPercent);
+      document.getElementById('ownerSharePercent').textContent = toBnNum(100 - partnerPercent);
+      document.getElementById('partnerPendingCash').textContent = formatMoney(Math.max(0, pendingCash));
+
+      const salesList = document.getElementById('partnerSalesHistory');
+      salesList.innerHTML = selectedSales.length ? selectedSales.map(sale => `
+        <div class="role-record">
+          <strong>${escapeHtml(sale.customer || 'কাস্টমার')}</strong> · ${formatMoney(sale.total)}
+          <div>${escapeHtml(sale.phone || 'ফোন নেই')} · ${formatDate(sale.date)}</div>
+          <div>${(sale.items || []).map(item => `${escapeHtml(item.name)} × ${toBnNum(item.qty)}`).join(', ')}</div>
+          <div>আমার অংশ ${formatMoney(sale.partnerShare)} · মালিকের অংশ ${formatMoney(sale.ownerShare)} · ${settledSales.has(sale.docId) ? 'হস্তান্তরিত' : 'হস্তান্তর বাকি'}</div>
+        </div>`).join('') : '<div class="empty">এই তারিখে কোনো বিক্রির রেকর্ড নেই</div>';
+      const expenseList = document.getElementById('partnerExpensesHistory');
+      expenseList.innerHTML = partnerExpenses.length ? partnerExpenses.map(expense => `
+        <div class="role-record">${escapeHtml(expense.description)} · ${toBnNum(expense.qty)} × ${formatMoney(safeNum(expense.amount) / Math.max(1, safeNum(expense.qty)))} = ${formatMoney(expense.amount)}
+          <div>${formatDate(expense.date)} · ${settledExpenses.has(expense.docId) ? 'হিসাবে যুক্ত' : 'হস্তান্তর বাকি'}</div>
+        </div>`).join('') : '<div class="empty">কোনো খরচের রেকর্ড নেই</div>';
+    }
+
+    function savePartnerSale(event) {
+      event.preventDefault();
+      if (currentAccess.role !== 'Partner/Staff' || !currentUserId) return showToast(PENDING_APPROVAL_MESSAGE, 'error');
+      const customer = document.getElementById('partnerCustomer').value.trim();
+      const phone = document.getElementById('partnerPhone').value.trim();
+      const itemName = document.getElementById('partnerItemName').value.trim();
+      const qty = Math.floor(safeNum(document.getElementById('partnerItemQty').value));
+      const total = Number(safeNum(document.getElementById('partnerSaleTotal').value).toFixed(2));
+      const costTotal = Number(safeNum(document.getElementById('partnerSaleCost').value).toFixed(2));
+      if (!customer || !itemName || qty < 1 || total <= 0 || costTotal < 0 || costTotal > total) {
+        return showToast('কাস্টমার, আইটেম, পরিমাণ ও সঠিক বিক্রয়/কস্ট লিখুন। কস্ট বিক্রয়ের বেশি হতে পারবে না।', 'error');
+      }
+      const sharePercent = Math.min(100, Math.max(0, safeNum(currentAccess.sharePercent ?? 40)));
+      const profit = Math.max(0, Number((total - costTotal).toFixed(2)));
+      const partnerShare = Number((profit * sharePercent / 100).toFixed(2));
+      const saleId = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+      const sale = {
+        id: saleId,
+        partnerUid: currentUserId,
+        partnerEmail: currentUser.email || '',
+        customer,
+        phone,
+        items: [{ name: itemName, qty, price: total / qty, costPrice: costTotal / qty, total, costTotal }],
+        subtotal: total,
+        discount: 0,
+        total,
+        costTotal,
+        netProfit: profit,
+        profitSharePercent: sharePercent,
+        partnerShare,
+        ownerShare: Number((profit - partnerShare).toFixed(2)),
+        invoiceNo: 'P-' + saleId,
+        date: new Date().toISOString(),
+        settled: false,
+        createdAt: new Date().toISOString()
+      };
+      try {
+        const batch = db.batch();
+        batch.set(getPartnerSalesRef().doc(saleId), sale);
+        batch.update(getBusinessRef(), {
+          operationalCashBalance: firebase.firestore.FieldValue.increment(total),
+          lastLedgerId: saleId,
+          lastLedgerType: 'partner_sale',
+          updatedAt: new Date().toISOString()
+        });
+        trackFirestoreWrite(() => batch.commit(), 'পার্টনার বিক্রয়');
+        document.getElementById('partnerSaleForm').reset();
+        document.getElementById('partnerItemQty').value = '1';
+        document.getElementById('partnerSaleCost').value = '0';
+        showToast('বিক্রয় সংরক্ষিত হয়েছে · ক্যাশ ব্যালেন্স আপডেট হচ্ছে');
+      } catch (error) {
+        showFirestoreOperationError(error, 'বিক্রয় সংরক্ষণ হয়নি');
+      }
+    }
+
+    function savePartnerExpense(event) {
+      event.preventDefault();
+      if (currentAccess.role !== 'Partner/Staff' || !currentUserId) return showToast(PENDING_APPROVAL_MESSAGE, 'error');
+      const description = document.getElementById('partnerExpenseDescription').value.trim();
+      const qty = Math.floor(safeNum(document.getElementById('partnerExpenseQty').value));
+      const amount = Number(safeNum(document.getElementById('partnerExpenseAmount').value).toFixed(2));
+      if (!description || qty < 1 || amount <= 0) return showToast('খরচের বিবরণ, পরিমাণ ও সঠিক অঙ্ক লিখুন।', 'error');
+      if (amount > businessCashBalance) return showToast('অপারেশনাল ক্যাশে পর্যাপ্ত ব্যালেন্স নেই।', 'error');
+      const expenseId = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+      const expense = {
+        id: expenseId,
+        partnerUid: currentUserId,
+        partnerEmail: currentUser.email || '',
+        description,
+        qty,
+        amount,
+        date: new Date().toISOString(),
+        settled: false,
+        createdAt: new Date().toISOString()
+      };
+      try {
+        const batch = db.batch();
+        batch.set(getPartnerExpensesRef().doc(expenseId), expense);
+        batch.update(getBusinessRef(), {
+          operationalCashBalance: firebase.firestore.FieldValue.increment(-amount),
+          lastLedgerId: expenseId,
+          lastLedgerType: 'partner_expense',
+          updatedAt: new Date().toISOString()
+        });
+        trackFirestoreWrite(() => batch.commit(), 'পার্টনার খরচ');
+        document.getElementById('partnerExpenseForm').reset();
+        document.getElementById('partnerExpenseQty').value = '1';
+        showToast('খরচ সংরক্ষিত হয়েছে · অপারেশনাল ক্যাশ থেকে কাটা হচ্ছে');
+      } catch (error) {
+        showFirestoreOperationError(error, 'খরচ সংরক্ষণ হয়নি');
+      }
+    }
+
+    function attachAdminManagementListeners() {
+      stopBusinessListeners();
+      const listeners = [
+        db.collection('users').onSnapshot(snapshot => {
+          adminUserProfiles = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+          renderAdminManagement();
+        }, error => handleFirestoreSyncError('অ্যাকাউন্ট তালিকা', error)),
+        getMembersRef().onSnapshot(snapshot => {
+          adminMembers = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+          renderAdminManagement();
+        }, error => handleFirestoreSyncError('পার্টনার তালিকা', error)),
+        getPartnerSalesRef().onSnapshot(snapshot => {
+          adminPartnerSales = snapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
+          renderAdminManagement();
+        }, error => handleFirestoreSyncError('পার্টনার বিক্রয়', error)),
+        getPartnerExpensesRef().onSnapshot(snapshot => {
+          adminPartnerExpenses = snapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
+          renderAdminManagement();
+        }, error => handleFirestoreSyncError('পার্টনার খরচ', error)),
+        getBusinessRef().collection('settlements').onSnapshot(snapshot => {
+          adminSettlements = snapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
+          renderAdminManagement();
+        }, error => handleFirestoreSyncError('পার্টনার সেটেলমেন্ট', error)),
+        getBusinessRef().onSnapshot(snapshot => {
+          if (snapshot.exists) businessCashBalance = Math.max(0, safeNum(snapshot.data().operationalCashBalance));
+          renderAdminManagement();
+        }, error => handleFirestoreSyncError('অপারেশনাল ক্যাশ', error))
+      ];
+      businessUnsubscribers.push(...listeners);
+    }
+
+    function renderAdminManagement() {
+      if (!isMasterAdmin()) return;
+      const pendingUsers = adminUserProfiles.filter(profile => profile.uid !== currentUserId
+        && profile.accountStatus !== 'approved');
+      const pendingList = document.getElementById('pendingUsersList');
+      pendingList.innerHTML = pendingUsers.length ? pendingUsers.map(profile => `
+        <div class="role-row">
+          <div><strong>${escapeHtml(profile.displayName || profile.email || profile.uid)}</strong><div>${escapeHtml(profile.email || '')}</div></div>
+          <div class="role-actions">
+            <select id="approval-role-${escapeHtml(profile.uid)}" aria-label="অনুমোদনের ভূমিকা">
+              <option value="Partner/Staff">Partner/Staff</option><option value="Admin">Admin</option>
+            </select>
+            <button type="button" onclick="approveAccount('${escapeHtml(profile.uid)}')">অনুমোদন</button>
+          </div>
+        </div>`).join('') : '<div class="empty">অনুমোদনের অপেক্ষায় কোনো অ্যাকাউন্ট নেই</div>';
+
+      const activeMembers = adminMembers.filter(member => member.status === 'active');
+      const membersList = document.getElementById('adminPartnersList');
+      const partnerRows = activeMembers.map(member => {
+        const sales = adminPartnerSales.filter(sale => sale.partnerUid === member.uid);
+        const expenses = adminPartnerExpenses.filter(expense => expense.partnerUid === member.uid);
+        const memberSettlements = adminSettlements.filter(settlement => settlement.partnerUid === member.uid);
+        const settledSales = new Set(memberSettlements.flatMap(settlement => settlement.salesIds || []));
+        const settledExpenses = new Set(memberSettlements.flatMap(settlement => settlement.expenseIds || []));
+        const unsettledSales = sales.filter(sale => !settledSales.has(sale.docId));
+        const unsettledExpenses = expenses.filter(expense => !settledExpenses.has(expense.docId));
+        const allSalesAmount = sales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
+        const pending = Math.max(0,
+          unsettledSales.reduce((sum, sale) => sum + safeNum(sale.total), 0)
+          - unsettledExpenses.reduce((sum, expense) => sum + safeNum(expense.amount), 0));
+        const itemCount = sales.reduce((sum, sale) => sum + (sale.items || []).reduce((count, item) => count + safeNum(item.qty), 0), 0);
+        const details = sales.map(sale => `${escapeHtml(sale.customer || '')} (${escapeHtml(sale.phone || '')}): ${(sale.items || []).map(item => `${escapeHtml(item.name)} × ${toBnNum(item.qty)}`).join(', ')} · ${formatMoney(sale.total)}${settledSales.has(sale.docId) ? ' · হস্তান্তরিত' : ''}`).join('<br>');
+        const disabled = unsettledSales.length + unsettledExpenses.length && !settlingPartnerIds.has(member.uid) ? '' : 'disabled';
+        return `<div class="role-record">
+          <strong>${escapeHtml(member.displayName || member.email || member.uid)}</strong> · ${escapeHtml(member.email || '')}
+          <div>সর্বমোট বিক্রি ${formatMoney(allSalesAmount)} · আইটেম ${toBnNum(itemCount)} · হস্তান্তর বাকি ${formatMoney(pending)}</div>
+          <div>অপারেশনাল ক্যাশ ${formatMoney(businessCashBalance)} · ${details || 'নতুন কোনো বাকি বিক্রি নেই'}</div>
+          <div class="role-actions" style="margin-top:8px;">
+            <label>লাভের ভাগ % <input id="share-${escapeHtml(member.uid)}" type="number" min="0" max="100" value="${Math.min(100, Math.max(0, safeNum(member.sharePercent ?? 40)))}"></label>
+            <button type="button" onclick="savePartnerShare('${escapeHtml(member.uid)}')">ভাগ সংরক্ষণ</button>
+            <button type="button" ${disabled} onclick="markPartnerPaid('${escapeHtml(member.uid)}')">বুঝে পেলাম / Mark as Paid</button>
+          </div>
+        </div>`;
+      });
+      membersList.innerHTML = partnerRows.length ? partnerRows.join('') : '<div class="empty">কোনো সক্রিয় পার্টনার নেই</div>';
+    }
+
+    async function approveAccount(uid) {
+      if (!isMasterAdmin()) return showToast('শুধু মাস্টার অ্যাডমিন অনুমোদন দিতে পারবেন।', 'error');
+      if (!navigator.onLine) return showToast('ইন্টারনেট নেই। অনুমোদনের জন্য সংযোগ ফিরে এলে আবার চেষ্টা করুন।', 'error');
+      const roleSelect = document.getElementById('approval-role-' + uid);
+      const role = roleSelect && roleSelect.value === 'Admin' ? 'Admin' : 'Partner/Staff';
+      const profile = adminUserProfiles.find(item => item.uid === uid);
+      if (!profile) return showToast('অ্যাকাউন্টের তথ্য পাওয়া যায়নি।', 'error');
+      try {
+        const batch = db.batch();
+        batch.set(getUserRef(uid), {
+          accountStatus: 'approved', role, tenantId: BUSINESS_TENANT_ID,
+          approvedBy: currentUser.email, approvedAt: new Date().toISOString()
+        }, { merge: true });
+        const memberRef = getMembersRef().doc(uid);
+        if (role === 'Partner/Staff') {
+          batch.set(memberRef, {
+            uid, email: profile.email || '', displayName: profile.displayName || '',
+            role, status: 'active', sharePercent: 40, ownerSharePercent: 60,
+            approvedAt: new Date().toISOString()
+          }, { merge: true });
+        } else {
+          batch.delete(memberRef);
+        }
+        await batch.commit();
+        showToast('অ্যাকাউন্ট অনুমোদিত হয়েছে ✓');
+      } catch (error) {
+        showFirestoreOperationError(error, 'অ্যাকাউন্ট অনুমোদন হয়নি');
+      }
+    }
+
+    async function savePartnerShare(uid) {
+      if (!isMasterAdmin()) return;
+      if (!navigator.onLine) return showToast('ইন্টারনেট নেই। লাভের ভাগ সংরক্ষণ করতে সংযোগ ফিরে এলে আবার চেষ্টা করুন।', 'error');
+      const input = document.getElementById('share-' + uid);
+      const percent = safeNum(input && input.value);
+      if (percent < 0 || percent > 100) return showToast('লাভের ভাগ ০ থেকে ১০০-এর মধ্যে হতে হবে।', 'error');
+      try {
+        await getMembersRef().doc(uid).update({
+          sharePercent: percent,
+          ownerSharePercent: 100 - percent,
+          updatedAt: new Date().toISOString()
+        });
+        const profile = adminUserProfiles.find(item => item.uid === uid);
+        if (profile) await getUserRef(uid).update({ sharePercent: percent, ownerSharePercent: 100 - percent });
+        showToast('লাভের ভাগ সংরক্ষিত হয়েছে ✓');
+      } catch (error) {
+        showFirestoreOperationError(error, 'লাভের ভাগ সংরক্ষণ হয়নি');
+      }
+    }
+
+    async function markPartnerPaid(uid) {
+      if (!isMasterAdmin()) return showToast('শুধু মাস্টার অ্যাডমিন সেটেলমেন্ট করতে পারবেন।', 'error');
+      if (!navigator.onLine) return showToast('ইন্টারনেট নেই। সেটেলমেন্টের জন্য সংযোগ ফিরে এলে আবার চেষ্টা করুন।', 'error');
+      if (settlingPartnerIds.has(uid)) return;
+      const priorSettlements = adminSettlements.filter(settlement => settlement.partnerUid === uid);
+      const settledSales = new Set(priorSettlements.flatMap(settlement => settlement.salesIds || []));
+      const settledExpenses = new Set(priorSettlements.flatMap(settlement => settlement.expenseIds || []));
+      const sales = adminPartnerSales.filter(sale => sale.partnerUid === uid && !settledSales.has(sale.docId));
+      const expensesForSettlement = adminPartnerExpenses.filter(expense => expense.partnerUid === uid && !settledExpenses.has(expense.docId));
+      if (!sales.length && !expensesForSettlement.length) return showToast('সেটেল করার মতো কোনো বাকি রেকর্ড নেই।', 'error');
+      settlingPartnerIds.add(uid);
+      renderAdminManagement();
+      const settlementId = uid + '-' + (sales[0] ? sales[0].docId : expensesForSettlement[0].docId);
+      const totalSales = sales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
+      const totalExpenses = expensesForSettlement.reduce((sum, expense) => sum + safeNum(expense.amount), 0);
+      const entries = [
+        ...sales.map(sale => ({ type: 'sale', record: sale })),
+        ...expensesForSettlement.map(expense => ({ type: 'expense', record: expense }))
+      ];
+      try {
+        for (let offset = 0; offset < entries.length; offset += 200) {
+          const batch = db.batch();
+          entries.slice(offset, offset + 200).forEach(({ type, record }, index) => {
+            if (type === 'sale') {
+              const invoiceId = Date.now() + offset + index;
+              const ownerInvoice = {
+                ...record,
+                id: invoiceId,
+                invoiceNo: record.invoiceNo || 'PARTNER-' + record.docId,
+                partnerUid: uid,
+                sourcePartnerSaleId: record.docId,
+                settled: true,
+                settlementId,
+                settlementAt: new Date().toISOString()
+              };
+              batch.set(getSalesRef().doc('partner-' + uid + '-' + record.docId), ownerInvoice, { merge: true });
+            } else {
+              const ownerExpense = {
+                id: Date.now() + offset + index,
+                category: 'পার্টনার খরচ',
+                desc: record.description,
+                items: [{ category: 'পার্টনার খরচ', desc: record.description, qty: record.qty, amount: record.amount }],
+                amount: safeNum(record.amount),
+                source: 'cash',
+                sourceLabel: 'পার্টনার ক্যাশ',
+                date: record.date,
+                partnerUid: uid,
+                sourcePartnerExpenseId: record.docId,
+                settlementId
+              };
+              batch.set(getExpensesRef().doc('partner-' + uid + '-' + record.docId), ownerExpense, { merge: true });
+            }
+          });
+          await batch.commit();
+        }
+        await getBusinessRef().collection('settlements').doc(settlementId).set({
+          partnerUid: uid, saleCount: sales.length, expenseCount: expensesForSettlement.length,
+          salesIds: sales.map(sale => sale.docId), expenseIds: expensesForSettlement.map(expense => expense.docId),
+          totalSales, totalExpenses, cashCollected: Math.max(0, totalSales - totalExpenses),
+          settledBy: currentUser.email, createdAt: new Date().toISOString()
+        });
+        showToast('সেটেলমেন্ট সম্পন্ন · ' + formatMoney(Math.max(0, totalSales - totalExpenses)) + ' বুঝে নেওয়া হয়েছে ✓');
+      } catch (error) {
+        showFirestoreOperationError(error, 'সেটেলমেন্ট সম্পূর্ণ হয়নি · বাকি রেকর্ড আবার চেষ্টা করুন');
+      } finally {
+        settlingPartnerIds.delete(uid);
+        renderAdminManagement();
+      }
+    }
 
     window.addEventListener('online', () => {
       firestoreReconnectAttempts = 0;
@@ -3777,8 +4556,8 @@
     }
 
     function calculateRowTotal(row) {
-      const qty = parseFloat(row.querySelector('.itemQty').value) || 0;
-      const price = parseFloat(row.querySelector('.itemPrice').value) || 0;
+      const qty = Math.max(0, safeNum(row.querySelector('.itemQty').value));
+      const price = Math.max(0, safeNum(row.querySelector('.itemPrice').value));
       const total = qty * price;
       const display = row.querySelector('.item-total-display');
       if (display) display.textContent = formatMoney(total);
@@ -3791,7 +4570,7 @@
         subtotal += safeNum(calculateRowTotal(row));
       });
 
-      const discountAmount = parseFloat(document.getElementById('discountAmount').value) || 0;
+      const discountAmount = Math.max(0, parseFloat(document.getElementById('discountAmount').value) || 0);
       const discountType = document.getElementById('discountType').value;
 
       let discount = 0;
@@ -3800,6 +4579,7 @@
       } else {
         discount = discountAmount;
       }
+      discount = Math.min(subtotal, Math.max(0, discount));
 
       const total = Math.max(0, subtotal - discount);
 
@@ -3834,21 +4614,21 @@
     function normalizeInvoiceFinancials(invoice) {
       const costPrices = settings.costPrices || {};
       const items = (Array.isArray(invoice.items) ? invoice.items : []).map(item => {
-        const qty = safeNum(item.qty);
-        const price = safeNum(item.price);
+        const qty = Math.max(0, safeNum(item.qty));
+        const price = Math.max(0, safeNum(item.price));
         const normalized = { ...item, qty, price, total: Number((qty * price).toFixed(2)) };
         if (item.costPrice !== undefined && item.costPrice !== null && item.costPrice !== '') {
-          normalized.costPrice = safeNum(item.costPrice);
+          normalized.costPrice = Math.max(0, safeNum(item.costPrice));
         }
         return normalized;
       });
       const subtotal = items.length
         ? Number(items.reduce((sum, item) => sum + item.total, 0).toFixed(2))
-        : safeNum(invoice.subtotal);
-      const discount = safeNum(invoice.discount);
+        : Math.max(0, safeNum(invoice.subtotal));
+      const discount = Math.min(subtotal, Math.max(0, safeNum(invoice.discount)));
       const total = items.length
         ? Number(Math.max(0, subtotal - discount).toFixed(2))
-        : safeNum(invoice.total);
+        : Math.max(0, safeNum(invoice.total));
       const hasCompleteItemCosts = items.length > 0 && items.every(item =>
         item.costPrice !== undefined || Object.prototype.hasOwnProperty.call(costPrices, item.name));
       const storedCost = invoice.costTotal !== undefined && invoice.costTotal !== null && invoice.costTotal !== ''
@@ -3858,9 +4638,9 @@
           const unitCost = item.costPrice !== undefined
             ? item.costPrice
             : Object.prototype.hasOwnProperty.call(costPrices, item.name) ? costPrices[item.name] : 0;
-          return sum + safeNum(unitCost) * item.qty;
+          return sum + Math.max(0, safeNum(unitCost)) * item.qty;
         }, 0).toFixed(2))
-        : safeNum(invoice.costTotal);
+        : Math.max(0, safeNum(invoice.costTotal));
 
       return {
         ...invoice,
@@ -3891,9 +4671,9 @@
       invoice.items = invoice.items.map(item => {
         const qty = safeNum(item.qty);
         const price = safeNum(item.price);
-        const costPrice = safeNum(item.costPrice !== undefined
+        const costPrice = Math.max(0, safeNum(item.costPrice !== undefined
           ? item.costPrice
-          : Object.prototype.hasOwnProperty.call(costPrices, item.name) ? costPrices[item.name] : 0);
+          : Object.prototype.hasOwnProperty.call(costPrices, item.name) ? costPrices[item.name] : 0));
         const lineTotal = qty * price;
         const itemCost = costPrice * qty;
         costTotal += itemCost;
@@ -3908,7 +4688,7 @@
       });
 
       invoice.subtotal = Number(invoice.items.reduce((sum, item) => sum + safeNum(item.total), 0).toFixed(2));
-      invoice.discount = safeNum(invoice.discount);
+      invoice.discount = Math.min(invoice.subtotal, Math.max(0, safeNum(invoice.discount)));
       invoice.total = Number(Math.max(0, invoice.subtotal - invoice.discount).toFixed(2));
       invoice.costTotal = Number(costTotal.toFixed(2));
       invoice.netProfit = Number((safeNum(invoice.total) - invoice.costTotal).toFixed(2));
@@ -3933,7 +4713,7 @@
       if (!phone) return showToast('ফোন নম্বর দিন', 'error');
 
       const { subtotal, discount, total } = calculateTotal();
-      const discountAmount = parseFloat(document.getElementById('discountAmount').value) || 0;
+      const discountAmount = Math.max(0, parseFloat(document.getElementById('discountAmount').value) || 0);
       const discountType = document.getElementById('discountType').value;
 
       const isEdit = Boolean(editingInvoiceId);
@@ -4577,6 +5357,9 @@
 
     // ===== Settings =====
     function openSettings() {
+      if (currentAccess.role === 'Partner/Staff') {
+        return showToast('পার্টনার অ্যাকাউন্ট থেকে ব্যবসার সেটিংস খোলা যাবে না।', 'error');
+      }
       populateSettingsFormFromCurrent();
       document.getElementById('settingsModal').classList.add('active');
     }

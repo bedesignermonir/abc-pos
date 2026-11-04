@@ -1,38 +1,163 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Multi-tenant isolation: Each merchant's data is strictly partitioned by their authenticated Google UID.
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMasterAdmin() {
+      return signedIn()
+        && request.auth.token.email == 'clkmonir@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    function isApprovedAdmin() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountStatus == 'approved'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+
+    function canManageTenant() {
+      return isMasterAdmin() || isApprovedAdmin();
+    }
+
+    function isActivePartner(tenantId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/businesses/$(tenantId)/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/businesses/$(tenantId)/members/$(request.auth.uid)).data.status == 'active';
+    }
+
+    function matchingSaleLedger(tenantId) {
+      let salePath = /databases/$(database)/documents/businesses/$(tenantId)/partner_sales/$(request.resource.data.lastLedgerId);
+      return request.resource.data.lastLedgerType == 'partner_sale'
+        && !exists(salePath)
+        && existsAfter(salePath)
+        && getAfter(salePath).data.partnerUid == request.auth.uid
+        && request.resource.data.operationalCashBalance
+          == resource.data.operationalCashBalance + getAfter(salePath).data.total;
+    }
+
+    function matchingExpenseLedger(tenantId) {
+      let expensePath = /databases/$(database)/documents/businesses/$(tenantId)/partner_expenses/$(request.resource.data.lastLedgerId);
+      return request.resource.data.lastLedgerType == 'partner_expense'
+        && !exists(expensePath)
+        && existsAfter(expensePath)
+        && getAfter(expensePath).data.partnerUid == request.auth.uid
+        && request.resource.data.operationalCashBalance
+          == resource.data.operationalCashBalance - getAfter(expensePath).data.amount;
+    }
+
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if signedIn() && (request.auth.uid == userId || isMasterAdmin());
+      allow list: if isMasterAdmin();
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.accountStatus == 'Pending Approval'
+        && request.resource.data.role == 'Pending'
+        && request.resource.data.tenantId == 'abc-computer';
+      allow update: if isMasterAdmin()
+        || (signedIn() && request.auth.uid == userId
+          && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL'])
+            || (!resource.data.keys().hasAny(['accountStatus'])
+              && request.resource.data.accountStatus == 'Pending Approval'
+              && request.resource.data.role == 'Pending'
+              && request.resource.data.tenantId == 'abc-computer')));
+      allow delete: if isMasterAdmin();
 
-      // Invoices / Sales
-      match /sales/{saleId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+      match /sales/{recordId} {
+        allow read, write: if isMasterAdmin() || (request.auth.uid == userId && isApprovedAdmin());
       }
 
-      // Expenses
-      match /expenses/{expenseId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+      match /expenses/{recordId} {
+        allow read, write: if isMasterAdmin() || (request.auth.uid == userId && isApprovedAdmin());
       }
 
-      // Creditors / Loans
-      match /creditors/{creditorId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+      match /creditors/{recordId} {
+        allow read, write: if isMasterAdmin() || (request.auth.uid == userId && isApprovedAdmin());
       }
 
-      // Daily Cash Register & Denominations
-      match /cash_register/{cashId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+      match /cash_register/{recordId} {
+        allow read, write: if isMasterAdmin() || (request.auth.uid == userId && isApprovedAdmin());
       }
 
-      // Merchant Settings & Business Details
       match /settings/{settingId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isMasterAdmin() || (request.auth.uid == userId && isApprovedAdmin());
+      }
+    }
+
+    match /businesses/{tenantId} {
+      allow read: if canManageTenant() || isActivePartner(tenantId);
+      allow create, delete: if isMasterAdmin();
+      allow update: if isMasterAdmin()
+        || (isActivePartner(tenantId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'operationalCashBalance', 'lastLedgerId', 'lastLedgerType', 'updatedAt'
+          ])
+          && request.resource.data.operationalCashBalance >= 0
+          && (matchingSaleLedger(tenantId) || matchingExpenseLedger(tenantId)));
+
+      match /members/{memberId} {
+        allow read, write: if isMasterAdmin();
       }
 
-      // Catch-all subcollections under the user document
-      match /{document=**} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+      match /partner_sales/{saleId} {
+        allow read: if canManageTenant()
+          || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
+        allow create: if isActivePartner(tenantId)
+          && request.resource.data.keys().hasAll([
+            'partnerUid', 'partnerEmail', 'customer', 'phone', 'items', 'subtotal', 'discount',
+            'total', 'costTotal', 'netProfit', 'profitSharePercent', 'partnerShare', 'ownerShare',
+            'invoiceNo', 'date', 'settled', 'createdAt'
+          ])
+          && request.resource.data.partnerUid == request.auth.uid
+          && request.resource.data.customer is string
+          && request.resource.data.customer.size() > 0
+          && request.resource.data.items is list
+          && request.resource.data.items.size() == 1
+          && request.resource.data.items[0].qty > 0
+          && request.resource.data.items[0].total == request.resource.data.total
+          && request.resource.data.items[0].costTotal == request.resource.data.costTotal
+          && request.resource.data.settled == false
+          && request.resource.data.total > 0
+          && request.resource.data.costTotal >= 0
+          && request.resource.data.costTotal <= request.resource.data.total
+          && request.resource.data.partnerShare >= 0
+          && request.resource.data.ownerShare >= 0
+          && request.resource.data.netProfit == request.resource.data.total - request.resource.data.costTotal
+          && request.resource.data.profitSharePercent
+            == get(/databases/$(database)/documents/businesses/$(tenantId)/members/$(request.auth.uid)).data.sharePercent
+          && request.resource.data.partnerShare - (request.resource.data.netProfit * request.resource.data.profitSharePercent / 100) < 0.011
+          && request.resource.data.partnerShare - (request.resource.data.netProfit * request.resource.data.profitSharePercent / 100) > -0.011
+          && request.resource.data.ownerShare == request.resource.data.netProfit - request.resource.data.partnerShare
+          && existsAfter(/databases/$(database)/documents/businesses/$(tenantId))
+          && getAfter(/databases/$(database)/documents/businesses/$(tenantId)).data.lastLedgerType == 'partner_sale'
+          && getAfter(/databases/$(database)/documents/businesses/$(tenantId)).data.lastLedgerId == saleId;
+        allow update, delete: if canManageTenant();
+      }
+
+      match /partner_expenses/{expenseId} {
+        allow read: if canManageTenant()
+          || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
+        allow create: if isActivePartner(tenantId)
+          && request.resource.data.keys().hasAll([
+            'partnerUid', 'partnerEmail', 'description', 'qty', 'amount', 'date', 'settled', 'createdAt'
+          ])
+          && request.resource.data.partnerUid == request.auth.uid
+          && request.resource.data.description is string
+          && request.resource.data.description.size() > 0
+          && request.resource.data.settled == false
+          && request.resource.data.qty > 0
+          && request.resource.data.amount > 0
+          && existsAfter(/databases/$(database)/documents/businesses/$(tenantId))
+          && getAfter(/databases/$(database)/documents/businesses/$(tenantId)).data.lastLedgerType == 'partner_expense'
+          && getAfter(/databases/$(database)/documents/businesses/$(tenantId)).data.lastLedgerId == expenseId;
+        allow update, delete: if canManageTenant();
+      }
+
+      match /settlements/{settlementId} {
+        allow read: if canManageTenant()
+          || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
+        allow create, update, delete: if canManageTenant();
       }
     }
   }
