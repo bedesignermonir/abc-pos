@@ -3,9 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="এবিসি কম্পিউটার পস — ক্লাউড-ভিত্তিক মাল্টি-টেন্যান্ট হিসাব রক্ষণ সফটওয়্যার।">
 <meta name="theme-color" content="#0f172a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ABC POS">
 <link rel="manifest" href="./manifest.json">
 <link rel="icon" href="./app-icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="./app-icon-180.png">
@@ -1074,15 +1076,6 @@ body {
       <span>Google (Gmail) দিয়ে চালিয়ে যান</span>
     </button>
 
-    <div id="browserLoginSection" style="display:none;margin-top:12px;">
-      <button type="button" onclick="openHostedAppInBrowser()" style="width:100%;background:var(--primary);color:white;border:none;border-radius:12px;padding:13px 18px;font-size:14px;font-weight:700;cursor:pointer;">
-        ব্রাউজারে ওপেন করুন
-      </button>
-      <p style="color:var(--gray-500);font-size:12px;line-height:1.5;margin:10px 0 0;">
-        ব্রাউজারে সাইন ইন করলে সেখানে আপনার ক্লাউড হিসাব ব্যবহার করতে পারবেন।
-      </p>
-    </div>
-
     <button type="button" onclick="closeAuthModal()" style="background:none;border:none;color:var(--gray-500);font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;margin-top:16px;">
       এখন নয়
     </button>
@@ -1508,35 +1501,9 @@ function applyBusinessBranding() {
 
 }
 
-const HOSTED_APP_URL = 'https://bedesignermonir.github.io/abc-pos/';
-
-function isRestrictedGoogleAuthEnvironment() {
-  return (window.location.protocol === 'file:' || isAndroidWebView()) && !hasNativeGoogleSignIn();
-}
-
-function updateAuthModalForEnvironment() {
-  const restricted = isRestrictedGoogleAuthEnvironment();
-  const googleButton = document.getElementById('googleSignInModalBtn');
-  const browserSection = document.getElementById('browserLoginSection');
-  if (googleButton) googleButton.style.display = restricted ? 'none' : 'flex';
-  if (browserSection) browserSection.style.display = restricted ? 'block' : 'none';
-}
-
 function openAuthModal() {
-  updateAuthModalForEnvironment();
   const modal = document.getElementById('authLoginModal');
   if (modal) modal.classList.add('active');
-}
-
-function openHostedAppInBrowser() {
-  if (window.AndroidApp && typeof window.AndroidApp.openHostedApp === 'function') {
-    window.AndroidApp.openHostedApp();
-    return;
-  }
-  const browserWindow = window.open(HOSTED_APP_URL, '_blank');
-  if (!browserWindow) {
-    showToast('এই লিংকটি খুলতে পপ-আপ অনুমতি দিন: ' + HOSTED_APP_URL, 'error');
-  }
 }
 
 function closeAuthModal() {
@@ -1626,96 +1593,42 @@ function renderAuthUI(user) {
   }
 }
 
-function isAndroidWebView() {
-  const userAgent = navigator.userAgent || '';
-  return Boolean(window.AndroidApp) || (/Android/i.test(userAgent) && /\bwv\b/i.test(userAgent));
-}
-
-function hasNativeGoogleSignIn() {
-  return Boolean(window.AndroidApp && typeof window.AndroidApp.signInWithGoogle === 'function');
-}
-
-const pendingNativeGoogleSignIns = new Map();
-let nativeGoogleSignInRequestNumber = 0;
-window.onNativeGoogleSignInResult = function (callbackId, idToken, errorMessage) {
-  const pending = pendingNativeGoogleSignIns.get(callbackId);
-  if (!pending) return;
-  pendingNativeGoogleSignIns.delete(callbackId);
-  if (errorMessage) {
-    pending.reject(new Error(errorMessage));
-  } else if (idToken) {
-    pending.resolve(idToken);
-  } else {
-    pending.reject(new Error('Google did not return an ID token.'));
-  }
-};
-
-function signInWithNativeGoogle() {
-  return new Promise((resolve, reject) => {
-    const callbackId = 'google-' + Date.now() + '-' + (++nativeGoogleSignInRequestNumber);
-    pendingNativeGoogleSignIns.set(callbackId, { resolve, reject });
-    try {
-      window.AndroidApp.signInWithGoogle(callbackId);
-    } catch (error) {
-      pendingNativeGoogleSignIns.delete(callbackId);
-      reject(error);
-    }
-  });
-}
-
 function shouldUseGoogleRedirect() {
   const hostname = window.location.hostname.toLowerCase();
+  const isMobileBrowser = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
   return hostname === 'localhost'
     || hostname === '127.0.0.1'
-    || isAndroidWebView();
+    || isMobileBrowser;
 }
 
 function getGoogleAuthErrorMessage(error) {
   const code = error && error.code;
   if (code === 'auth/unauthorized-domain') {
-    if (window.location.protocol === 'file:') {
-      return 'এই APK-এর file:// origin-এ Google লগইন সমর্থিত নয়। লোকাল মোডে কাজ চালিয়ে যান, অথবা HTTPS-এ হোস্ট করা অনুমোদিত অ্যাপ / Android native Google Sign-In ব্যবহার করুন।';
-    }
     const hostname = window.location.hostname || '(unknown)';
     return `এই ডোমেইনটি Firebase-এ অনুমোদিত নয়। Firebase Console > Authentication > Settings > Authorized domains-এ "${hostname}" যোগ করুন।`;
-  }
-  if (isAndroidWebView() && (code === 'auth/operation-not-supported-in-this-environment' || code === 'auth/web-storage-unsupported')) {
-    return 'এই Android WebView-এ Google Web Sign-In সমর্থিত নয়। অ্যাপটি Chrome-এ খুলুন অথবা Android native Google Sign-In কনফিগার করুন।';
   }
   return 'লগইন ব্যর্থ হয়েছে: ' + ((error && error.message) || error);
 }
 
 // Google Sign-In
 async function loginWithGoogle() {
-  if (isRestrictedGoogleAuthEnvironment()) {
-    openAuthModal();
-    return;
-  }
-
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
   try {
     showLoading('Google দিয়ে সাইন ইন হচ্ছে...');
-    if (hasNativeGoogleSignIn()) {
-      const idToken = await signInWithNativeGoogle();
-      const credential = firebase.auth.GoogleAuthProvider.credential(idToken);
-      await auth.signInWithCredential(credential);
+    if (shouldUseGoogleRedirect()) {
+      await auth.signInWithRedirect(provider);
     } else {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
-      if (shouldUseGoogleRedirect()) {
-        await auth.signInWithRedirect(provider);
-      } else {
-        try {
-          await auth.signInWithPopup(provider);
-        } catch (popupError) {
-          const code = popupError && popupError.code;
-          if (code !== 'auth/popup-blocked'
-              && code !== 'auth/operation-not-supported-in-this-environment'
-              && code !== 'auth/unauthorized-domain') {
-            throw popupError;
-          }
-          console.warn('Google Sign-In popup unavailable; falling back to redirect:', popupError);
-          await auth.signInWithRedirect(provider);
+      try {
+        await auth.signInWithPopup(provider);
+      } catch (popupError) {
+        const code = popupError && popupError.code;
+        if (code !== 'auth/popup-blocked'
+            && code !== 'auth/operation-not-supported-in-this-environment') {
+          throw popupError;
         }
+        console.warn('Google Sign-In popup unavailable; falling back to redirect:', popupError);
+        await auth.signInWithRedirect(provider);
       }
     }
   } catch (error) {

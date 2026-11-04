@@ -1,7 +1,7 @@
 {
   "name": "ABC COMPUTER POS",
   "short_name": "ABC POS",
-  "description": "ABC COMPUTER point of sale",
+  "description": "এবিসি কম্পিউটার পস — ক্লাউড-ভিত্তিক মাল্টি-টেন্যান্ট হিসাব রক্ষণ সফটওয়্যার।",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

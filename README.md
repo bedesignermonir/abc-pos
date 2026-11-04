@@ -1,25 +1,24 @@
-# ABC COMPUTER POS
+# এবিসি কম্পিউটার পস
 
-A simple, Bengali-language point-of-sale and bookkeeping app for everyday shop management.
+## অ্যাপ সম্পর্কে
 
-## What you can do
+এবিসি কম্পিউটার পস (ABC Computer POS) একটি ক্লাউড-বেসড মাল্টি-টেন্যান্ট হিসাব রক্ষণ সফটওয়্যার। বিক্রয়, খরচ, দেনা-পাওনা ও ব্যবসার হিসাব সহজে পরিচালনা করুন এবং আপনার গুগল অ্যাকাউন্ট দিয়ে সাইন ইন করে ক্লাউডে ডেটা সিঙ্ক করুন।
 
-- Create, update, and print customer invoices.
-- Track sales, expenses, balances, and outstanding amounts.
-- Manage products, prices, and business details.
-- Share invoices with customers through WhatsApp.
-- Keep working offline and download a backup of your records.
-- Sign in with Google in a supported browser or the Android app to use cloud sync across devices.
+## ব্যবহার ও ইনস্টল করার নির্দেশিকা
 
-## Use the web app
+১. আপনার মোবাইলের গুগল ক্রোম (Google Chrome) ব্রাউজারে এই লিংকে প্রবেশ করুন: https://bedesignermonir.github.io/abc-pos/
 
-Open [ABC COMPUTER POS](https://bedesignermonir.github.io/abc-pos/) in a modern browser. Choose **Google (Gmail) দিয়ে চালিয়ে যান** to sign in, or continue without signing in for local use.
+২. আপনার জিমেইল অ্যাকাউন্ট দিয়ে খুব সহজে লগইন করুন। আপনার ডেটা আপনার অ্যাকাউন্টের অধীনে ক্লাউডে সংরক্ষিত ও সিঙ্ক হবে।
 
-## Install the Android app
+৩. ব্রাউজারের ওপরের থ্রি-ডট (...) মেনু থেকে **“Add to Home Screen”** বা **“Install App”** অপশনে ক্লিক করুন। ব্যস! এটি আপনার ফোনের হোম স্ক্রিনে একটি অ্যাপের মতো ইনস্টল হয়ে যাবে।
 
-1. Visit [the app releases page](https://github.com/bedesignermonir/abc-pos/releases).
-2. Download the latest APK and open it on your Android phone.
-3. If Android asks, allow installation from the browser or file manager you used to download it.
-4. Open ABC COMPUTER POS and start managing your shop.
+আইফোন বা আইপ্যাডে Safari ব্যবহার করলে **Share** মেনু থেকে **“Add to Home Screen”** নির্বাচন করুন।
 
-The Android APK supports native Google Sign-In and cloud sync. The Android OAuth client in Google Cloud must match the app ID (`com.abccomputer.pos`) and signing-certificate SHA-1 used for the APK. The app uses the Web Client ID as the ID-token audience for Firebase credential exchange. Records kept locally in the APK do not automatically transfer to the browser.
+## সুবিধাসমূহ
+
+- বিক্রয় চালান তৈরি, সম্পাদনা ও প্রিন্ট করা।
+- বিক্রয়, খরচ, নগদ টাকা এবং দেনা-পাওনার হিসাব রাখা।
+- পণ্য, মূল্য ও ব্যবসার তথ্য পরিচালনা করা।
+- WhatsApp-এ চালান শেয়ার করা।
+- ইন্টারনেট সংযোগ না থাকলেও অ্যাপ খোলা এবং স্থানীয় ডেটা ব্যবহার করা।
+- গুগল অ্যাকাউন্ট দিয়ে সাইন ইন করে একাধিক ডিভাইসে ক্লাউড ডেটা সিঙ্ক করা।
