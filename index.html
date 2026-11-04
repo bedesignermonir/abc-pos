@@ -1980,6 +1980,73 @@
       font-size: 20px;
     }
 
+    .date-selector-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 14px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, .03);
+    }
+
+    .date-selector-bar label {
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--gray-700);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0;
+      cursor: pointer;
+    }
+
+    .date-selector-bar .date-input-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .date-selector-bar input[type="date"] {
+      padding: 7px 12px;
+      border: 1.5px solid var(--gray-200);
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--dark);
+      background: #f8fafc;
+      outline: none;
+      transition: border-color .15s ease, background .15s ease;
+    }
+
+    .date-selector-bar input[type="date"]:focus {
+      border-color: var(--primary);
+      background: #fff;
+    }
+
+    .date-selector-bar .quick-today-btn {
+      padding: 7px 12px;
+      background: var(--gray-100);
+      border: 1px solid var(--gray-200);
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gray-700);
+      cursor: pointer;
+      transition: all .15s ease;
+      white-space: nowrap;
+    }
+
+    .date-selector-bar .quick-today-btn:hover {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
     .metric-strip {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2142,6 +2209,25 @@
         line-height: 1.25;
       }
 
+      .date-selector-bar {
+        padding: 8px 10px;
+        gap: 8px;
+      }
+
+      .date-selector-bar label {
+        font-size: 12px;
+      }
+
+      .date-selector-bar input[type="date"] {
+        padding: 6px 8px;
+        font-size: 12px;
+      }
+
+      .date-selector-bar .quick-today-btn {
+        padding: 6px 10px;
+        font-size: 11px;
+      }
+
       .metric-strip {
         gap: 8px;
       }
@@ -2156,6 +2242,10 @@
     }
 
     @media (min-width: 960px) {
+      .metric-strip {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
       .app-nav {
         position: sticky;
         top: 8px;
@@ -2244,9 +2334,18 @@
             সেট/আপডেট</button>
           <button type="button" class="btn btn-reset" onclick="logoutUser()">🚪 লগআউট</button>
         </div>
+        <div class="date-selector-bar">
+          <label for="partnerMetricsDate">
+            <span>📅</span> তারিখ নির্বাচন
+          </label>
+          <div class="date-input-group">
+            <input type="date" id="partnerMetricsDate" onchange="onPartnerMetricsDateChange()">
+            <button type="button" class="quick-today-btn" onclick="setPartnerDateToday()">আজকে</button>
+          </div>
+        </div>
         <div class="metric-strip">
           <div class="metric-card">
-            <div class="label">আজকের বিক্রি</div>
+            <div class="label" id="partnerSalesCardLabel">আজকের বিক্রি</div>
             <div class="value" id="partnerTodaySales">৳০</div>
           </div>
           <div class="metric-card">
@@ -2260,6 +2359,7 @@
           <div class="metric-card">
             <div class="label">হস্তান্তর বাকি</div>
             <div class="value" id="partnerPendingCash">৳০</div>
+            <div class="sublabel" style="font-size:11px;color:var(--gray-500);margin-top:4px;">মালিকের অংশ (বাকি)</div>
           </div>
         </div>
         <div class="role-panel">
@@ -2308,6 +2408,34 @@
 
       <section class="tab-panel" id="adminPanel" data-tab-panel="admin" hidden>
         <h2 class="panel-heading">পার্টনার ব্যবস্থাপনা ও সেটেলমেন্ট</h2>
+        <div class="date-selector-bar">
+          <label for="adminMetricsDate">
+            <span>📅</span> তারিখ নির্বাচন
+          </label>
+          <div class="date-input-group">
+            <input type="date" id="adminMetricsDate" onchange="renderAdminManagement()">
+            <button type="button" class="quick-today-btn" onclick="setAdminDateToday()">আজকে</button>
+          </div>
+        </div>
+        <div class="metric-strip">
+          <div class="metric-card">
+            <div class="label" id="adminSalesCardLabel">আজকের বিক্রি</div>
+            <div class="value" id="adminTodaySales">৳০</div>
+          </div>
+          <div class="metric-card">
+            <div class="label">পার্টনারদের লাভের অংশ</div>
+            <div class="value" id="adminTodayPartnerShare">৳০</div>
+          </div>
+          <div class="metric-card">
+            <div class="label">মালিকের অংশ</div>
+            <div class="value" id="adminTodayOwnerShare">৳০</div>
+          </div>
+          <div class="metric-card">
+            <div class="label">হস্তান্তর বাকি</div>
+            <div class="value" id="adminTodayPendingCash">৳০</div>
+            <div class="sublabel" style="font-size:11px;color:var(--gray-500);margin-top:4px;">মালিকের অংশ (বাকি)</div>
+          </div>
+        </div>
         <div class="role-panel">
           <h3>অ্যাকাউন্ট অনুমোদন</h3>
           <div id="pendingUsersList" class="role-list"></div>
@@ -3079,6 +3207,9 @@
         if (button.dataset.tab === tabName) button.setAttribute('aria-current', 'page');
         else button.removeAttribute('aria-current');
       });
+      if (tabName === 'partner') renderPartnerDashboard();
+      if (tabName === 'admin') renderAdminManagement();
+      if (tabName === 'dashboard') updateStats();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
@@ -3168,7 +3299,15 @@
     }
 
     function formatDate(d) {
-      const date = new Date(d);
+      if (!d) return '';
+      let date;
+      if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.trim())) {
+        const parts = d.trim().split('-').map(Number);
+        date = new Date(parts[0], parts[1] - 1, parts[2]);
+      } else {
+        date = d instanceof Date ? d : new Date(d);
+      }
+      if (isNaN(date.getTime())) return '';
       const months = ['জানু', 'ফেব্রু', 'মার্চ', 'এপ্রি', 'মে', 'জুন', 'জুলা', 'আগ', 'সেপ্টে', 'অক্টো', 'নভে', 'ডিসে'];
       return toBnNum(date.getDate()) + ' ' + months[date.getMonth()] + ', ' + toBnNum(date.getFullYear());
     }
@@ -3186,9 +3325,39 @@
     }
 
     function localDateKey(value = new Date()) {
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+      }
       const date = value instanceof Date ? value : new Date(value);
       if (isNaN(date.getTime())) return '';
       return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+    }
+
+    function onPartnerMetricsDateChange() {
+      const metricsDateInput = document.getElementById('partnerMetricsDate');
+      const historyDateInput = document.getElementById('partnerHistoryDate');
+      if (metricsDateInput && historyDateInput && metricsDateInput.value) {
+        historyDateInput.value = metricsDateInput.value;
+      }
+      renderPartnerDashboard();
+    }
+
+    function setPartnerDateToday() {
+      const metricsDateInput = document.getElementById('partnerMetricsDate');
+      const historyDateInput = document.getElementById('partnerHistoryDate');
+      const today = localDateKey();
+      if (metricsDateInput) metricsDateInput.value = today;
+      if (historyDateInput) historyDateInput.value = today;
+      renderPartnerDashboard();
+    }
+
+    function setAdminDateToday() {
+      const dateInput = document.getElementById('adminMetricsDate');
+      if (dateInput) {
+        dateInput.value = localDateKey();
+        renderAdminManagement();
+      }
     }
 
     let toastTimeoutId = null;
@@ -4503,44 +4672,66 @@
         renderPartnerDashboard();
       }, error => handleFirestoreSyncError('অপারেশনাল ক্যাশ', error));
       businessUnsubscribers.push(salesUnsubscribe, expensesUnsubscribe, settlementsUnsubscribe, businessUnsubscribe);
+      const metricsInput = document.getElementById('partnerMetricsDate');
+      if (metricsInput && !metricsInput.value) metricsInput.value = localDateKey();
       const dateInput = document.getElementById('partnerHistoryDate');
       if (dateInput && !dateInput.value) dateInput.value = localDateKey();
     }
 
     function renderPartnerDashboard() {
-      const dayInput = document.getElementById('partnerHistoryDate');
-      const selectedDay = dayInput && dayInput.value;
-      const selectedSales = partnerSales.filter(sale => !selectedDay || localDateKey(sale.date) === selectedDay);
-      const today = localDateKey();
-      const todaySales = partnerSales.filter(sale => localDateKey(sale.date) === today);
-      const todayTotal = todaySales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
-      const todayPartnerShare = todaySales.reduce((sum, sale) => sum + safeNum(sale.partnerShare), 0);
-      const todayOwnerShare = todaySales.reduce((sum, sale) => sum + safeNum(sale.ownerShare), 0);
+      const metricsDateInput = document.getElementById('partnerMetricsDate');
+      if (metricsDateInput && !metricsDateInput.value) metricsDateInput.value = localDateKey();
+      const selectedDate = (metricsDateInput && metricsDateInput.value) || localDateKey();
+      const isToday = selectedDate === localDateKey();
+
+      // Strict date-based metrics calculation for selected date
+      const dateSales = partnerSales.filter(sale => localDateKey(sale.date) === selectedDate);
+      const totalSales = dateSales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
+      const partnerShare = dateSales.reduce((sum, sale) => sum + safeNum(sale.partnerShare), 0);
+      const ownerShare = dateSales.reduce((sum, sale) => sum + safeNum(sale.ownerShare), 0);
       const partnerPercent = Math.min(100, Math.max(0, safeNum(currentAccess.sharePercent ?? 40)));
+
       const settledSales = new Set(partnerSettlements.flatMap(settlement => settlement.salesIds || []));
       const settledExpenses = new Set(partnerSettlements.flatMap(settlement => settlement.expenseIds || []));
-      const pendingCash = partnerSales.filter(sale => !settledSales.has(sale.docId)).reduce((sum, sale) => sum + safeNum(sale.total), 0)
-        - partnerExpenses.filter(expense => !settledExpenses.has(expense.docId)).reduce((sum, expense) => sum + safeNum(expense.amount), 0);
-      document.getElementById('partnerTodaySales').textContent = formatMoney(todayTotal);
-      document.getElementById('partnerTodayShare').textContent = formatMoney(todayPartnerShare);
-      document.getElementById('ownerTodayShare').textContent = formatMoney(todayOwnerShare);
+
+      // Handover Due strictly reflects Owner's Share (মালিকের অংশ) for the selected date pending handover
+      const pendingOwnerShare = dateSales.filter(sale => !settledSales.has(sale.docId))
+        .reduce((sum, sale) => sum + safeNum(sale.ownerShare), 0);
+
+      const salesCardLabel = document.getElementById('partnerSalesCardLabel');
+      if (salesCardLabel) {
+        salesCardLabel.textContent = isToday ? 'আজকের বিক্রি' : 'মোট বিক্রি';
+      }
+      document.getElementById('partnerTodaySales').textContent = formatMoney(totalSales);
+      document.getElementById('partnerTodayShare').textContent = formatMoney(partnerShare);
+      document.getElementById('ownerTodayShare').textContent = formatMoney(ownerShare);
       document.getElementById('partnerSharePercent').textContent = toBnNum(partnerPercent);
       document.getElementById('ownerSharePercent').textContent = toBnNum(100 - partnerPercent);
-      document.getElementById('partnerPendingCash').textContent = formatMoney(Math.max(0, pendingCash));
+      document.getElementById('partnerPendingCash').textContent = formatMoney(Math.max(0, pendingOwnerShare));
+
+      // Bottom date-wise record history table: intact and independent
+      const historyDateInput = document.getElementById('partnerHistoryDate');
+      if (historyDateInput && !historyDateInput.value) historyDateInput.value = localDateKey();
+      const selectedHistoryDay = historyDateInput && historyDateInput.value;
+      const historySales = partnerSales.filter(sale => !selectedHistoryDay || localDateKey(sale.date) === selectedHistoryDay);
 
       const salesList = document.getElementById('partnerSalesHistory');
-      salesList.innerHTML = selectedSales.length ? selectedSales.map(sale => `
-        <div class="role-record">
-          <strong>${escapeHtml(sale.customer || 'কাস্টমার')}</strong> · ${formatMoney(sale.total)}
-          <div>${escapeHtml(sale.phone || 'ফোন নেই')} · ${formatDate(sale.date)}</div>
-          <div>${(sale.items || []).map(item => `${escapeHtml(item.name)} × ${toBnNum(item.qty)}`).join(', ')}</div>
-          <div>আমার অংশ ${formatMoney(sale.partnerShare)} · মালিকের অংশ ${formatMoney(sale.ownerShare)} · ${settledSales.has(sale.docId) ? 'হস্তান্তরিত' : 'হস্তান্তর বাকি'}</div>
-        </div>`).join('') : '<div class="empty">এই তারিখে কোনো বিক্রির রেকর্ড নেই</div>';
+      if (salesList) {
+        salesList.innerHTML = historySales.length ? historySales.map(sale => `
+          <div class="role-record">
+            <strong>${escapeHtml(sale.customer || 'কাস্টমার')}</strong> · ${formatMoney(sale.total)}
+            <div>${escapeHtml(sale.phone || 'ফোন নেই')} · ${formatDate(sale.date)}</div>
+            <div>${(sale.items || []).map(item => `${escapeHtml(item.name)} × ${toBnNum(item.qty)}`).join(', ')}</div>
+            <div>আমার অংশ ${formatMoney(sale.partnerShare)} · মালিকের অংশ ${formatMoney(sale.ownerShare)} · ${settledSales.has(sale.docId) ? 'হস্তান্তরিত' : 'হস্তান্তর বাকি'}</div>
+          </div>`).join('') : '<div class="empty">এই তারিখে কোনো বিক্রির রেকর্ড নেই</div>';
+      }
       const expenseList = document.getElementById('partnerExpensesHistory');
-      expenseList.innerHTML = partnerExpenses.length ? partnerExpenses.map(expense => `
-        <div class="role-record">${escapeHtml(expense.description)} · ${toBnNum(expense.qty)} × ${formatMoney(safeNum(expense.amount) / Math.max(1, safeNum(expense.qty)))} = ${formatMoney(expense.amount)}
-          <div>${formatDate(expense.date)} · ${settledExpenses.has(expense.docId) ? 'হিসাবে যুক্ত' : 'হস্তান্তর বাকি'}</div>
-        </div>`).join('') : '<div class="empty">কোনো খরচের রেকর্ড নেই</div>';
+      if (expenseList) {
+        expenseList.innerHTML = partnerExpenses.length ? partnerExpenses.map(expense => `
+          <div class="role-record">${escapeHtml(expense.description)} · ${toBnNum(expense.qty)} × ${formatMoney(safeNum(expense.amount) / Math.max(1, safeNum(expense.qty)))} = ${formatMoney(expense.amount)}
+            <div>${formatDate(expense.date)} · ${settledExpenses.has(expense.docId) ? 'হিসাবে যুক্ত' : 'হস্তান্তর বাকি'}</div>
+          </div>`).join('') : '<div class="empty">কোনো খরচের রেকর্ড নেই</div>';
+      }
     }
 
     function savePartnerSale(event) {
@@ -4666,53 +4857,102 @@
         }, error => handleFirestoreSyncError('অপারেশনাল ক্যাশ', error))
       ];
       businessUnsubscribers.push(...listeners);
+      const adminDateInput = document.getElementById('adminMetricsDate');
+      if (adminDateInput && !adminDateInput.value) adminDateInput.value = localDateKey();
     }
 
     function renderAdminManagement() {
       if (!isMasterAdmin()) return;
+
+      const dateInput = document.getElementById('adminMetricsDate');
+      if (dateInput && !dateInput.value) dateInput.value = localDateKey();
+      const selectedDate = (dateInput && dateInput.value) || localDateKey();
+      const isToday = selectedDate === localDateKey();
+
+      // Strict date-based metrics calculation for selected date across all partners
+      const dateSales = adminPartnerSales.filter(sale => localDateKey(sale.date) === selectedDate);
+      const totalSales = dateSales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
+      const totalPartnerShare = dateSales.reduce((sum, sale) => sum + safeNum(sale.partnerShare), 0);
+      const totalOwnerShare = dateSales.reduce((sum, sale) => sum + safeNum(sale.ownerShare), 0);
+
+      const allSettledSales = new Set(adminSettlements.flatMap(settlement => settlement.salesIds || []));
+      const totalPendingHandover = dateSales.filter(sale => !allSettledSales.has(sale.docId))
+        .reduce((sum, sale) => sum + safeNum(sale.ownerShare), 0);
+
+      const salesCardLabel = document.getElementById('adminSalesCardLabel');
+      if (salesCardLabel) {
+        salesCardLabel.textContent = isToday ? 'আজকের বিক্রি' : 'মোট বিক্রি';
+      }
+      const salesEl = document.getElementById('adminTodaySales');
+      if (salesEl) salesEl.textContent = formatMoney(totalSales);
+      const partnerShareEl = document.getElementById('adminTodayPartnerShare');
+      if (partnerShareEl) partnerShareEl.textContent = formatMoney(totalPartnerShare);
+      const ownerShareEl = document.getElementById('adminTodayOwnerShare');
+      if (ownerShareEl) ownerShareEl.textContent = formatMoney(totalOwnerShare);
+      const pendingCashEl = document.getElementById('adminTodayPendingCash');
+      if (pendingCashEl) pendingCashEl.textContent = formatMoney(Math.max(0, totalPendingHandover));
+
       const pendingUsers = adminUserProfiles.filter(profile => profile.uid !== currentUserId
         && String(profile.accountStatus || profile.status || '').trim().toLowerCase() !== 'approved');
       const pendingList = document.getElementById('pendingUsersList');
-      pendingList.innerHTML = pendingUsers.length ? pendingUsers.map(profile => `
-        <div class="role-row">
-          <div><strong>${escapeHtml(profile.displayName || profile.email || profile.uid)}</strong><div>${escapeHtml(profile.email || '')}</div></div>
-          <div class="role-actions">
-            <select id="approval-role-${escapeHtml(profile.uid)}" aria-label="অনুমোদনের ভূমিকা">
-              <option value="Partner/Staff">Partner/Staff</option><option value="Admin">Admin</option>
-            </select>
-            <button type="button" onclick="approveAccount('${escapeHtml(profile.uid)}')">অনুমোদন</button>
-          </div>
-        </div>`).join('') : '<div class="empty">অনুমোদনের অপেক্ষায় কোনো অ্যাকাউন্ট নেই</div>';
+      if (pendingList) {
+        pendingList.innerHTML = pendingUsers.length ? pendingUsers.map(profile => `
+          <div class="role-row">
+            <div><strong>${escapeHtml(profile.displayName || profile.email || profile.uid)}</strong><div>${escapeHtml(profile.email || '')}</div></div>
+            <div class="role-actions">
+              <select id="approval-role-${escapeHtml(profile.uid)}" aria-label="অনুমোদনের ভূমিকা">
+                <option value="Partner/Staff">Partner/Staff</option><option value="Admin">Admin</option>
+              </select>
+              <button type="button" onclick="approveAccount('${escapeHtml(profile.uid)}')">অনুমোদন</button>
+            </div>
+          </div>`).join('') : '<div class="empty">অনুমোদনের অপেক্ষায় কোনো অ্যাকাউন্ট নেই</div>';
+      }
 
       const activeMembers = adminMembers.filter(member => member.status === 'active');
       const membersList = document.getElementById('adminPartnersList');
-      const partnerRows = activeMembers.map(member => {
-        const sales = adminPartnerSales.filter(sale => sale.partnerUid === member.uid);
-        const expenses = adminPartnerExpenses.filter(expense => expense.partnerUid === member.uid);
-        const memberSettlements = adminSettlements.filter(settlement => settlement.partnerUid === member.uid);
-        const settledSales = new Set(memberSettlements.flatMap(settlement => settlement.salesIds || []));
-        const settledExpenses = new Set(memberSettlements.flatMap(settlement => settlement.expenseIds || []));
-        const unsettledSales = sales.filter(sale => !settledSales.has(sale.docId));
-        const unsettledExpenses = expenses.filter(expense => !settledExpenses.has(expense.docId));
-        const allSalesAmount = sales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
-        const pending = Math.max(0,
-          unsettledSales.reduce((sum, sale) => sum + safeNum(sale.total), 0)
-          - unsettledExpenses.reduce((sum, expense) => sum + safeNum(expense.amount), 0));
-        const itemCount = sales.reduce((sum, sale) => sum + (sale.items || []).reduce((count, item) => count + safeNum(item.qty), 0), 0);
-        const details = sales.map(sale => `${escapeHtml(sale.customer || '')} (${escapeHtml(sale.phone || '')}): ${(sale.items || []).map(item => `${escapeHtml(item.name)} × ${toBnNum(item.qty)}`).join(', ')} · ${formatMoney(sale.total)}${settledSales.has(sale.docId) ? ' · হস্তান্তরিত' : ''}`).join('<br>');
-        const disabled = unsettledSales.length + unsettledExpenses.length && !settlingPartnerIds.has(member.uid) ? '' : 'disabled';
-        return `<div class="role-record">
-          <strong>${escapeHtml(member.displayName || member.email || member.uid)}</strong> · ${escapeHtml(member.email || '')}
-          <div>সর্বমোট বিক্রি ${formatMoney(allSalesAmount)} · আইটেম ${toBnNum(itemCount)} · হস্তান্তর বাকি ${formatMoney(pending)}</div>
-          <div>অপারেশনাল ক্যাশ ${formatMoney(businessCashBalance)} · ${details || 'নতুন কোনো বাকি বিক্রি নেই'}</div>
-          <div class="role-actions" style="margin-top:8px;">
-            <label>লাভের ভাগ % <input id="share-${escapeHtml(member.uid)}" type="number" min="0" max="100" value="${Math.min(100, Math.max(0, safeNum(member.sharePercent ?? 40)))}"></label>
-            <button type="button" onclick="savePartnerShare('${escapeHtml(member.uid)}')">ভাগ সংরক্ষণ</button>
-            <button type="button" ${disabled} onclick="markPartnerPaid('${escapeHtml(member.uid)}')">বুঝে পেলাম / Mark as Paid</button>
-          </div>
-        </div>`;
-      });
-      membersList.innerHTML = partnerRows.length ? partnerRows.join('') : '<div class="empty">কোনো সক্রিয় পার্টনার নেই</div>';
+      if (membersList) {
+        const partnerRows = activeMembers.map(member => {
+          const sales = adminPartnerSales.filter(sale => sale.partnerUid === member.uid);
+          const expenses = adminPartnerExpenses.filter(expense => expense.partnerUid === member.uid);
+          const memberSettlements = adminSettlements.filter(settlement => settlement.partnerUid === member.uid);
+          const settledSales = new Set(memberSettlements.flatMap(settlement => settlement.salesIds || []));
+          const settledExpenses = new Set(memberSettlements.flatMap(settlement => settlement.expenseIds || []));
+          const unsettledSales = sales.filter(sale => !settledSales.has(sale.docId));
+          const unsettledExpenses = expenses.filter(expense => !settledExpenses.has(expense.docId));
+          const allSalesAmount = sales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
+          const pending = Math.max(0,
+            unsettledSales.reduce((sum, sale) => sum + safeNum(sale.total), 0)
+            - unsettledExpenses.reduce((sum, expense) => sum + safeNum(expense.amount), 0));
+          const itemCount = sales.reduce((sum, sale) => sum + (sale.items || []).reduce((count, item) => count + safeNum(item.qty), 0), 0);
+
+          // Selected date calculations for member
+          const memberDateSales = sales.filter(sale => localDateKey(sale.date) === selectedDate);
+          const memberDateTotal = memberDateSales.reduce((sum, s) => sum + safeNum(s.total), 0);
+          const memberDatePartnerShare = memberDateSales.reduce((sum, s) => sum + safeNum(s.partnerShare), 0);
+          const memberDateOwnerShare = memberDateSales.reduce((sum, s) => sum + safeNum(s.ownerShare), 0);
+          const memberDateHandoverDue = memberDateSales.filter(s => !settledSales.has(s.docId))
+            .reduce((sum, s) => sum + safeNum(s.ownerShare), 0);
+
+          const details = sales.map(sale => `${escapeHtml(sale.customer || '')} (${escapeHtml(sale.phone || '')}): ${(sale.items || []).map(item => `${escapeHtml(item.name)} × ${toBnNum(item.qty)}`).join(', ')} · ${formatMoney(sale.total)}${settledSales.has(sale.docId) ? ' · হস্তান্তরিত' : ''}`).join('<br>');
+          const disabled = unsettledSales.length + unsettledExpenses.length && !settlingPartnerIds.has(member.uid) ? '' : 'disabled';
+          return `<div class="role-record">
+            <strong>${escapeHtml(member.displayName || member.email || member.uid)}</strong> · ${escapeHtml(member.email || '')}
+            <div style="margin:4px 0; color:var(--dark); font-size:13px;">
+              <strong>📅 নির্বাচিত তারিখে (${formatDate(selectedDate)}):</strong> বিক্রি ${formatMoney(memberDateTotal)} · পার্টনারের লাভ ${formatMoney(memberDatePartnerShare)} · মালিকের অংশ ${formatMoney(memberDateOwnerShare)} · হস্তান্তর বাকি ${formatMoney(memberDateHandoverDue)}
+            </div>
+            <div style="font-size:12px; color:var(--gray-600);">
+              সর্বমোট বিক্রি ${formatMoney(allSalesAmount)} · আইটেম ${toBnNum(itemCount)} · মোট হস্তান্তর বাকি ${formatMoney(pending)}
+            </div>
+            <div>অপারেশনাল ক্যাশ ${formatMoney(businessCashBalance)} · ${details || 'নতুন কোনো বাকি বিক্রি নেই'}</div>
+            <div class="role-actions" style="margin-top:8px;">
+              <label>লাভের ভাগ % <input id="share-${escapeHtml(member.uid)}" type="number" min="0" max="100" value="${Math.min(100, Math.max(0, safeNum(member.sharePercent ?? 40)))}"></label>
+              <button type="button" onclick="savePartnerShare('${escapeHtml(member.uid)}')">ভাগ সংরক্ষণ</button>
+              <button type="button" ${disabled} onclick="markPartnerPaid('${escapeHtml(member.uid)}')">বুঝে পেলাম / Mark as Paid</button>
+            </div>
+          </div>`;
+        });
+        membersList.innerHTML = partnerRows.length ? partnerRows.join('') : '<div class="empty">কোনো সক্রিয় পার্টনার নেই</div>';
+      }
     }
 
     async function approveAccount(uid) {
@@ -5698,6 +5938,9 @@
 
     function isInPeriod(inv, p) {
       if (!p || !p.start) return true; // 'all'
+      if (p.mode === 'today' || p.mode === 'custom') {
+        return localDateKey(inv.date) === localDateKey(p.start);
+      }
       const d = new Date(inv.date);
       if (isNaN(d.getTime())) return false;
       return d >= p.start && d < p.end;
@@ -5723,18 +5966,14 @@
     }
 
     function updateDailyMetrics() {
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const tomorrow = new Date(todayStart);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const todayPeriod = { start: todayStart, end: tomorrow };
-      const monthPeriod = { start: monthStart, end: new Date(now.getFullYear(), now.getMonth() + 1, 1) };
-      const todaySales = invoices.filter(inv => isInPeriod(inv, todayPeriod));
+      const today = localDateKey();
+      const todaySales = invoices.filter(inv => localDateKey(inv.date) === today);
       const todayGrossProfit = todaySales.reduce((sum, inv) =>
         sum + safeNum(inv.total) - getInvoiceCostTotal(inv), 0);
-      const todayExpenseTotal = expenses.filter(expense => isInPeriod(expense, todayPeriod))
+      const todayExpenseTotal = expenses.filter(expense => localDateKey(expense.date) === today)
         .reduce((sum, expense) => sum + safeNum(expense.amount), 0);
+      const now = new Date();
+      const monthPeriod = { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth() + 1, 1) };
       const monthExpenseTotal = expenses.filter(expense => isInPeriod(expense, monthPeriod))
         .reduce((sum, expense) => sum + safeNum(expense.amount), 0);
       const profitEl = document.getElementById('todayProfit');
