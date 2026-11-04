@@ -1078,6 +1078,10 @@ body {
         <input type="password" id="passwordLoginInput" autocomplete="current-password" placeholder="আপনার পাসওয়ার্ড" style="width:100%;padding:11px 14px;border:1.5px solid var(--gray-200);border-radius:10px;font-size:14px;" onkeydown="if(event.key==='Enter'){event.preventDefault();loginWithEmail();}">
       </div>
       <button type="button" id="emailSignInModalBtn" onclick="loginWithEmail()" class="btn btn-primary" style="width:100%;padding:12px 18px;font-size:14px;font-weight:700;border-radius:12px;">🔑 লগইন / সাইন-ইন</button>
+      <!-- Forgot Password link -->
+      <div style="text-align:center;margin-top:10px;">
+        <a href="javascript:void(0)" onclick="sendPasswordResetLink()" style="font-size:13px;color:#2563eb;font-weight:600;text-decoration:underline;">পাসওয়ার্ড ভুলে গেছেন?</a>
+      </div>
     </div>
 
     <!-- Divider -->
@@ -1410,6 +1414,9 @@ const firebaseConfig = {
   appId: "1:362558772104:web:abcpos"
 };
 
+// Correct OAuth Web Client ID for Firebase Google Sign-In
+const GOOGLE_WEB_CLIENT_ID = "362558772104-4gpg7uka6ak4jn7sq6ub5mcgblv0mdh7.apps.googleusercontent.com";
+
 // Initialize Firebase
 if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
@@ -1633,6 +1640,37 @@ function getGoogleAuthErrorMessage(error) {
   return 'লগইন ব্যর্থ হয়েছে: ' + ((error && error.message) || error);
 }
 
+// Forgot Password — sends a reset link via sendPasswordResetEmail with Bengali notifications
+async function sendPasswordResetLink() {
+  const emailEl = document.getElementById('emailLoginInput');
+  let email = '';
+  if (arguments.length > 0 && typeof arguments[0] === 'string' && arguments[0].includes('@')) {
+    email = arguments[0].trim();
+  } else {
+    email = ((emailEl && emailEl.value) || '').trim();
+  }
+  if (!email) { showToast('অনুগ্রহ করে আগে আপনার ইমেইলটি লিখুন', 'error'); return; }
+  try {
+    showLoading('পাসওয়ার্ড রিসেট লিংক পাঠানো হচ্ছে...');
+    await auth.sendPasswordResetEmail(email);
+    hideLoading();
+    showToast('আপনার ইমেইলে পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে। ইমেইল চেক করুন ✓');
+    alert('আপনার ইমেইলে ("' + email + '") একটি পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে।\n\nলিংকে ক্লিক করে নতুন পাসওয়ার্ড সেট করুন, তারপর আবার লগইন করুন।');
+  } catch (e) {
+    console.error('sendPasswordResetEmail failed:', e);
+    hideLoading();
+    const c = e && e.code;
+    let m = 'রিসেট ইমেল পাঠানো যায়নি: ' + ((e && e.message) || e);
+    if (c === 'auth/user-not-found') m = 'এই ইমেইলে কোনো একাউন্ট নেই। ইমেইল ও পাসওয়ার্ড দিয়ে লগইন করলে স্বয়ংক্রিয়ভাবে একাউন্ট তৈরি হবে।';
+    else if (c === 'auth/invalid-email') m = 'ইমেইল ঠিকানাটি সঠিক নয়।';
+    else if (c === 'auth/too-many-requests') m = 'অনেকবার চেষ্টা করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।';
+    else if (c === 'auth/network-request-failed') m = 'ইন্টারনেট সংযোগ নেই। সংযোগ চালু করে আবার চেষ্টা করুন।';
+    showToast(m, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
 // Email & Password Auth (Firebase) — smart flow: sign in first, auto sign-up if user not found.
 // No separate "Register" screen needed; verification email sent on new account creation.
 async function loginWithEmail() {
@@ -1672,8 +1710,8 @@ async function loginWithEmail() {
         // c) Send email verification and notify the user in Bengali
         try { await cred.user.sendEmailVerification(); } catch (ve) { console.warn('Verification email failed:', ve); }
         closeAuthModal();
-        alert('আপনার ইমেইলে একটি ভেরিফিকেশন লিংক পাঠানো হয়েছে। অনুগ্রহ করে ইমেইল ভেরিফাই করুন।');
-        showToast('আপনার ইমেইলে একটি ভেরিফিকেশন লিংক পাঠানো হয়েছে। অনুগ্রহ করে ইমেইল ভেরিফাই করুন।');
+        alert('আপনার অ্যাকাউন্ট পাওয়া যায়নি। নতুন অ্যাকাউন্ট তৈরি করা হয়েছে এবং একটি ভেরিফিকেশন ইমেল পাঠানো হয়েছে।');
+        showToast('আপনার অ্যাকাউন্ট পাওয়া যায়নি। নতুন অ্যাকাউন্ট তৈরি করা হয়েছে এবং একটি ভেরিফিকেশন ইমেল পাঠানো হয়েছে।');
         return;
       } catch (createError) {
         console.error('Auto sign-up failed:', createError);
@@ -1696,7 +1734,10 @@ async function loginWithEmail() {
     // d) Graceful Bengali messages for other errors
     let msg = 'লগইন ব্যর্থ হয়েছে: ' + ((error && error.message) || error);
     if (code === 'auth/wrong-password') {
-      msg = 'পাসওয়ার্ড ভুল হয়েছে। আবার চেষ্টা করুন।';
+      hideLoading();
+      const resetNow = confirm('পাসওয়ার্ড ভুলে গেছেন?\n\n"ওকে" চাপলে আপনার ইমেইলে পাসওয়ার্ড রিসেট লিংক পাঠানো হবে।');
+      if (resetNow) await sendPasswordResetLink(email);
+      return;
     } else if (code === 'auth/invalid-email') {
       msg = 'ইমেইল ঠিকানাটি সঠিক নয়।';
     } else if (code === 'auth/user-disabled') {
@@ -1717,6 +1758,10 @@ async function loginWithEmail() {
 // Google Sign-In — always popup-based (in-session) to avoid redirect loops; falls back to redirect only when popups are unsupported
 async function loginWithGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
+  // Use the correct OAuth Web Client ID so the token is accepted by this Firebase project
+  try { provider.setClientId(GOOGLE_WEB_CLIENT_ID); } catch (e) {}
+  provider.addScope('email');
+  provider.addScope('profile');
   provider.setCustomParameters({ prompt: 'select_account' });
   // Explicitly set browserLocalPersistence BEFORE triggering authentication
   try { await auth.setPersistence(firebase.auth.Auth.Persistence.BROWSER_LOCAL); } catch (e) {}
