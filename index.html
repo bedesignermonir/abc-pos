@@ -22,7 +22,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-analytics-compat.js"></script>
-<script src="./firebase-config.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Noto Sans Bengali', sans-serif; }
 :root {
@@ -1572,10 +1571,15 @@ function hideLoading() {
 // Firebase configuration for project abc-pos-webapp
 // Firebase Console: enable Google at Authentication > Sign-in method.
 // Add the deployed hostname (and localhost for development) at Authentication > Settings > Authorized domains.
-const firebaseConfig = window.FIREBASE_CONFIG;
-if (!firebaseConfig || !firebaseConfig.apiKey || !firebaseConfig.projectId) {
-  throw new Error('Firebase config is missing. Run "node scripts/build-site.js ." for local development.');
-}
+const firebaseConfig = {
+  apiKey: 'AIzaSyCyqeeiDFEfhQLB4VrGra-UKVXORbnHyGA',
+  authDomain: 'abc-pos-webapp.firebaseapp.com',
+  projectId: 'abc-pos-webapp',
+  storageBucket: 'abc-pos-webapp.firebasestorage.app',
+  messagingSenderId: '316988028882',
+  appId: '1:316988028882:web:319f8a418a5bf1fea8fa0b',
+  measurementId: 'G-6TBPGJM44V'
+};
 
 // Initialize once so authentication, analytics, and Firestore share the same app.
 const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);

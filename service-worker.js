@@ -1,9 +1,8 @@
-const CACHE_NAME = 'abc-computer-pos-v7-pwa';
-const ICON_VER = '?v=20261104b';
+const CACHE_NAME = 'abc-computer-pos-v8-pwa';
+const ICON_VER = '?v=20261104c';
 const APP_SHELL = [
   './',
   './index.html',
-  './firebase-config.js',
   './manifest.json' + ICON_VER,
   './abclogo.svg' + ICON_VER,
   './app-icon-180.png' + ICON_VER,
