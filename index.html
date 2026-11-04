@@ -807,7 +807,7 @@ body {
         <div style="font-size:11px;opacity:0.85;">আপনার প্রতিষ্ঠানের সেলস, খরচ ও হিসাব ক্লাউডে সুরক্ষিত রাখতে এবং যেকোনো ডিভাইস থেকে পরিচালনা করতে Google একাউন্ট দিয়ে সাইন-ইন করুন।</div>
       </div>
     </div>
-    <button onclick="loginWithGoogle()" class="btn" style="background:#25d366;color:#0f172a;font-weight:700;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12px;">🔑 Google দিয়ে লগইন</button>
+    <button onclick="openAuthModal()" class="btn" style="background:#25d366;color:#0f172a;font-weight:700;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12px;">🔑 লগইন</button>
   </div>
 
   <!-- Date Filter (dashboard stats period) -->
@@ -1056,7 +1056,7 @@ body {
 </div>
 </div>
 
-<!-- Google Sign-In Authentication Modal -->
+<!-- Sleek Popup Authentication Modal (Google + Email/Password toggle) -->
 <div class="modal" id="authLoginModal">
   <div class="modal-content" style="max-width:440px;text-align:center;padding:28px 24px;border-radius:24px;">
     <div style="width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg, #1e3a8a, #0f172a);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;box-shadow:0 8px 20px rgba(15,23,42,0.25);">
@@ -1067,8 +1067,32 @@ body {
       আপনার বিশ্বস্ত ডিজিটাল সেবা ও হিসাব রক্ষণ
     </p>
 
-    <!-- Email & Password Login -->
-    <div style="text-align:left;margin-bottom:14px;">
+    <!-- Primary option inside popup: Continue with Google (no direct page redirect) -->
+    <button type="button" id="googleSignInModalBtn" onclick="loginWithGoogle()" class="google-signin-btn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:12px;background:white;color:#1f2937;border:2px solid #e5e7eb;border-radius:12px;padding:13px 18px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 12px rgba(0,0,0,0.06);">
+      <svg width="22" height="22" viewBox="0 0 24 24" style="flex-shrink:0;">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+      </svg>
+      <span>Google দিয়ে চালিয়ে যান</span>
+    </button>
+
+    <!-- Divider -->
+    <div style="display:flex;align-items:center;gap:10px;margin:14px 0;">
+      <div style="flex:1;height:1px;background:var(--gray-200);"></div>
+      <span style="font-size:12px;color:var(--gray-500);font-weight:600;">অথবা</span>
+      <div style="flex:1;height:1px;background:var(--gray-200);"></div>
+    </div>
+
+    <!-- Toggle Tabs: Email login / Set password (account linking) -->
+    <div style="display:flex;gap:6px;background:var(--gray-100);padding:4px;border-radius:12px;margin-bottom:14px;">
+      <button type="button" id="authTabEmail" onclick="switchAuthTab('email')" class="btn" style="flex:1;padding:8px 10px;font-size:13px;font-weight:700;border-radius:9px;border:none;cursor:pointer;background:white;color:var(--primary-dark);box-shadow:0 2px 6px rgba(0,0,0,0.08);">📧 ইমেইল দিয়ে লগইন</button>
+      <button type="button" id="authTabPass" onclick="switchAuthTab('pass')" class="btn" style="flex:1;padding:8px 10px;font-size:13px;font-weight:700;border-radius:9px;border:none;cursor:pointer;background:transparent;color:var(--gray-500);">🔒 পাসওয়ার্ড সেট করুন</button>
+    </div>
+
+    <!-- Email & Password Login / Smart Sign-Up pane -->
+    <div id="authPaneEmail" style="text-align:left;margin-bottom:6px;">
       <div class="form-group" style="margin-bottom:10px;">
         <label for="emailLoginInput" style="font-size:12px;font-weight:700;color:var(--gray-700);">ইমেইল</label>
         <input type="email" id="emailLoginInput" autocomplete="username" placeholder="আপনার ইমেইল ঠিকানা" style="width:100%;padding:11px 14px;border:1.5px solid var(--gray-200);border-radius:10px;font-size:14px;">
@@ -1084,22 +1108,19 @@ body {
       </div>
     </div>
 
-    <!-- Divider -->
-    <div style="display:flex;align-items:center;gap:10px;margin:4px 0 14px;">
-      <div style="flex:1;height:1px;background:var(--gray-200);"></div>
-      <span style="font-size:12px;color:var(--gray-500);font-weight:600;">অথবা</span>
-      <div style="flex:1;height:1px;background:var(--gray-200);"></div>
+    <!-- Set a Password pane (link email credential to a Google-verified account) -->
+    <div id="authPanePass" style="text-align:left;margin-bottom:6px;display:none;">
+      <p style="font-size:12px;color:var(--gray-500);margin-bottom:10px;line-height:1.5;">Google দিয়ে লগইন করা ইমেইলে একবার পাসওয়ার্ড সেট করলে পরবর্তীতে ইমেইল/পাসওয়ার্ড দিয়ে সরাসরি লগইন করা যাবে — আলাদা ভেরিফিকেশনের প্রয়োজন নেই (গুগল ইমেইল আগেই ভেরিফাইড)।</p>
+      <div class="form-group" style="margin-bottom:10px;">
+        <label for="linkEmailInput" style="font-size:12px;font-weight:700;color:var(--gray-700);">ইমেইল</label>
+        <input type="email" id="linkEmailInput" autocomplete="username" placeholder="আপনার গুগল ইমেইল" style="width:100%;padding:11px 14px;border:1.5px solid var(--gray-200);border-radius:10px;font-size:14px;">
+      </div>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label for="newPasswordInput" style="font-size:12px;font-weight:700;color:var(--gray-700);">নতুন পাসওয়ার্ড</label>
+        <input type="password" id="newPasswordInput" autocomplete="new-password" placeholder="কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড" style="width:100%;padding:11px 14px;border:1.5px solid var(--gray-200);border-radius:10px;font-size:14px;" onkeydown="if(event.key==='Enter'){event.preventDefault();linkEmailCredential();}">
+      </div>
+      <button type="button" id="linkCredentialBtn" onclick="linkEmailCredential()" class="btn btn-primary" style="width:100%;padding:12px 18px;font-size:14px;font-weight:700;border-radius:12px;">✅ পাসওয়ার্ড সেট করুন</button>
     </div>
-
-    <button type="button" id="googleSignInModalBtn" onclick="loginWithGoogle()" class="google-signin-btn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:12px;background:white;color:#1f2937;border:2px solid #e5e7eb;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 12px rgba(0,0,0,0.06);">
-      <svg width="22" height="22" viewBox="0 0 24 24" style="flex-shrink:0;">
-        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-      </svg>
-      <span>গুগল দিয়ে চালিয়ে যান</span>
-    </button>
 
     <button type="button" onclick="closeAuthModal()" style="background:none;border:none;color:var(--gray-500);font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;margin-top:16px;">
       এখন নয়
@@ -1528,8 +1549,44 @@ function applyBusinessBranding() {
 }
 
 function openAuthModal() {
+  // Re-opening the popup always clears the dismissed flag so it instantly shows again after close/dismiss
+  sessionStorage.removeItem('pos_auth_modal_dismissed');
   const modal = document.getElementById('authLoginModal');
-  if (modal) modal.classList.add('active');
+  if (!modal) return;
+  // Prefill linking fields with the signed-in user's email if available
+  try {
+    const linkEl = document.getElementById('linkEmailInput');
+    if (linkEl && !linkEl.value && window.currentUser && currentUser.email) linkEl.value = currentUser.email;
+    const emEl = document.getElementById('emailLoginInput');
+    if (emEl && !emEl.value && window.currentUser && currentUser.email) emEl.value = currentUser.email;
+  } catch (e) {}
+  switchAuthTab('email');
+  modal.classList.add('active');
+}
+
+// Toggle between Email/Password login pane and Set-Password (account linking) pane inside the popup
+function switchAuthTab(tab) {
+  const paneEmail = document.getElementById('authPaneEmail');
+  const panePass = document.getElementById('authPanePass');
+  const tabEmail = document.getElementById('authTabEmail');
+  const tabPass = document.getElementById('authTabPass');
+  const activeStyle = 'flex:1;padding:8px 10px;font-size:13px;font-weight:700;border-radius:9px;border:none;cursor:pointer;background:white;color:var(--primary-dark);box-shadow:0 2px 6px rgba(0,0,0,0.08);';
+  const idleStyle = 'flex:1;padding:8px 10px;font-size:13px;font-weight:700;border-radius:9px;border:none;cursor:pointer;background:transparent;color:var(--gray-500);';
+  if (tab === 'pass') {
+    if (paneEmail) paneEmail.style.display = 'none';
+    if (panePass) panePass.style.display = 'block';
+    if (tabPass) tabPass.setAttribute('style', activeStyle);
+    if (tabEmail) tabEmail.setAttribute('style', idleStyle);
+    try {
+      const linkEl = document.getElementById('linkEmailInput');
+      if (linkEl && !linkEl.value && currentUser && currentUser.email) linkEl.value = currentUser.email;
+    } catch (e) {}
+  } else {
+    if (paneEmail) paneEmail.style.display = 'block';
+    if (panePass) panePass.style.display = 'none';
+    if (tabEmail) tabEmail.setAttribute('style', activeStyle);
+    if (tabPass) tabPass.setAttribute('style', idleStyle);
+  }
 }
 
 function closeAuthModal() {
@@ -1615,8 +1672,8 @@ function renderAuthUI(user) {
 
     if (slot) {
       slot.innerHTML = `
-        <button class="header-btn" onclick="loginWithGoogle()" style="background:linear-gradient(135deg, #1e3a8a, #0f172a);color:white;display:flex;align-items:center;gap:6px;margin-right:6px;">
-          <span>🔑</span><span>Google লগইন</span>
+        <button class="header-btn" onclick="openAuthModal()" style="background:linear-gradient(135deg, #1e3a8a, #0f172a);color:white;display:flex;align-items:center;gap:6px;margin-right:6px;">
+          <span>🔑</span><span>লগইন</span>
         </button>
       `;
     }
@@ -1708,7 +1765,8 @@ async function loginWithEmail() {
         sessionStorage.removeItem('pos_auth_modal_dismissed');
         hideLoading();
         // c) Send email verification and notify the user in Bengali
-        try { await cred.user.sendEmailVerification(); } catch (ve) { console.warn('Verification email failed:', ve); }
+        // Google-style emails may already be verified server-side; otherwise send verification
+        try { if (!cred.user.emailVerified) await cred.user.sendEmailVerification(); } catch (ve) { console.warn('Verification email failed:', ve); }
         closeAuthModal();
         alert('আপনার অ্যাকাউন্ট পাওয়া যায়নি। নতুন অ্যাকাউন্ট তৈরি করা হয়েছে এবং একটি ভেরিফিকেশন ইমেল পাঠানো হয়েছে।');
         showToast('আপনার অ্যাকাউন্ট পাওয়া যায়নি। নতুন অ্যাকাউন্ট তৈরি করা হয়েছে এবং একটি ভেরিফিকেশন ইমেল পাঠানো হয়েছে।');
@@ -1733,9 +1791,9 @@ async function loginWithEmail() {
     }
     // d) Graceful Bengali messages for other errors
     let msg = 'লগইন ব্যর্থ হয়েছে: ' + ((error && error.message) || error);
-    if (code === 'auth/wrong-password') {
+    if (code === 'auth/wrong-password' || code === 'auth/invalid-login-credentials') {
       hideLoading();
-      const resetNow = confirm('পাসওয়ার্ড ভুলে গেছেন?\n\n"ওকে" চাপলে আপনার ইমেইলে পাসওয়ার্ড রিসেট লিংক পাঠানো হবে।');
+      const resetNow = confirm('⛔ পাসওয়ার্ড ভুল! আপনার ইমেইল দিয়ে একটি একাউন্ট রয়েছে কিন্তু পাসওয়ার্ডটি সঠিক নয়। পাসওয়ার্ড ভুলে গেছেন?\n\n"ওকে" চাপলে আপনার ইমেইলে পাসওয়ার্ড রিসেট লিংক পাঠানো হবে।');
       if (resetNow) await sendPasswordResetLink(email);
       return;
     } else if (code === 'auth/invalid-email') {
@@ -1749,6 +1807,61 @@ async function loginWithEmail() {
     } else if (code === 'auth/email-not-enabled' || code === 'auth/operation-not-allowed') {
       msg = 'এই প্রজেক্টে Email/Password সাইন-ইন চালু নেই। Firebase Console > Authentication > Sign-in method থেকে Email/Password এনেবল করুন।';
     }
+    showToast(msg, 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+// Scenario A — Smart Account Linking: give a Google-only (already email-verified) account
+// an Email/Password credential so the user can sign in later without any verification step.
+async function linkEmailCredential() {
+  const emailEl = document.getElementById('linkEmailInput');
+  const passEl = document.getElementById('newPasswordInput');
+  const email = ((emailEl && emailEl.value) || '').trim();
+  const password = ((passEl && passEl.value) || '');
+  if (!currentUser || !auth.currentUser) {
+    showToast('প্রথমে Google দিয়ে লগইন করুন, তারপর এই ইমেইলে পাসওয়ার্ড সেট করা যাবে।', 'error');
+    return;
+  }
+  if (!email || !password) { showToast('ইমেইল ও নতুন পাসওয়ার্ড দুটিই পূরণ করুন।', 'error'); return; }
+  if (password.length < 6) { showToast('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।', 'error'); return; }
+  const user = auth.currentUser;
+  if ((user.email || '').toLowerCase() !== email.toLowerCase()) {
+    showToast('এই ইমেইলটি বর্তমান লগইন করা একাউন্টের সাথে মিলছে না। আপনার গুগল ইমেইলটি দিন।', 'error');
+    return;
+  }
+  try { await auth.setPersistence(firebase.auth.Auth.Persistence.BROWSER_LOCAL); } catch (e) {}
+  try {
+    showLoading('পাসওয়ার্ড সেট হচ্ছে...');
+    // If this provider list has no password credential yet — link a fresh Email/Password credential
+    const hasPassword = (user.providerData || []).some(p => p.providerId === 'password');
+    if (!hasPassword) {
+      const cred = firebase.auth.EmailAuthProvider.credential(email, password);
+      await user.linkWithCredential(cred);
+    } else {
+      // Already linked earlier — just update the password
+      await user.updatePassword(password);
+    }
+    // Google already verified this email — mark verified locally & skip verification requirement
+    try { if (!user.emailVerified) await user.sendEmailVerification(); } catch (ve) { console.warn('verification mail skipped:', ve); }
+    hideLoading();
+    showToast('✅ পাসওয়ার্ড সেট হয়েছে! এখন থেকে ইমেইল ও পাসওয়ার্ড দিয়েও লগইন করতে পারবেন।');
+    alert('আপনার ইমেইলে পাসওয়ার্ড সেট করা হয়েছে। এখন থেকে "ইমেইল দিয়ে লগইন" ট্যাব ব্যবহার করে সরাসরি লগইন করতে পারবেন।');
+    const passField = document.getElementById('newPasswordInput');
+    if (passField) passField.value = '';
+    const emField = document.getElementById('emailLoginInput');
+    if (emField && !emField.value) emField.value = email;
+    switchAuthTab('email');
+  } catch (error) {
+    console.error('linkEmailCredential failed:', error);
+    hideLoading();
+    const code = error && error.code;
+    let msg = 'পাসওয়ার্ড সেট করা যায়নি: ' + ((error && error.message) || error);
+    if (code === 'auth/credential-already-in-use') msg = 'এই ইমেইল দিয়ে আগেই একটি পাসওয়ার্ড একাউন্ট রয়েছে। "পাসওয়ার্ড ভুলে গেছেন?" দিয়ে রিসেট লিংক নিন।';
+    else if (code === 'auth/requires-recent-login') msg = 'সুরক্ষার কারণে সাম্প্রতিক লগইন প্রয়োজন। আবার Google দিয়ে লগইন করে কিছুক্ষণের মধ্যে চেষ্টা করুন।';
+    else if (code === 'auth/weak-password') msg = 'পাসওয়ার্ড অনেক দুর্বল। কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড দিন।';
+    else if (code === 'auth/network-request-failed') msg = 'ইন্টারনেট সংযোগ নেই। সংযোগ চালু করে আবার চেষ্টা করুন।';
     showToast(msg, 'error');
   } finally {
     hideLoading();
@@ -1939,8 +2052,8 @@ auth.onAuthStateChanged(user => {
 // Refresh all data from Firestore
 async function refreshFromFirebase() {
   if (!currentUserId) {
-    showToast('অনুরোধ করতে অনুগ্রহ করে প্রথমে Google দিয়ে লগইন করুন', 'error');
-    loginWithGoogle();
+    showToast('অনুরোধ করতে অনুগ্রহ করে প্রথমে লগইন করুন', 'error');
+    openAuthModal();
     return;
   }
   showLoading('Firebase ক্লাউড থেকে ডাটা রিফ্রেশ হচ্ছে...');
@@ -2008,8 +2121,8 @@ async function refreshFromFirebase() {
 // Test Firebase connection
 async function testFirebaseConnection() {
   if (!currentUserId) {
-    showToast('কানেকশন টেস্ট করতে প্রথমে Google দিয়ে লগইন করুন', 'error');
-    loginWithGoogle();
+    showToast('কানেকশন টেস্ট করতে প্রথমে লগইন করুন', 'error');
+    openAuthModal();
     return;
   }
   showLoading('Firebase সংযোগ ও নিরাপত্তা পারমিশন পরীক্ষা হচ্ছে...');
