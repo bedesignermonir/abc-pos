@@ -1532,6 +1532,13 @@ function closeAuthModal() {
 }
 
 const auth = firebase.auth();
+// Explicit persistence: keep the session across reloads/redirects to avoid login loops
+try {
+  auth.setPersistence(firebase.auth.Auth.Persistence.BROWSER_LOCAL)
+    .catch(pErr => console.warn('Auth persistence set failed:', pErr));
+} catch (pErr) {
+  console.warn('Auth persistence unsupported:', pErr);
+}
 const db = firebase.firestore();
 
 // Multi-Tenant Isolation: State of authenticated business owner
@@ -1626,7 +1633,8 @@ function getGoogleAuthErrorMessage(error) {
   return 'লগইন ব্যর্থ হয়েছে: ' + ((error && error.message) || error);
 }
 
-// Email & Password Sign-In (Firebase) - handled in-session, no redirect loops
+// Email & Password Auth (Firebase) — smart flow: sign in first, auto sign-up if user not found.
+// No separate "Register" screen needed; verification email sent on new account creation.
 async function loginWithEmail() {
   const emailEl = document.getElementById('emailLoginInput');
   const passEl = document.getElementById('passwordLoginInput');
@@ -1636,24 +1644,67 @@ async function loginWithEmail() {
     showToast('অনুগ্রহ করে ইমেইল ও পাসওয়ার্ড দুটিই পূরণ করুন', 'error');
     return;
   }
+  if (password.length < 6) {
+    showToast('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।', 'error');
+    return;
+  }
+  // Explicitly keep the session in localStorage before authenticating
+  try { await auth.setPersistence(firebase.auth.Auth.Persistence.BROWSER_LOCAL); } catch (e) {}
   try {
     showLoading('লগইন হচ্ছে...');
+    // a) First attempt: sign in with existing credentials
     await auth.signInWithEmailAndPassword(email, password);
     sessionStorage.removeItem('pos_auth_modal_dismissed');
+    hideLoading();
     closeAuthModal();
     showToast('সফলভাবে লগইন হয়েছে ✓');
+    return;
   } catch (error) {
-    console.error('Email/Password Sign-In failed:', error);
     const code = error && error.code;
+    console.warn('Email sign-in failed:', code, error);
+    // b) If user doesn't exist yet — automatically create the account (no register screen)
+    if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
+      try {
+        showLoading('নতুন একাউন্ট তৈরি হচ্ছে...');
+        const cred = await auth.createUserWithEmailAndPassword(email, password);
+        sessionStorage.removeItem('pos_auth_modal_dismissed');
+        hideLoading();
+        // c) Send email verification and notify the user in Bengali
+        try { await cred.user.sendEmailVerification(); } catch (ve) { console.warn('Verification email failed:', ve); }
+        closeAuthModal();
+        alert('আপনার ইমেইলে একটি ভেরিফিকেশন লিংক পাঠানো হয়েছে। অনুগ্রহ করে ইমেইল ভেরিফাই করুন।');
+        showToast('আপনার ইমেইলে একটি ভেরিফিকেশন লিংক পাঠানো হয়েছে। অনুগ্রহ করে ইমেইল ভেরিফাই করুন।');
+        return;
+      } catch (createError) {
+        console.error('Auto sign-up failed:', createError);
+        const cCode = createError && createError.code;
+        let cMsg = 'একাউন্ট তৈরি করা যায়নি: ' + ((createError && createError.message) || createError);
+        if (cCode === 'auth/email-already-in-use') {
+          cMsg = 'এই ইমেইল দিয়ে আগেই একাউন্ট রয়েছে। সঠিক পাসওয়ার্ড দিয়ে আবার লগইন করুন।';
+        } else if (cCode === 'auth/weak-password') {
+          cMsg = 'পাসওয়ার্ড অনেক দুর্বল। কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড দিন।';
+        } else if (cCode === 'auth/invalid-email') {
+          cMsg = 'ইমেইল ঠিকানাটি সঠিক নয়।';
+        } else if (cCode === 'auth/operation-not-allowed' || cCode === 'auth/email-not-enabled') {
+          cMsg = 'এই প্রজেক্টে Email/Password সাইন-ইন চালু নেই। Firebase Console > Authentication > Sign-in method থেকে Email/Password এনেবল করুন।';
+        }
+        showToast(cMsg, 'error');
+        hideLoading();
+        return;
+      }
+    }
+    // d) Graceful Bengali messages for other errors
     let msg = 'লগইন ব্যর্থ হয়েছে: ' + ((error && error.message) || error);
-    if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
-      msg = 'ইমেইল বা পাসওয়ার্ড ভুল হয়েছে। আবার চেষ্টা করুন।';
+    if (code === 'auth/wrong-password') {
+      msg = 'পাসওয়ার্ড ভুল হয়েছে। আবার চেষ্টা করুন।';
     } else if (code === 'auth/invalid-email') {
       msg = 'ইমেইল ঠিকানাটি সঠিক নয়।';
     } else if (code === 'auth/user-disabled') {
       msg = 'এই একাউন্টটি নিষ্ক্রিয় করা হয়েছে।';
     } else if (code === 'auth/too-many-requests') {
       msg = 'অনেকবার চেষ্টা করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।';
+    } else if (code === 'auth/network-request-failed') {
+      msg = 'ইন্টারনেট সংযোগ নেই। সংযোগ চালু করে আবার চেষ্টা করুন।';
     } else if (code === 'auth/email-not-enabled' || code === 'auth/operation-not-allowed') {
       msg = 'এই প্রজেক্টে Email/Password সাইন-ইন চালু নেই। Firebase Console > Authentication > Sign-in method থেকে Email/Password এনেবল করুন।';
     }
@@ -1663,32 +1714,44 @@ async function loginWithEmail() {
   }
 }
 
-// Google Sign-In
+// Google Sign-In — always popup-based (in-session) to avoid redirect loops; falls back to redirect only when popups are unsupported
 async function loginWithGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
+  // Explicitly set browserLocalPersistence BEFORE triggering authentication
+  try { await auth.setPersistence(firebase.auth.Auth.Persistence.BROWSER_LOCAL); } catch (e) {}
   try {
     showLoading('Google দিয়ে সাইন ইন হচ্ছে...');
-    if (shouldUseGoogleRedirect()) {
-      await auth.signInWithRedirect(provider);
-    } else {
-      try {
-        await auth.signInWithPopup(provider);
-      } catch (popupError) {
-        const code = popupError && popupError.code;
-        if (code !== 'auth/popup-blocked'
-            && code !== 'auth/operation-not-supported-in-this-environment') {
-          throw popupError;
-        }
-        console.warn('Google Sign-In popup unavailable; falling back to redirect:', popupError);
-        await auth.signInWithRedirect(provider);
+    try {
+      // Prefer popup so the SPA never reloads through a redirect cycle
+      await auth.signInWithPopup(provider);
+      sessionStorage.removeItem('pos_auth_modal_dismissed');
+      hideLoading();
+      closeAuthModal();
+      showToast('সফলভাবে লগইন হয়েছে ✓');
+    } catch (popupError) {
+      const code = popupError && popupError.code;
+      if (code === 'auth/user-cancelled' || code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        hideLoading();
+        return; // user cancelled — no loop, just stay on login screen
       }
+      if (code !== 'auth/popup-blocked'
+          && code !== 'auth/operation-not-supported-in-this-environment'
+          && code !== 'auth/unauthorized-domain') {
+        throw popupError;
+      }
+      console.warn('Google Sign-In popup unavailable; falling back to redirect:', code);
+      if (code === 'auth/unauthorized-domain') {
+        hideLoading();
+        showToast(getGoogleAuthErrorMessage(popupError), 'error');
+        return;
+      }
+      await auth.signInWithRedirect(provider); // handled by getRedirectResult + onAuthStateChanged
     }
   } catch (error) {
     console.error('Google Sign-In failed:', error);
-    showToast(getGoogleAuthErrorMessage(error), 'error');
-  } finally {
     hideLoading();
+    showToast(getGoogleAuthErrorMessage(error), 'error');
   }
 }
 
@@ -1796,19 +1859,27 @@ auth.getRedirectResult().then(result => {
   showToast(getGoogleAuthErrorMessage(error), 'error');
 });
 
-// Authentication State Listener
+// Authentication State Listener — guard against re-entrant loops so the dashboard renders once and only once per session
+let authBootstrapped = false;
 auth.onAuthStateChanged(user => {
   if (user) {
+    const alreadyRendered = authBootstrapped && currentUserId === user.uid;
     currentUser = user;
     currentUserId = user.uid;
     renderAuthUI(user);
-    attachFirestoreListeners(user.uid);
+    if (!alreadyRendered) {
+      attachFirestoreListeners(user.uid);
+      applyBusinessBranding();
+      showToast('স্বাগতম, ' + (user.displayName || user.email) + '! ক্লাউড ডাটা সিঙ্ক সক্রিয়');
+    }
+    authBootstrapped = true;
+    // Authenticated: immediately dismiss login modal & clear any "dismissed" flag — never loop back to login state
+    sessionStorage.removeItem('pos_auth_modal_dismissed');
     closeAuthModal();
-    applyBusinessBranding();
-    showToast('স্বাগতম, ' + (user.displayName || user.email) + '! ক্লাউড ডাটা সিঙ্ক সক্রিয়');
   } else {
     currentUser = null;
     currentUserId = null;
+    authBootstrapped = false;
     firestoreUnsubscribers.forEach(unsub => { try { unsub(); } catch (e) {} });
     firestoreUnsubscribers = [];
     renderAuthUI(null);
