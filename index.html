@@ -803,8 +803,8 @@ body {
     <div style="display:flex;align-items:center;gap:12px;">
       <div style="font-size:24px;">☁️</div>
       <div>
-        <div style="font-weight:700;font-size:13px;">মাল্টি-টেন্যান্ট ক্লাউড মোড সক্রিয়</div>
-        <div style="font-size:11px;opacity:0.85;">আপনার প্রতিষ্ঠানের সেলস, খরচ ও হিসাব ক্লাউডে সুরক্ষিত রাখতে এবং যেকোনো ডিভাইস থেকে পরিচালনা করতে Google একাউন্ট দিয়ে সাইন-ইন করুন।</div>
+        <div style="font-weight:700;font-size:13px;">মাল্টি-টেন্যান্ট ক্লাউড মোড সক্রিয়</div>
+        <div style="font-size:11px;opacity:0.85;">আপনার প্রতিষ্ঠানের সেলস, খরচ ও হিসাব ক্লাউডে সুরক্ষিত রাখতে এবং যেকোনো ডিভাইস থেকে পরিচালনা করতে Google একাউন্ট দিয়ে সাইন-ইন করুন।</div>
       </div>
     </div>
     <button onclick="loginWithGoogle()" class="btn" style="background:#25d366;color:#0f172a;font-weight:700;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12px;">🔑 Google দিয়ে লগইন</button>
@@ -1067,6 +1067,26 @@ body {
       আপনার বিশ্বস্ত ডিজিটাল সেবা ও হিসাব রক্ষণ
     </p>
 
+    <!-- Email & Password Login -->
+    <div style="text-align:left;margin-bottom:14px;">
+      <div class="form-group" style="margin-bottom:10px;">
+        <label for="emailLoginInput" style="font-size:12px;font-weight:700;color:var(--gray-700);">ইমেইল</label>
+        <input type="email" id="emailLoginInput" autocomplete="username" placeholder="আপনার ইমেইল ঠিকানা" style="width:100%;padding:11px 14px;border:1.5px solid var(--gray-200);border-radius:10px;font-size:14px;">
+      </div>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label for="passwordLoginInput" style="font-size:12px;font-weight:700;color:var(--gray-700);">পাসওয়ার্ড</label>
+        <input type="password" id="passwordLoginInput" autocomplete="current-password" placeholder="আপনার পাসওয়ার্ড" style="width:100%;padding:11px 14px;border:1.5px solid var(--gray-200);border-radius:10px;font-size:14px;" onkeydown="if(event.key==='Enter'){event.preventDefault();loginWithEmail();}">
+      </div>
+      <button type="button" id="emailSignInModalBtn" onclick="loginWithEmail()" class="btn btn-primary" style="width:100%;padding:12px 18px;font-size:14px;font-weight:700;border-radius:12px;">🔑 লগইন / সাইন-ইন</button>
+    </div>
+
+    <!-- Divider -->
+    <div style="display:flex;align-items:center;gap:10px;margin:4px 0 14px;">
+      <div style="flex:1;height:1px;background:var(--gray-200);"></div>
+      <span style="font-size:12px;color:var(--gray-500);font-weight:600;">অথবা</span>
+      <div style="flex:1;height:1px;background:var(--gray-200);"></div>
+    </div>
+
     <button type="button" id="googleSignInModalBtn" onclick="loginWithGoogle()" class="google-signin-btn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:12px;background:white;color:#1f2937;border:2px solid #e5e7eb;border-radius:12px;padding:12px 18px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 12px rgba(0,0,0,0.06);">
       <svg width="22" height="22" viewBox="0 0 24 24" style="flex-shrink:0;">
         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -1074,7 +1094,7 @@ body {
         <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
         <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
       </svg>
-      <span>Google (Gmail) দিয়ে চালিয়ে যান</span>
+      <span>গুগল দিয়ে চালিয়ে যান</span>
     </button>
 
     <button type="button" onclick="closeAuthModal()" style="background:none;border:none;color:var(--gray-500);font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;margin-top:16px;">
@@ -1104,14 +1124,12 @@ body {
       </div>
 
       <div style="font-size:12px;color:var(--gray-700);line-height:1.6;">
-        <div><strong>প্রজেক্ট আইডি:</strong> <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;">gen-lang-client-0772095030</code></div>
         <div><strong>বর্তমান টেন্যান্ট:</strong> <span id="settingsUserDisplay" style="font-weight:600;color:var(--primary-dark);">লগইন চেক হচ্ছে...</span></div>
-        <div><strong>আইসোলেটেড ডেটা পাথ:</strong> <code id="settingsDataPath" style="background:#e2e8f0;padding:2px 6px;border-radius:4px;">users/{user_uid}/</code></div>
       </div>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-        <button id="settingsLoginBtn" type="button" class="btn btn-whatsapp" style="padding:7px 14px;font-size:12px;" onclick="openAuthModal()">🔑 Google দিয়ে সাইন-ইন</button>
-        <button id="settingsLogoutBtn" type="button" class="btn btn-reset" style="padding:7px 14px;font-size:12px;display:none;background:#fee2e2;color:#b91c1c;border:none;font-weight:700;" onclick="logoutUser()">🚪 লগআউট</button>
+        <button id="settingsLoginBtn" type="button" class="btn btn-whatsapp" style="padding:7px 14px;font-size:12px;" onclick="openAuthModal()">🔑 সাইন-ইন</button>
       </div>
+      <button id="settingsLogoutBtn" type="button" class="btn btn-reset" style="margin-top:12px;width:100%;padding:12px;font-size:14px;display:none;background:#fee2e2;color:#b91c1c;border:none;font-weight:700;border-radius:10px;cursor:pointer;" onclick="logoutUser()">🚪 লগআউট</button>
     </div>
 
     <!-- Business Profile & Branding Section -->
@@ -1170,11 +1188,11 @@ body {
       <textarea id="presetItems" onchange="capturePresetPriceDraft(); renderPresetPriceFields()" style="min-height:120px;" placeholder="Photocopy&#10;ছবি তোলা&#10;কম্পিউটার ট্রেনিং&#10;গ্রাফিক ডিজাইন"></textarea>
     </div>
     <div class="form-group">
-      <label>💳 প্রি-সেট আইটেমের কস্ট ও বিক্রয়মূল্য (প্রতি ইউনিট)</label>
-      <div class="preset-price-labels"><span>আইটেম</span><span>কস্ট / ইউনিট</span><span>বিক্রয় / ইউনিট</span></div>
+      <label>💳 প্রি-সেট আইটেমের কস্ট ও বিক্রয়মূল্য (প্রতি ইউনিট)</label>
+      <div class="preset-price-labels"><span>আইটেম</span><span>কস্ট / ইউনিট</span><span>বিক্রয় / ইউনিট</span></div>
       <div id="presetPriceFields" class="preset-price-list"></div>
       <small style="color:var(--gray-500);font-size:11px;margin-top:4px;display:block;">
-        নির্বাচিত প্রি-সেট আইটেমের বিক্রয়মূল্য বিলে বসবে; প্রয়োজনে বিলে পরিবর্তন করা যাবে। কাস্টম আইটেমের কস্ট ০ ধরা হবে।
+        নির্বাচিত প্রি-সেট আইটেমের বিক্রয়মূল্য বিলে বসবে; প্রয়োজনে বিলে পরিবর্তন করা যাবে। কাস্টম আইটেমের কস্ট ০ ধরা হবে।
       </small>
     </div>
     <div class="form-group">
@@ -1556,14 +1574,12 @@ function renderAuthUI(user) {
   const slot = document.getElementById('authHeaderSlot');
   const banner = document.getElementById('tenantNoticeBanner');
   const userDisp = document.getElementById('settingsUserDisplay');
-  const dataPath = document.getElementById('settingsDataPath');
   const loginBtn = document.getElementById('settingsLoginBtn');
   const logoutBtn = document.getElementById('settingsLogoutBtn');
 
   if (user) {
     if (banner) banner.style.display = 'none';
     if (userDisp) userDisp.textContent = (user.displayName || user.email) + ' (' + user.email + ')';
-    if (dataPath) dataPath.textContent = 'users/' + user.uid + '/';
     if (loginBtn) loginBtn.style.display = 'none';
     if (logoutBtn) logoutBtn.style.display = 'inline-block';
 
@@ -1572,7 +1588,7 @@ function renderAuthUI(user) {
         <div style="display:flex;align-items:center;gap:8px;background:var(--gray-100);padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;margin-right:6px;">
           <img src="${user.photoURL || 'app-icon-180.png'}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;" alt="Avatar" onerror="this.src='app-icon-180.png'">
           <span style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dark);">${escapeHtml(user.displayName || user.email.split('@')[0])}</span>
-          <span title="ক্লাউড সিঙ্ক সক্রিয়" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;"></span>
+          <span title="ক্লাউড সিঙ্ক সক্রিয়" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;"></span>
           <button onclick="logoutUser()" title="লগআউট" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:14px;padding:0 2px;">🚪</button>
         </div>
       `;
@@ -1580,7 +1596,6 @@ function renderAuthUI(user) {
   } else {
     if (banner) banner.style.display = 'flex';
     if (userDisp) userDisp.textContent = 'লগইন করা নেই (লোকাল ড্রাফট মোড)';
-    if (dataPath) dataPath.textContent = 'users/{user_uid}/ (লগইন প্রয়োজন)';
     if (loginBtn) loginBtn.style.display = 'inline-block';
     if (logoutBtn) logoutBtn.style.display = 'none';
 
@@ -1609,6 +1624,43 @@ function getGoogleAuthErrorMessage(error) {
     return `এই ডোমেইনটি Firebase-এ অনুমোদিত নয়। Firebase Console > Authentication > Settings > Authorized domains-এ "${hostname}" যোগ করুন।`;
   }
   return 'লগইন ব্যর্থ হয়েছে: ' + ((error && error.message) || error);
+}
+
+// Email & Password Sign-In (Firebase) - handled in-session, no redirect loops
+async function loginWithEmail() {
+  const emailEl = document.getElementById('emailLoginInput');
+  const passEl = document.getElementById('passwordLoginInput');
+  const email = ((emailEl && emailEl.value) || '').trim();
+  const password = ((passEl && passEl.value) || '');
+  if (!email || !password) {
+    showToast('অনুগ্রহ করে ইমেইল ও পাসওয়ার্ড দুটিই পূরণ করুন', 'error');
+    return;
+  }
+  try {
+    showLoading('লগইন হচ্ছে...');
+    await auth.signInWithEmailAndPassword(email, password);
+    sessionStorage.removeItem('pos_auth_modal_dismissed');
+    closeAuthModal();
+    showToast('সফলভাবে লগইন হয়েছে ✓');
+  } catch (error) {
+    console.error('Email/Password Sign-In failed:', error);
+    const code = error && error.code;
+    let msg = 'লগইন ব্যর্থ হয়েছে: ' + ((error && error.message) || error);
+    if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+      msg = 'ইমেইল বা পাসওয়ার্ড ভুল হয়েছে। আবার চেষ্টা করুন।';
+    } else if (code === 'auth/invalid-email') {
+      msg = 'ইমেইল ঠিকানাটি সঠিক নয়।';
+    } else if (code === 'auth/user-disabled') {
+      msg = 'এই একাউন্টটি নিষ্ক্রিয় করা হয়েছে।';
+    } else if (code === 'auth/too-many-requests') {
+      msg = 'অনেকবার চেষ্টা করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।';
+    } else if (code === 'auth/email-not-enabled' || code === 'auth/operation-not-allowed') {
+      msg = 'এই প্রজেক্টে Email/Password সাইন-ইন চালু নেই। Firebase Console > Authentication > Sign-in method থেকে Email/Password এনেবল করুন।';
+    }
+    showToast(msg, 'error');
+  } finally {
+    hideLoading();
+  }
 }
 
 // Google Sign-In
@@ -2007,11 +2059,11 @@ function addItem(name='', qty=1, price=0) {
       <option value="__custom__" ${isCustom?'selected':''}>✏️ কাস্টম...</option>
       </select>
       <input type="text" class="customName" placeholder="নাম" value="${isCustom ? escAttr(name) : ''}" style="display:${isCustom ? 'block':'none'}">
-      <div class="item-cost-display">ক্রয়: ${formatMoney(initialCost)} / ইউনিট</div>
+      <div class="item-cost-display">ক্রয়: ${formatMoney(initialCost)} / ইউনিট</div>
       <input type="hidden" class="itemCostPrice" value="${initialCost}">
     </div>
     <input type="number" class="itemQty" value="${qty}" min="1" onchange="calculateRowTotal(this.closest('.item-row')); calculateTotal()" placeholder="পরিমাণ">
-    <input type="number" class="itemPrice" value="${initialPrice}" min="0" step="0.01" onchange="calculateRowTotal(this.closest('.item-row')); calculateTotal()" placeholder="বিক্রয়মূল্য">
+    <input type="number" class="itemPrice" value="${initialPrice}" min="0" step="0.01" onchange="calculateRowTotal(this.closest('.item-row')); calculateTotal()" placeholder="বিক্রয়মূল্য">
     <div class="item-total-display">৳০</div>
     <button class="remove-btn" onclick="this.parentElement.remove(); calculateTotal()">×</button>
   `;
@@ -2030,14 +2082,14 @@ function updateItem(sel) {
     customInput.style.display = 'block';
     customInput.focus();
     costInput.value = '0';
-    costDisplay.textContent = 'ক্রয়: ৳০ / ইউনিট';
+    costDisplay.textContent = 'ক্রয়: ৳০ / ইউনিট';
     priceInput.value = '0';
   } else {
     customInput.style.display = 'none';
     customInput.value = '';
     const costPrice = Number((settings.costPrices || {})[sel.value] || 0);
     costInput.value = String(costPrice);
-    costDisplay.textContent = 'ক্রয়: ' + formatMoney(costPrice) + ' / ইউনিট';
+    costDisplay.textContent = 'ক্রয়: ' + formatMoney(costPrice) + ' / ইউনিট';
     priceInput.value = Object.prototype.hasOwnProperty.call(settings.sellingPrices || {}, sel.value)
       ? settings.sellingPrices[sel.value]
       : '0';
@@ -2777,7 +2829,7 @@ async function deleteInvoice(id) {
 // ===== Settings =====
 function openSettings() {
   if (Date.now() < settingsPinLockedUntil) {
-    return showToast('অনেকবার ভুল PIN দেওয়া হয়েছে। এক মিনিট পরে চেষ্টা করুন।', 'error');
+    return showToast('অনেকবার ভুল PIN দেওয়া হয়েছে। এক মিনিট পরে চেষ্টা করুন।', 'error');
   }
   if (settingsPinLockedUntil) settingsPinAttempts = 0;
   document.getElementById('settingsPinInput').value = '';
@@ -2790,8 +2842,8 @@ function verifySettingsPin() {
     settingsPinAttempts++;
     document.getElementById('settingsPinInput').value = '';
     showToast(settingsPinAttempts >= 5
-      ? 'অনেকবার ভুল PIN দেওয়া হয়েছে। আবার চেষ্টা করুন।'
-      : 'PIN সঠিক নয়', 'error');
+      ? 'অনেকবার ভুল PIN দেওয়া হয়েছে। আবার চেষ্টা করুন।'
+      : 'PIN সঠিক নয়', 'error');
     if (settingsPinAttempts >= 5) {
       settingsPinLockedUntil = Date.now() + 60000;
       closeSettingsPin();
@@ -2854,7 +2906,7 @@ function renderPresetPriceFields() {
     sellingInput.type = 'number';
     sellingInput.min = '0';
     sellingInput.step = '0.01';
-    sellingInput.placeholder = 'বিক্রয়';
+    sellingInput.placeholder = 'বিক্রয়';
     sellingInput.className = 'preset-selling-input';
     sellingInput.dataset.itemName = name;
     if (Object.prototype.hasOwnProperty.call(settings.sellingPrices || {}, name)) {
@@ -2887,7 +2939,7 @@ async function saveSettings() {
     }
   });
   if (invalidPrice) {
-    return showToast('কস্ট ও বিক্রয়মূল্য শূন্য বা তার বেশি সংখ্যা হতে হবে', 'error');
+    return showToast('কস্ট ও বিক্রয়মূল্য শূন্য বা তার বেশি সংখ্যা হতে হবে', 'error');
   }
 
   // Save business branding settings
@@ -2922,7 +2974,7 @@ async function saveSettings() {
       showToast('✓ সেটিংস লোকাল ও Firebase ক্লাউডে সেভ হয়েছে');
     }).catch(error => {
       console.error('Firestore settings sync error:', error);
-      showToast('লোকালে সেটিংস সেভ হয়েছে, ক্লাউডে হয়নি: ' + (error.message || error), 'error');
+      showToast('লোকালে সেটিংস সেভ হয়েছে, ক্লাউডে হয়নি: ' + (error.message || error), 'error');
     });
   } else {
     showToast('✓ সেটিংস লোকাল স্টোরেজে সেভ হয়েছে');
