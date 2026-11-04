@@ -3024,6 +3024,7 @@
     let currentUser = null;
     let currentUserId = null;
     const MASTER_ADMIN_EMAIL = 'clkmonir@gmail.com';
+    const MASTER_ADMIN_UID = 'sLChvjrk8ygkMD8AzEZepqvqLEz1';
     const BUSINESS_TENANT_ID = 'abc-computer';
     const PENDING_APPROVAL_MESSAGE = 'আপনার অ্যাকাউন্টটি অনুমোদন অপেক্ষমাণ রয়েছে। এডমিনের অনুমতির পর ব্যবহার করতে পারবেন।';
     const PENDING_PATIENCE_QUOTES = [
@@ -3087,7 +3088,7 @@
     }
 
     function isMasterAdmin(user = currentUser) {
-      return Boolean(user && user.email === MASTER_ADMIN_EMAIL);
+      return Boolean(user && (user.email === MASTER_ADMIN_EMAIL || user.uid === MASTER_ADMIN_UID));
     }
 
     function updateAccessGate(message, title = 'অ্যাকাউন্ট যাচাই হচ্ছে') {
@@ -3162,7 +3163,7 @@
     }
 
     async function resolveUserAccess(user) {
-      if (user && user.email === MASTER_ADMIN_EMAIL) {
+      if (isMasterAdmin(user)) {
         currentAccess = {
           role: 'Admin',
           status: 'approved',
@@ -3210,7 +3211,7 @@
     }
 
     async function correctMasterAdminProfile(user) {
-      if (!user || user.email !== MASTER_ADMIN_EMAIL) return false;
+      if (!isMasterAdmin(user)) return false;
       try {
         const profileRef = getUserRef(user.uid);
         await profileRef.set({
@@ -3942,7 +3943,7 @@
     // Authentication State Listener — guard against re-entrant loops so the dashboard renders once and only once per session
     let authBootstrapped = false;
     auth.onAuthStateChanged(async user => {
-      if (user && user.email === MASTER_ADMIN_EMAIL) {
+      if (isMasterAdmin(user)) {
         const alreadyRendered = authBootstrapped && currentUserId === user.uid;
         currentUser = user;
         currentUserId = user.uid;

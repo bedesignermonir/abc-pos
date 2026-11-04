@@ -9,7 +9,8 @@ service cloud.firestore {
     // মাস্টার এডমিন চেক (ইমেইল ভেরিফিকেশন সহ বা সরাসরি ইমেইল ম্যাচ)
     function isMasterAdmin() {
       return signedIn()
-        && request.auth.token.email == 'clkmonir@gmail.com';
+        && (request.auth.token.email == 'clkmonir@gmail.com'
+          || request.auth.uid == 'sLChvjrk8ygkMD8AzEZepqvqLEz1');
     }
 
     match /{document=**} {
