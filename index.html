@@ -1756,6 +1756,7 @@ let syncStatusCheckId = 0;
 let cashHistoryRecords = [];
 let firestoreReconnectTimer = null;
 let firestoreReconnectAttempts = 0;
+let firestoreReadTimedOut = false;
 
 // Isolated Firestore references under users/{user_uid}/
 function getUserRef(uid = currentUserId) {
@@ -1816,22 +1817,49 @@ function setSyncStatus(state, message) {
 function isFirestoreOfflineError(error) {
   const message = String(error && error.message || '');
   return !navigator.onLine
-    || ['unavailable', 'deadline-exceeded', 'network-request-failed'].includes(error && error.code)
+    || ['unavailable', 'network-request-failed'].includes(error && error.code)
     || /client is offline|network unavailable|network error/i.test(message);
 }
 
-function waitForPendingWritesWithTimeout(timeoutMs = 15000) {
+const FIRESTORE_OPERATION_TIMEOUT_MS = 30000;
+const FIRESTORE_NETWORK_DELAY_MESSAGE = 'সার্ভার থেকে সাড়া মিলতে দেরি হচ্ছে। দয়া করে আপনার ইন্টারনেট সংযোগ চেক করুন।';
+
+function isFirestoreTimeoutError(error) {
+  return error && ['firestore/acknowledgement-timeout', 'deadline-exceeded'].includes(error.code);
+}
+
+function getFirestoreErrorMessage(error, fallbackMessage) {
+  return isFirestoreTimeoutError(error) || isFirestoreOfflineError(error)
+    ? FIRESTORE_NETWORK_DELAY_MESSAGE
+    : fallbackMessage + (error && error.message ? ': ' + error.message : '');
+}
+
+function showFirestoreOperationError(error, fallbackMessage) {
+  if (isFirestoreTimeoutError(error) || isFirestoreOfflineError(error)) {
+    setSyncStatus(navigator.onLine ? 'pending' : 'offline', 'Firebase-এ সাড়া পেতে দেরি হচ্ছে · ডেটা লোকালি সংরক্ষিত');
+    showToast(FIRESTORE_NETWORK_DELAY_MESSAGE, 'error');
+    scheduleFirestoreReconnect();
+    return;
+  }
+  showToast(getFirestoreErrorMessage(error, fallbackMessage), 'error');
+}
+
+function withFirestoreTimeout(operation, operationName, timeoutMs = FIRESTORE_OPERATION_TIMEOUT_MS) {
   let timeoutId;
   const timeout = new Promise((_, reject) => {
     timeoutId = setTimeout(() => {
-      const error = new Error('Firebase acknowledgement timed out.');
-      error.code = 'deadline-exceeded';
+      const error = new Error('Firestore operation timed out: ' + operationName);
+      error.code = 'firestore/acknowledgement-timeout';
       reject(error);
     }, timeoutMs);
   });
-  const pendingWrites = Promise.resolve().then(() => db.waitForPendingWrites());
-  return Promise.race([pendingWrites, timeout])
+  const operationPromise = Promise.resolve().then(operation);
+  return Promise.race([operationPromise, timeout])
     .finally(() => clearTimeout(timeoutId));
+}
+
+function waitForPendingWritesWithTimeout() {
+  return withFirestoreTimeout(() => db.waitForPendingWrites(), 'pending writes');
 }
 
 async function checkSyncStatus() {
@@ -1857,6 +1885,10 @@ async function checkSyncStatus() {
       if (isFirestoreOfflineError(error)) {
         setSyncStatus('offline', 'ইন্টারনেট সংযোগ নেই · ডেটা লোকালি সংরক্ষিত');
         scheduleFirestoreReconnect();
+      } else if (isFirestoreTimeoutError(error)) {
+        setSyncStatus('pending', 'Firebase-এ সাড়া পেতে দেরি হচ্ছে · ডেটা লোকালি সংরক্ষিত');
+        showToast(FIRESTORE_NETWORK_DELAY_MESSAGE, 'error');
+        scheduleFirestoreReconnect();
       } else {
         setSyncStatus('error', 'সিঙ্ক যাচাই করা যায়নি · আবার চেষ্টা করুন');
       }
@@ -1880,15 +1912,15 @@ async function forceSyncNow() {
     await firestorePersistenceReady;
     await waitForPendingWritesWithTimeout();
     const refreshed = await refreshFromFirebase();
-    if (!refreshed) {
-      setSyncStatus('error', 'ডেটা রিফ্রেশ হয়নি · আবার চেষ্টা করুন');
-      return;
-    }
+    if (!refreshed) return;
   } catch (error) {
     console.error('Force sync failed:', error);
     if (isFirestoreOfflineError(error)) {
       setSyncStatus('offline', 'ইন্টারনেট সংযোগ অস্থির · ডেটা লোকালি সংরক্ষিত, পরে আবার সিঙ্ক হবে');
-      showToast('ইন্টারনেট সংযোগ অস্থির। ডেটা ডিভাইসে সংরক্ষিত আছে; সংযোগ ফিরে এলে আবার সিঙ্ক করুন।', 'error');
+      showToast(FIRESTORE_NETWORK_DELAY_MESSAGE, 'error');
+      scheduleFirestoreReconnect();
+    } else if (isFirestoreTimeoutError(error)) {
+      showToast(FIRESTORE_NETWORK_DELAY_MESSAGE, 'error');
       scheduleFirestoreReconnect();
     } else {
       setSyncStatus('error', 'সিঙ্ক ব্যর্থ হয়েছে · আবার চেষ্টা করুন');
@@ -2219,6 +2251,12 @@ async function logoutUser() {
 function handleFirestoreSyncError(label, error) {
   console.warn(label + ' listener:', error);
   if (!currentUserId) return;
+  if (isFirestoreTimeoutError(error)) {
+    setSyncStatus('pending', 'Firebase-এ সাড়া পেতে দেরি হচ্ছে · ডেটা লোকালি সংরক্ষিত');
+    showToast(FIRESTORE_NETWORK_DELAY_MESSAGE, 'error');
+    scheduleFirestoreReconnect();
+    return;
+  }
   const isOffline = isFirestoreOfflineError(error);
   setSyncStatus(
     isOffline ? 'offline' : 'error',
@@ -2422,18 +2460,27 @@ window.addEventListener('offline', () => {
 async function getFirestoreSnapshotWithFallback(query, label) {
   if (!navigator.onLine) {
     try {
-      return await query.get({ source: 'cache' });
+      return await withFirestoreTimeout(() => query.get({ source: 'cache' }), label + ' cache read');
     } catch (error) {
       console.warn('Firestore cache unavailable for ' + label + ':', error);
+      if (isFirestoreTimeoutError(error) || isFirestoreOfflineError(error)) {
+        showFirestoreOperationError(error, label + ' ডেটা লোড হয়নি');
+        throw error;
+      }
       throw new Error(label + ' এর ক্যাশ ডেটা পাওয়া যায়নি। ইন্টারনেট সংযোগ করে আবার চেষ্টা করুন।');
     }
   }
   try {
-    return await query.get({ source: 'server' });
+    return await withFirestoreTimeout(() => query.get({ source: 'server' }), label + ' server read');
   } catch (serverError) {
+    if (isFirestoreTimeoutError(serverError)) {
+      firestoreReadTimedOut = true;
+      setSyncStatus('pending', 'Firebase-এ সাড়া পেতে দেরি হচ্ছে · ক্যাশ ডেটা পরীক্ষা হচ্ছে');
+      scheduleFirestoreReconnect();
+    }
     console.warn('Firestore server fetch failed for ' + label + '; trying cache:', serverError);
     try {
-      const cachedSnapshot = await query.get({ source: 'cache' });
+      const cachedSnapshot = await withFirestoreTimeout(() => query.get({ source: 'cache' }), label + ' cache read');
       if (currentUserId) {
         setSyncStatus('pending', label + ' · ক্যাশ ডেটা দেখানো হচ্ছে, Firebase-এ পুনরায় চেষ্টা হচ্ছে');
         scheduleFirestoreReconnect();
@@ -2441,6 +2488,14 @@ async function getFirestoreSnapshotWithFallback(query, label) {
       return cachedSnapshot;
     } catch (cacheError) {
       console.error('Firestore cache fallback failed for ' + label + ':', cacheError);
+      if (isFirestoreTimeoutError(cacheError) || isFirestoreOfflineError(cacheError)) {
+        showFirestoreOperationError(cacheError, label + ' ডেটা লোড হয়নি');
+        throw cacheError;
+      }
+      if (isFirestoreTimeoutError(serverError)) {
+        showFirestoreOperationError(serverError, label + ' ডেটা লোড হয়নি');
+        throw serverError;
+      }
       throw new Error(label + ' Firebase থেকে বা ক্যাশ থেকে লোড হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।');
     }
   }
@@ -2453,6 +2508,7 @@ async function refreshFromFirebase() {
     openAuthModal();
     return false;
   }
+  firestoreReadTimedOut = false;
   showLoading(navigator.onLine ? 'Firebase ক্লাউড থেকে ডাটা রিফ্রেশ হচ্ছে...' : 'ডিভাইসের ক্যাশ থেকে ডাটা লোড হচ্ছে...');
   try {
     await firestorePersistenceReady;
@@ -2511,8 +2567,10 @@ async function refreshFromFirebase() {
     updateCurrentInvoiceNo();
     const usedCache = [salesSnap, credSnap, expSnap, cashSnap, setSnap].some(snap => snap.metadata.fromCache);
     if (usedCache) {
-      setSyncStatus('offline', 'ক্যাশ ডেটা দেখানো হচ্ছে · অনলাইনে এলে Firebase সিঙ্ক হবে');
-      showToast('ইন্টারনেট দুর্বল/বন্ধ। সর্বশেষ ক্যাশ ডেটা দেখানো হয়েছে।', 'error');
+      setSyncStatus(navigator.onLine ? 'pending' : 'offline', 'ক্যাশ ডেটা দেখানো হচ্ছে · Firebase-এ সিঙ্ক বাকি');
+      showToast(firestoreReadTimedOut
+        ? FIRESTORE_NETWORK_DELAY_MESSAGE
+        : 'ইন্টারনেট দুর্বল/বন্ধ। সর্বশেষ ক্যাশ ডেটা দেখানো হয়েছে।', 'error');
     } else {
       setSyncStatus('synced', 'Firebase-এর সঙ্গে সিঙ্ক হয়েছে');
       showToast('✓ Firebase ক্লাউড থেকে সব ডাটা সফলভাবে রিফ্রেশ হয়েছে');
@@ -2523,7 +2581,9 @@ async function refreshFromFirebase() {
     setSyncStatus(navigator.onLine ? 'error' : 'offline', navigator.onLine
       ? 'Firebase ডেটা রিফ্রেশ হয়নি · আবার চেষ্টা করুন'
       : 'ইন্টারনেট নেই · লোকাল ডেটা অক্ষত আছে');
-    showToast('ডেটা রিফ্রেশ হয়নি। লোকাল ডেটা অক্ষত আছে; ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।', 'error');
+    if (!isFirestoreTimeoutError(error) && !isFirestoreOfflineError(error)) {
+      showToast('ডেটা রিফ্রেশ হয়নি। লোকাল ডেটা অক্ষত আছে; ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।', 'error');
+    }
     return false;
   } finally {
     hideLoading();
@@ -2546,16 +2606,16 @@ async function testFirebaseConnection() {
   try {
     await firestorePersistenceReady;
     const testDocRef = getUserRef().collection('healthcheck').doc('test');
-    await testDocRef.set({ testedAt: new Date().toISOString(), ok: true });
-    const snap = await testDocRef.get({ source: 'server' });
-    await testDocRef.delete();
+    await withFirestoreTimeout(() => testDocRef.set({ testedAt: new Date().toISOString(), ok: true }), 'healthcheck write');
+    const snap = await withFirestoreTimeout(() => testDocRef.get({ source: 'server' }), 'healthcheck read');
+    await withFirestoreTimeout(() => testDocRef.delete(), 'healthcheck delete');
     if (snap.exists && snap.data().ok) {
       showToast('✓ Firebase সংযোগ ও পারমিশন সম্পূর্ণ সক্রিয়! Project: ' + firebaseConfig.projectId + ' (UID: ' + currentUserId.substring(0, 8) + '...)');
     } else {
       showToast('সংযোগ টেস্ট সম্পন্ন হয়নি', 'error');
     }
   } catch (error) {
-    showToast('Firebase পারমিশন ত্রুটি: ' + error.message, 'error');
+    showFirestoreOperationError(error, 'Firebase পারমিশন ত্রুটি');
   } finally {
     hideLoading();
   }
@@ -2565,12 +2625,15 @@ async function testFirebaseConnection() {
 async function saveInvoiceToFirebase(invoice) {
   if (!currentUserId) return true;
   try {
-    await getSalesRef().doc(String(invoice.id)).set(invoice, { merge: true });
+    await withFirestoreTimeout(
+      () => getSalesRef().doc(String(invoice.id)).set(invoice, { merge: true }),
+      'invoice save'
+    );
     void checkSyncStatus();
     return true;
   } catch (error) {
     console.error('Firestore save invoice error:', error);
-    showToast('ক্লাউড সিঙ্ক সমস্যা: ' + error.message, 'error');
+    showFirestoreOperationError(error, 'ইনভয়েস ক্লাউডে সিঙ্ক হয়নি');
     return false;
   }
 }
@@ -2578,12 +2641,12 @@ async function saveInvoiceToFirebase(invoice) {
 async function deleteInvoiceFromFirebase(id) {
   if (!currentUserId) return true;
   try {
-    await getSalesRef().doc(String(id)).delete();
+    await withFirestoreTimeout(() => getSalesRef().doc(String(id)).delete(), 'invoice delete');
     void checkSyncStatus();
     return true;
   } catch (error) {
     console.error('Firestore delete invoice error:', error);
-    showToast('ক্লাউড থেকে মুছে ফেলা যায়নি: ' + error.message, 'error');
+    showFirestoreOperationError(error, 'ইনভয়েস ক্লাউড থেকে মুছে ফেলা যায়নি');
     return false;
   }
 }
@@ -2591,71 +2654,84 @@ async function deleteInvoiceFromFirebase(id) {
 async function saveCreditorToFirebase(creditor) {
   if (!currentUserId) return;
   try {
-    await getCreditorsRef().doc(String(creditor.id)).set(creditor, { merge: true });
+    await withFirestoreTimeout(
+      () => getCreditorsRef().doc(String(creditor.id)).set(creditor, { merge: true }),
+      'creditor save'
+    );
     void checkSyncStatus();
   } catch (error) {
     console.warn('Firestore creditor sync error:', error);
+    showFirestoreOperationError(error, 'পাওনাদারের তথ্য ক্লাউডে সিঙ্ক হয়নি');
   }
 }
 
 async function removeCreditorFromFirebase(id) {
   if (!currentUserId) return;
   try {
-    await getCreditorsRef().doc(String(id)).delete();
+    await withFirestoreTimeout(() => getCreditorsRef().doc(String(id)).delete(), 'creditor delete');
     void checkSyncStatus();
   } catch (error) {
     console.warn('Firestore remove creditor error:', error);
+    showFirestoreOperationError(error, 'পাওনাদারের তথ্য ক্লাউড থেকে মুছে ফেলা যায়নি');
   }
 }
 
 async function saveExpenseToFirebase(expense) {
   if (!currentUserId) return;
   try {
-    await getExpensesRef().doc(String(expense.id)).set(expense, { merge: true });
+    await withFirestoreTimeout(
+      () => getExpensesRef().doc(String(expense.id)).set(expense, { merge: true }),
+      'expense save'
+    );
     void checkSyncStatus();
   } catch (error) {
     console.warn('Firestore expense sync error:', error);
+    showFirestoreOperationError(error, 'খরচের তথ্য ক্লাউডে সিঙ্ক হয়নি');
   }
 }
 
 async function removeExpenseFromFirebase(id) {
   if (!currentUserId) return;
   try {
-    await getExpensesRef().doc(String(id)).delete();
+    await withFirestoreTimeout(() => getExpensesRef().doc(String(id)).delete(), 'expense delete');
     void checkSyncStatus();
   } catch (error) {
     console.warn('Firestore remove expense error:', error);
+    showFirestoreOperationError(error, 'খরচের তথ্য ক্লাউড থেকে মুছে ফেলা যায়নি');
   }
 }
 
 async function saveCashRegisterToFirebase(record) {
   if (!currentUserId) return true;
   try {
-    await getCashRegisterRef().doc(String(record.id)).set(record, { merge: true });
+    await withFirestoreTimeout(
+      () => getCashRegisterRef().doc(String(record.id)).set(record, { merge: true }),
+      'cash register save'
+    );
     void checkSyncStatus();
     return true;
   } catch (error) {
     console.warn('Firestore cash register sync error:', error);
-    showToast('লোকালি সেভ হয়েছে, কিন্তু ক্যাশ রেজিস্টার ক্লাউডে সিঙ্ক হয়নি: ' + error.message, 'error');
+    showFirestoreOperationError(error, 'লোকালি সেভ হয়েছে, কিন্তু ক্যাশ রেজিস্টার ক্লাউডে সিঙ্ক হয়নি');
     return false;
   }
 }
 
 async function saveSettingsToFirebase() {
   if (!currentUserId) throw new Error('Google sign-in is required to sync settings.');
-  await getSettingsRef().set({
-    businessName: settings.businessName || '',
-    businessTagline: settings.businessTagline || '',
-    businessPhone: settings.businessPhone || '',
-    businessAddress: settings.businessAddress || '',
-    businessWebsite: settings.businessWebsite || '',
-    businessLogo: settings.businessLogo || '',
-    presetItems: settings.presetItems || '',
-    expenseCategories: settings.expenseCategories || '',
-    costPrices: settings.costPrices || {},
-    sellingPrices: settings.sellingPrices || {},
-    updatedAt: new Date().toISOString()
-  }, { merge: true });
+  await withFirestoreTimeout(() => getSettingsRef().set({
+      businessName: settings.businessName || '',
+      businessTagline: settings.businessTagline || '',
+      businessPhone: settings.businessPhone || '',
+      businessAddress: settings.businessAddress || '',
+      businessWebsite: settings.businessWebsite || '',
+      businessLogo: settings.businessLogo || '',
+      presetItems: settings.presetItems || '',
+      expenseCategories: settings.expenseCategories || '',
+      costPrices: settings.costPrices || {},
+      sellingPrices: settings.sellingPrices || {},
+      updatedAt: new Date().toISOString()
+    }, { merge: true }), 'settings save');
   void checkSyncStatus();
 }
 
@@ -3705,7 +3781,7 @@ async function saveSettings() {
       showToast('✓ সেটিংস লোকাল ও Firebase ক্লাউডে সেভ হয়েছে');
     }).catch(error => {
       console.error('Firestore settings sync error:', error);
-      showToast('লোকালে সেটিংস সেভ হয়েছে, ক্লাউডে হয়নি: ' + (error.message || error), 'error');
+      showFirestoreOperationError(error, 'লোকালে সেটিংস সেভ হয়েছে, ক্লাউডে হয়নি');
     });
   } else {
     showToast('✓ সেটিংস লোকাল স্টোরেজে সেভ হয়েছে');
