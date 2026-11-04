@@ -22,4 +22,4 @@ Open [ABC COMPUTER POS](https://bedesignermonir.github.io/abc-pos/) in a modern 
 3. If Android asks, allow installation from the browser or file manager you used to download it.
 4. Open ABC COMPUTER POS and start managing your shop.
 
-The Android APK supports native Google Sign-In and cloud sync. The Android OAuth client in Google Cloud must match the app ID (`com.abccomputer.pos`) and signing-certificate SHA-1 used for the APK. Records kept locally in the APK do not automatically transfer to the browser.
+The Android APK supports native Google Sign-In and cloud sync. The Android OAuth client in Google Cloud must match the app ID (`com.abccomputer.pos`) and signing-certificate SHA-1 used for the APK. The app uses the Web Client ID as the ID-token audience for Firebase credential exchange. Records kept locally in the APK do not automatically transfer to the browser.

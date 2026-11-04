@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">ABC Computer POS</string>
+    <string name="google_android_client_id" translatable="false">362558772104-fcpqi1evf8ee7b1o0pl19fvbg8qntr5s.apps.googleusercontent.com</string>
     <string name="google_web_client_id" translatable="false">362558772104-bj8gs9tgm411psedqm72t4bgoep0vqvv.apps.googleusercontent.com</string>
 </resources>
