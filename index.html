@@ -1367,21 +1367,6 @@ body { background: #f1f5f9; padding: 18px; color: var(--dark); }
   </div>
 </div>
 
-<!-- Settings PIN Modal -->
-<div class="modal" id="settingsPinModal">
-  <div class="modal-content">
-    <h2>🔒 সেটিংস PIN</h2>
-    <div class="form-group">
-      <label for="settingsPinInput">সেটিংস খুলতে ৮ সংখ্যার PIN দিন</label>
-      <input id="settingsPinInput" type="password" inputmode="numeric" autocomplete="current-password" maxlength="8" placeholder="PIN">
-    </div>
-    <div class="action-btns-3">
-      <button class="btn btn-whatsapp" onclick="verifySettingsPin()">🔓 খুলুন</button>
-      <button class="btn btn-reset" onclick="closeSettingsPin()">বাতিল</button>
-    </div>
-  </div>
-</div>
-
 <!-- Invoice Detail Modal -->
 <div class="modal" id="invoiceModal">
   <div class="modal-content">
@@ -1481,9 +1466,6 @@ function supportsEmoji() {
 }
 const EMOJI_OK = supportsEmoji();
 function em(emoji, fallback='>>') { return EMOJI_OK ? emoji : fallback; }
-const SETTINGS_PIN = '25802580';
-let settingsPinAttempts = 0;
-let settingsPinLockedUntil = 0;
 
 // ===== ইউটিলিটি ফাংশন =====
 // নিরাপদ সংখ্যা রূপান্তর: undefined/null/NaN/'' -> 0 (কোনো NaN দেখাবে না)
@@ -1756,6 +1738,9 @@ let cashHistoryRecords = [];
 let firestoreReconnectTimer = null;
 let firestoreReconnectAttempts = 0;
 let firestoreSnapshotStates = Object.create(null);
+let presetsSnapshotExists = null;
+let legacySettingsSnapshot = null;
+let presetMigrationStarted = false;
 
 // Isolated Firestore references under users/{user_uid}/
 function getUserRef(uid = currentUserId) {
@@ -1776,6 +1761,9 @@ function getCashRegisterRef(uid = currentUserId) {
 }
 function getSettingsRef(uid = currentUserId) {
   return getUserRef(uid).collection('settings').doc('doc');
+}
+function getPresetsRef(uid = currentUserId) {
+  return getUserRef(uid).collection('settings').doc('presets');
 }
 
 // Start multi-tab IndexedDB persistence before any Firestore reads or listeners.
@@ -2214,6 +2202,48 @@ function handleFirestoreSnapshot(snapshot, label) {
   }
 }
 
+function applyPresetSettingsFromCloud(remote) {
+  let changed = false;
+  ['presetItems', 'expenseCategories', 'costPrices', 'sellingPrices'].forEach(key => {
+    if (remote[key] !== undefined && JSON.stringify(remote[key]) !== JSON.stringify(settings[key])) {
+      settings[key] = remote[key];
+      changed = true;
+    }
+  });
+  if (!changed) return;
+
+  localStorage.setItem('pos_settings', JSON.stringify(settings));
+  refreshPresetOptions();
+  populateExpenseCategoryOptions();
+  const settingsModal = document.getElementById('settingsModal');
+  if (settingsModal && settingsModal.classList.contains('active')) {
+    populateSettingsFormFromCurrent();
+  }
+  updateStats();
+  renderInvoices();
+  renderFinanceSummary();
+}
+
+function migrateLegacyPresetSettingsIfNeeded(uid = currentUserId) {
+  if (!uid || uid !== currentUserId || presetsSnapshotExists !== false || !legacySettingsSnapshot || !legacySettingsSnapshot.exists || presetMigrationStarted) {
+    return;
+  }
+  const legacy = legacySettingsSnapshot.data();
+  const presets = {};
+  ['presetItems', 'expenseCategories', 'costPrices', 'sellingPrices'].forEach(key => {
+    if (legacy[key] !== undefined) presets[key] = legacy[key];
+  });
+  if (!Object.keys(presets).length) return;
+
+  presetMigrationStarted = true;
+  applyPresetSettingsFromCloud(presets);
+  const presetsRef = getPresetsRef(uid);
+  trackFirestoreWrite(
+    () => presetsRef.set(presets, { merge: true }),
+    'প্রি-সেট তালিকা স্থানান্তর'
+  );
+}
+
 function scheduleFirestoreReconnect() {
   if (!currentUserId || firestoreReconnectTimer) return;
   const delay = Math.min(30000, 1000 * (2 ** Math.min(firestoreReconnectAttempts, 5)));
@@ -2251,6 +2281,9 @@ async function attachFirestoreListeners(uid) {
   firestoreUnsubscribers.forEach(unsub => { try { unsub(); } catch (e) {} });
   firestoreUnsubscribers = [];
   firestoreSnapshotStates = Object.create(null);
+  presetsSnapshotExists = null;
+  legacySettingsSnapshot = null;
+  presetMigrationStarted = false;
   setSyncStatus(navigator.onLine ? 'pending' : 'offline',
     navigator.onLine ? 'Firebase-এর সঙ্গে সংযোগ হচ্ছে…' : 'ইন্টারনেট নেই · ডেটা লোকালি সংরক্ষিত');
 
@@ -2313,10 +2346,11 @@ async function attachFirestoreListeners(uid) {
 
   // 5. Settings Listener
   const unsubSettings = getSettingsRef(uid).onSnapshot({ includeMetadataChanges: true }, snap => {
+    legacySettingsSnapshot = snap;
     if (snap.exists) {
       const remote = snap.data();
       let changed = false;
-      ['presetItems', 'expenseCategories', 'costPrices', 'sellingPrices', 'businessName', 'businessTagline', 'businessPhone', 'businessAddress', 'businessWebsite', 'businessLogo'].forEach(k => {
+      ['businessName', 'businessTagline', 'businessPhone', 'businessAddress', 'businessWebsite', 'businessLogo'].forEach(k => {
         if (remote[k] !== undefined && JSON.stringify(remote[k]) !== JSON.stringify(settings[k])) {
           settings[k] = remote[k];
           changed = true;
@@ -2331,9 +2365,23 @@ async function attachFirestoreListeners(uid) {
         renderFinanceSummary();
       }
     }
+    migrateLegacyPresetSettingsIfNeeded(uid);
     handleFirestoreSnapshot(snap, 'সেটিংস');
   }, err => handleFirestoreSyncError('সেটিংস', err));
   firestoreUnsubscribers.push(unsubSettings);
+
+  // 6. Presets Listener — shared by all authenticated devices for this tenant.
+  const unsubPresets = getPresetsRef(uid).onSnapshot({ includeMetadataChanges: true }, snap => {
+    if (snap.exists) {
+      presetsSnapshotExists = true;
+      applyPresetSettingsFromCloud(snap.data());
+    } else if (!snap.metadata.fromCache) {
+      presetsSnapshotExists = false;
+      migrateLegacyPresetSettingsIfNeeded(uid);
+    }
+    handleFirestoreSnapshot(snap, 'প্রি-সেট');
+  }, err => handleFirestoreSyncError('প্রি-সেট', err));
+  firestoreUnsubscribers.push(unsubPresets);
 }
 
 // Process redirect login if applicable
@@ -2437,12 +2485,13 @@ async function refreshFromFirebase() {
     navigator.onLine ? 'Firebase থেকে ডেটা রিফ্রেশ হচ্ছে…' : 'ক্যাশ ডেটা লোড হচ্ছে…');
   try {
     await firestorePersistenceReady;
-    const [salesSnap, credSnap, expSnap, cashSnap, setSnap] = await Promise.all([
+    const [salesSnap, credSnap, expSnap, cashSnap, setSnap, presetsSnap] = await Promise.all([
       getFirestoreSnapshotWithFallback(getSalesRef().orderBy('date', 'desc'), 'বিক্রয়'),
       getFirestoreSnapshotWithFallback(getCreditorsRef(), 'পাওনাদার'),
       getFirestoreSnapshotWithFallback(getExpensesRef().orderBy('date', 'desc'), 'খরচ'),
       getFirestoreSnapshotWithFallback(getCashRegisterRef().orderBy('date', 'desc').limit(30), 'ক্যাশ'),
-      getFirestoreSnapshotWithFallback(getSettingsRef(), 'সেটিংস')
+      getFirestoreSnapshotWithFallback(getSettingsRef(), 'সেটিংস'),
+      getFirestoreSnapshotWithFallback(getPresetsRef(), 'প্রি-সেট')
     ]);
 
     invoices = salesSnap.docs.map(doc => normalizeInvoiceFinancials(doc.data()));
@@ -2474,14 +2523,18 @@ async function refreshFromFirebase() {
       updateRegisterTotals();
     }
 
+    if (presetsSnap.exists) {
+      applyPresetSettingsFromCloud(presetsSnap.data());
+    } else if (setSnap.exists) {
+      applyPresetSettingsFromCloud(setSnap.data());
+    }
     if (setSnap.exists) {
       const remote = setSnap.data();
-      if (remote.presetItems !== undefined) settings.presetItems = remote.presetItems;
-      if (remote.expenseCategories !== undefined) settings.expenseCategories = remote.expenseCategories;
-      if (remote.costPrices !== undefined) settings.costPrices = remote.costPrices;
-      if (remote.sellingPrices !== undefined) settings.sellingPrices = remote.sellingPrices;
+      ['businessName', 'businessTagline', 'businessPhone', 'businessAddress', 'businessWebsite', 'businessLogo'].forEach(key => {
+        if (remote[key] !== undefined) settings[key] = remote[key];
+      });
       localStorage.setItem('pos_settings', JSON.stringify(settings));
-      refreshPresetOptions();
+      applyBusinessBranding();
     }
 
     updateStats();
@@ -2490,7 +2543,7 @@ async function refreshFromFirebase() {
     renderExpenseList();
     renderFinanceSummary();
     updateCurrentInvoiceNo();
-    const usedCache = [salesSnap, credSnap, expSnap, cashSnap, setSnap].some(snap => snap.metadata.fromCache);
+    const usedCache = [salesSnap, credSnap, expSnap, cashSnap, setSnap, presetsSnap].some(snap => snap.metadata.fromCache);
     if (usedCache) {
       setSyncStatus(navigator.onLine ? 'pending' : 'offline', 'ক্যাশ ডেটা দেখানো হচ্ছে · Firebase-এ সিঙ্ক বাকি');
       showToast('ক্যাশ ডেটা দেখানো হয়েছে · সংযোগ ফিরে এলে Firebase-এ সিঙ্ক হবে');
@@ -2604,20 +2657,27 @@ function saveCashRegisterToFirebase(record) {
 }
 
 function saveSettingsToFirebase() {
-  if (!currentUserId) return false;
-  return trackFirestoreWrite(() => getSettingsRef().set({
+  const uid = currentUserId;
+  if (!uid) return false;
+  const settingsRef = getSettingsRef(uid);
+  const presetsRef = getPresetsRef(uid);
+  const settingsSaved = trackFirestoreWrite(() => settingsRef.set({
       businessName: settings.businessName || '',
       businessTagline: settings.businessTagline || '',
       businessPhone: settings.businessPhone || '',
       businessAddress: settings.businessAddress || '',
       businessWebsite: settings.businessWebsite || '',
       businessLogo: settings.businessLogo || '',
+      updatedAt: new Date().toISOString()
+    }, { merge: true }), 'ব্যবসার সেটিংস');
+  const presetsSaved = trackFirestoreWrite(() => presetsRef.set({
       presetItems: settings.presetItems || '',
       expenseCategories: settings.expenseCategories || '',
       costPrices: settings.costPrices || {},
       sellingPrices: settings.sellingPrices || {},
       updatedAt: new Date().toISOString()
-    }, { merge: true }), 'সেটিংস');
+    }, { merge: true }), 'প্রি-সেট তালিকা');
+  return settingsSaved && presetsSaved;
 }
 
 function refreshPresetOptions() {
@@ -3516,36 +3576,8 @@ async function deleteInvoice(id) {
 
 // ===== Settings =====
 function openSettings() {
-  if (Date.now() < settingsPinLockedUntil) {
-    return showToast('অনেকবার ভুল PIN দেওয়া হয়েছে। এক মিনিট পরে চেষ্টা করুন।', 'error');
-  }
-  if (settingsPinLockedUntil) settingsPinAttempts = 0;
-  document.getElementById('settingsPinInput').value = '';
-  document.getElementById('settingsPinModal').classList.add('active');
-  setTimeout(() => document.getElementById('settingsPinInput').focus(), 0);
-}
-
-function verifySettingsPin() {
-  if (document.getElementById('settingsPinInput').value !== SETTINGS_PIN) {
-    settingsPinAttempts++;
-    document.getElementById('settingsPinInput').value = '';
-    showToast(settingsPinAttempts >= 5
-      ? 'অনেকবার ভুল PIN দেওয়া হয়েছে। আবার চেষ্টা করুন।'
-      : 'PIN সঠিক নয়', 'error');
-    if (settingsPinAttempts >= 5) {
-      settingsPinLockedUntil = Date.now() + 60000;
-      closeSettingsPin();
-    }
-    return;
-  }
-
-  closeSettingsPin();
   populateSettingsFormFromCurrent();
   document.getElementById('settingsModal').classList.add('active');
-}
-
-function closeSettingsPin() {
-  document.getElementById('settingsPinModal').classList.remove('active');
 }
 
 function capturePresetPriceDraft() {
@@ -3683,9 +3715,6 @@ renderInvoices();
 updateCurrentInvoiceNo();
 const now = new Date();
 document.getElementById('monthFilter').value = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-document.getElementById('settingsPinInput').addEventListener('keydown', event => {
-  if (event.key === 'Enter') verifySettingsPin();
-});
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('./service-worker.js')
