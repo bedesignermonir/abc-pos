@@ -1085,12 +1085,6 @@ body {
       <div style="flex:1;height:1px;background:var(--gray-200);"></div>
     </div>
 
-    <!-- Toggle Tabs: Email login / Set password (account linking) -->
-    <div style="display:flex;gap:6px;background:var(--gray-100);padding:4px;border-radius:12px;margin-bottom:14px;">
-      <button type="button" id="authTabEmail" onclick="switchAuthTab('email')" class="btn" style="flex:1;padding:8px 10px;font-size:13px;font-weight:700;border-radius:9px;border:none;cursor:pointer;background:white;color:var(--primary-dark);box-shadow:0 2px 6px rgba(0,0,0,0.08);">📧 ইমেইল দিয়ে লগইন</button>
-      <button type="button" id="authTabPass" onclick="switchAuthTab('pass')" class="btn" style="flex:1;padding:8px 10px;font-size:13px;font-weight:700;border-radius:9px;border:none;cursor:pointer;background:transparent;color:var(--gray-500);">🔒 পাসওয়ার্ড সেট করুন</button>
-    </div>
-
     <!-- Email & Password Login / Smart Sign-Up pane -->
     <div id="authPaneEmail" style="text-align:left;margin-bottom:6px;">
       <div class="form-group" style="margin-bottom:10px;">
@@ -1108,19 +1102,6 @@ body {
       </div>
     </div>
 
-    <!-- Set a Password pane (link email credential to a Google-verified account) -->
-    <div id="authPanePass" style="text-align:left;margin-bottom:6px;display:none;">
-      <p style="font-size:12px;color:var(--gray-500);margin-bottom:10px;line-height:1.5;">Google দিয়ে লগইন করা ইমেইলে একবার পাসওয়ার্ড সেট করলে পরবর্তীতে ইমেইল/পাসওয়ার্ড দিয়ে সরাসরি লগইন করা যাবে — আলাদা ভেরিফিকেশনের প্রয়োজন নেই (গুগল ইমেইল আগেই ভেরিফাইড)।</p>
-      <div class="form-group" style="margin-bottom:10px;">
-        <label for="linkEmailInput" style="font-size:12px;font-weight:700;color:var(--gray-700);">ইমেইল</label>
-        <input type="email" id="linkEmailInput" autocomplete="username" placeholder="আপনার গুগল ইমেইল" style="width:100%;padding:11px 14px;border:1.5px solid var(--gray-200);border-radius:10px;font-size:14px;">
-      </div>
-      <div class="form-group" style="margin-bottom:12px;">
-        <label for="newPasswordInput" style="font-size:12px;font-weight:700;color:var(--gray-700);">নতুন পাসওয়ার্ড</label>
-        <input type="password" id="newPasswordInput" autocomplete="new-password" placeholder="কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড" style="width:100%;padding:11px 14px;border:1.5px solid var(--gray-200);border-radius:10px;font-size:14px;" onkeydown="if(event.key==='Enter'){event.preventDefault();linkEmailCredential();}">
-      </div>
-      <button type="button" id="linkCredentialBtn" onclick="linkEmailCredential()" class="btn btn-primary" style="width:100%;padding:12px 18px;font-size:14px;font-weight:700;border-radius:12px;">✅ পাসওয়ার্ড সেট করুন</button>
-    </div>
 
     <button type="button" onclick="closeAuthModal()" style="background:none;border:none;color:var(--gray-500);font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;margin-top:16px;">
       এখন নয়
@@ -1154,6 +1135,16 @@ body {
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
         <button id="settingsLoginBtn" type="button" class="btn btn-whatsapp" style="padding:7px 14px;font-size:12px;" onclick="openAuthModal()">🔑 সাইন-ইন</button>
       </div>
+
+      <!-- In-App Password Setup (for any authenticated session, e.g. Google login) -->
+      <div id="settingsPasswordSetupCard" style="display:none;margin-top:12px;background:white;padding:12px 14px;border-radius:10px;border:1.5px solid var(--gray-200);">
+        <label for="settingsNewPasswordInput" style="font-size:12px;font-weight:700;color:var(--gray-700);display:block;margin-bottom:6px;">🔒 এই ইমেইলের জন্য পাসওয়ার্ড সেট করুন</label>
+        <div id="settingsPasswordStatus" style="font-size:11px;color:var(--gray-500);margin-bottom:8px;"></div>
+        <input type="password" id="settingsNewPasswordInput" autocomplete="new-password" placeholder="কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড" style="width:100%;padding:10px 13px;border:1.5px solid var(--gray-200);border-radius:9px;font-size:13px;" onkeydown="if(event.key==='Enter'){event.preventDefault();saveAccountPassword();}">
+        <button id="savePasswordBtn" type="button" class="btn btn-primary" style="margin-top:8px;width:100%;padding:10px;font-size:13px;font-weight:700;border-radius:9px;" onclick="saveAccountPassword()">💾 পাসওয়ার্ড সংরক্ষণ করুন</button>
+        <p style="font-size:11px;color:var(--gray-500);margin-top:8px;line-height:1.5;">Google দিয়ে লগইন করা একাউন্টে একবার পাসওয়ার্ড সেট করলে পরবর্তীতে ইমেইল/পাসওয়ার্ড দিয়ে সরাসরি লগইন করা যাবে — আলাদা কোনো বাহ্যিক ভেরিফিকেশন প্রয়োজন নেই।</p>
+      </div>
+
       <button id="settingsLogoutBtn" type="button" class="btn btn-reset" style="margin-top:12px;width:100%;padding:12px;font-size:14px;display:none;background:#fee2e2;color:#b91c1c;border:none;font-weight:700;border-radius:10px;cursor:pointer;" onclick="logoutUser()">🚪 লগআউট</button>
     </div>
 
@@ -1553,40 +1544,25 @@ function openAuthModal() {
   sessionStorage.removeItem('pos_auth_modal_dismissed');
   const modal = document.getElementById('authLoginModal');
   if (!modal) return;
-  // Prefill linking fields with the signed-in user's email if available
+  // Prefill the email login field with the signed-in user's email if available
   try {
-    const linkEl = document.getElementById('linkEmailInput');
-    if (linkEl && !linkEl.value && window.currentUser && currentUser.email) linkEl.value = currentUser.email;
     const emEl = document.getElementById('emailLoginInput');
     if (emEl && !emEl.value && window.currentUser && currentUser.email) emEl.value = currentUser.email;
   } catch (e) {}
-  switchAuthTab('email');
+  showAuthEmailPane();
   modal.classList.add('active');
 }
 
-// Toggle between Email/Password login pane and Set-Password (account linking) pane inside the popup
-function switchAuthTab(tab) {
+// The login popup now contains only Google + Email/Password (set-password moved to Settings,
+// so there is no conflicting "প্রথমে Google দিয়ে লগইন করুন" blocking on the login screen).
+function showAuthEmailPane() {
   const paneEmail = document.getElementById('authPaneEmail');
-  const panePass = document.getElementById('authPanePass');
-  const tabEmail = document.getElementById('authTabEmail');
-  const tabPass = document.getElementById('authTabPass');
-  const activeStyle = 'flex:1;padding:8px 10px;font-size:13px;font-weight:700;border-radius:9px;border:none;cursor:pointer;background:white;color:var(--primary-dark);box-shadow:0 2px 6px rgba(0,0,0,0.08);';
-  const idleStyle = 'flex:1;padding:8px 10px;font-size:13px;font-weight:700;border-radius:9px;border:none;cursor:pointer;background:transparent;color:var(--gray-500);';
-  if (tab === 'pass') {
-    if (paneEmail) paneEmail.style.display = 'none';
-    if (panePass) panePass.style.display = 'block';
-    if (tabPass) tabPass.setAttribute('style', activeStyle);
-    if (tabEmail) tabEmail.setAttribute('style', idleStyle);
-    try {
-      const linkEl = document.getElementById('linkEmailInput');
-      if (linkEl && !linkEl.value && currentUser && currentUser.email) linkEl.value = currentUser.email;
-    } catch (e) {}
-  } else {
-    if (paneEmail) paneEmail.style.display = 'block';
-    if (panePass) panePass.style.display = 'none';
-    if (tabEmail) tabEmail.setAttribute('style', activeStyle);
-    if (tabPass) tabPass.setAttribute('style', idleStyle);
-  }
+  if (paneEmail) paneEmail.style.display = 'block';
+}
+
+// Backward-compatible stub: old callers of switchAuthTab() keep working (single-pane modal).
+function switchAuthTab(tab) {
+  showAuthEmailPane();
 }
 
 function closeAuthModal() {
@@ -1653,6 +1629,19 @@ function renderAuthUI(user) {
     if (userDisp) userDisp.textContent = (user.displayName || user.email) + ' (' + user.email + ')';
     if (loginBtn) loginBtn.style.display = 'none';
     if (logoutBtn) logoutBtn.style.display = 'inline-block';
+
+    // In-app password setup card inside Settings — visible for any authenticated session
+    const passCard = document.getElementById('settingsPasswordSetupCard');
+    const passStatus = document.getElementById('settingsPasswordStatus');
+    const hasPassword = (user.providerData || []).some(p => p.providerId === 'password');
+    if (passCard) passCard.style.display = 'block';
+    if (passStatus) {
+      passStatus.innerHTML = hasPassword
+        ? '<span style="color:#059669;font-weight:700;">✓ এই একাউন্টে পাসওয়ার্ড সেট করা আছে। এখানে নতুন পাসওয়ার্ড দিলে সেটি আপডেট হবে।</span>'
+        : '<span style="color:#b45309;font-weight:600;">📛 এই একাউন্টে এখনও পাসওয়ার্ড সেট করা নেই। নিচে থেকে একটি পাসওয়ার্ড সংরক্ষণ করুন।</span>';
+    }
+    const savePassBtn = document.getElementById('savePasswordBtn');
+    if (savePassBtn) savePassBtn.textContent = hasPassword ? '💾 পাসওয়ার্ড আপডেট করুন' : '💾 পাসওয়ার্ড সংরক্ষণ করুন';
 
     if (slot) {
       slot.innerHTML = `
@@ -1813,59 +1802,58 @@ async function loginWithEmail() {
   }
 }
 
-// Scenario A — Smart Account Linking: give a Google-only (already email-verified) account
-// an Email/Password credential so the user can sign in later without any verification step.
-async function linkEmailCredential() {
-  const emailEl = document.getElementById('linkEmailInput');
-  const passEl = document.getElementById('newPasswordInput');
-  const email = ((emailEl && emailEl.value) || '').trim();
-  const password = ((passEl && passEl.value) || '');
-  if (!currentUser || !auth.currentUser) {
-    showToast('প্রথমে Google দিয়ে লগইন করুন, তারপর এই ইমেইলে পাসওয়ার্ড সেট করা যাবে।', 'error');
-    return;
-  }
-  if (!email || !password) { showToast('ইমেইল ও নতুন পাসওয়ার্ড দুটিই পূরণ করুন।', 'error'); return; }
-  if (password.length < 6) { showToast('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।', 'error'); return; }
+// In-App Password Setup — attaches/updates an Email/Password credential on the CURRENTLY
+// logged-in user (Google or any authenticated session) via linkWithCredential / updatePassword.
+// No external verification required and no "প্রথমে Google দিয়ে লগইন করুন" blocking from the login screen.
+async function saveAccountPassword() {
   const user = auth.currentUser;
-  if ((user.email || '').toLowerCase() !== email.toLowerCase()) {
-    showToast('এই ইমেইলটি বর্তমান লগইন করা একাউন্টের সাথে মিলছে না। আপনার গুগল ইমেইলটি দিন।', 'error');
+  if (!user || !user.email) {
+    showToast('পাসওয়ার্ড সেট করতে প্রথমে লগইন করুন — সেটিংসে সাইন-ইন করা একাউন্টেই পাসওয়ার্ড যুক্ত হয়।', 'error');
+    openAuthModal();
     return;
   }
+  const passEl = document.getElementById('settingsNewPasswordInput') || document.getElementById('newPasswordInput');
+  const password = ((passEl && passEl.value) || '');
+  if (!password) { showToast('নতুন পাসওয়ার্ড লিখুন।', 'error'); return; }
+  if (password.length < 6) { showToast('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।', 'error'); return; }
   try { await auth.setPersistence(firebase.auth.Auth.Persistence.BROWSER_LOCAL); } catch (e) {}
   try {
-    showLoading('পাসওয়ার্ড সেট হচ্ছে...');
-    // If this provider list has no password credential yet — link a fresh Email/Password credential
+    showLoading('পাসওয়ার্ড সংরক্ষণ হচ্ছে...');
+    // If this account has no password provider yet — link a fresh Email/Password credential.
+    // Google already verified the email, so no verification step is needed for linking.
     const hasPassword = (user.providerData || []).some(p => p.providerId === 'password');
     if (!hasPassword) {
-      const cred = firebase.auth.EmailAuthProvider.credential(email, password);
+      const cred = firebase.auth.EmailAuthProvider.credential(user.email, password);
       await user.linkWithCredential(cred);
     } else {
-      // Already linked earlier — just update the password
+      // Already linked earlier — just update the existing password.
       await user.updatePassword(password);
     }
-    // Google already verified this email — mark verified locally & skip verification requirement
-    try { if (!user.emailVerified) await user.sendEmailVerification(); } catch (ve) { console.warn('verification mail skipped:', ve); }
     hideLoading();
-    showToast('✅ পাসওয়ার্ড সেট হয়েছে! এখন থেকে ইমেইল ও পাসওয়ার্ড দিয়েও লগইন করতে পারবেন।');
-    alert('আপনার ইমেইলে পাসওয়ার্ড সেট করা হয়েছে। এখন থেকে "ইমেইল দিয়ে লগইন" ট্যাব ব্যবহার করে সরাসরি লগইন করতে পারবেন।');
-    const passField = document.getElementById('newPasswordInput');
-    if (passField) passField.value = '';
-    const emField = document.getElementById('emailLoginInput');
-    if (emField && !emField.value) emField.value = email;
-    switchAuthTab('email');
+    if (passEl) passEl.value = '';
+    renderAuthUI(auth.currentUser); // refresh status line + button label inside Settings
+    showToast(hasPassword
+      ? '✅ পাসওয়ার্ড আপডেট হয়েছে!'
+      : '✅ পাসওয়ার্ড সংরক্ষিত! এখন থেকে ইমেইল ও পাসওয়ার্ড দিয়েও সরাসরি লগইন করতে পারবেন।');
   } catch (error) {
-    console.error('linkEmailCredential failed:', error);
+    console.error('saveAccountPassword failed:', error);
     hideLoading();
     const code = error && error.code;
     let msg = 'পাসওয়ার্ড সেট করা যায়নি: ' + ((error && error.message) || error);
-    if (code === 'auth/credential-already-in-use') msg = 'এই ইমেইল দিয়ে আগেই একটি পাসওয়ার্ড একাউন্ট রয়েছে। "পাসওয়ার্ড ভুলে গেছেন?" দিয়ে রিসেট লিংক নিন।';
-    else if (code === 'auth/requires-recent-login') msg = 'সুরক্ষার কারণে সাম্প্রতিক লগইন প্রয়োজন। আবার Google দিয়ে লগইন করে কিছুক্ষণের মধ্যে চেষ্টা করুন।';
+    if (code === 'auth/credential-already-in-use') msg = 'এই ইমেইল দিয়ে আগেই একটি আলাদা পাসওয়ার্ড একাউন্ট রয়েছে। "পাসওয়ার্ড ভুলে গেছেন?" দিয়ে রিসেট লিংক নিয়ে সেই একাউন্টে লগইন করুন।';
+    else if (code === 'auth/requires-recent-login') msg = 'সুরক্ষার কারণে সাম্প্রতিক লগইন প্রয়োজন। একবার লগআউট করে আবার লগইন করার পরপরই এই অপশনটি ব্যবহার করুন।';
     else if (code === 'auth/weak-password') msg = 'পাসওয়ার্ড অনেক দুর্বল। কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড দিন।';
     else if (code === 'auth/network-request-failed') msg = 'ইন্টারনেট সংযোগ নেই। সংযোগ চালু করে আবার চেষ্টা করুন।';
     showToast(msg, 'error');
   } finally {
     hideLoading();
   }
+}
+
+// Backward-compatible stub (kept for old references) — the set-password form now lives in Settings,
+// so this simply forwards to saveAccountPassword() using the current authenticated session.
+async function linkEmailCredential() {
+  await saveAccountPassword();
 }
 
 // Google Sign-In — always popup-based (in-session) to avoid redirect loops; falls back to redirect only when popups are unsupported
