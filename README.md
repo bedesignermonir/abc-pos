@@ -14,6 +14,18 @@
 
 আইফোন বা আইপ্যাডে Safari ব্যবহার করলে **Share** মেনু থেকে **“Add to Home Screen”** নির্বাচন করুন।
 
+## Firebase কনফিগারেশন
+
+Firebase Web config ব্রাউজারে ব্যবহারের জন্য তৈরি এবং প্রকাশিত JavaScript-এ দেখা যাবে; `.env.local` বা GitHub Actions secrets কেবল কনফিগারেশনটি source control-এ না রাখার জন্য, browser থেকে গোপন করার জন্য নয়। নিরাপত্তার জন্য Firebase/Google Cloud Console-এ API key-তে website referrer ও API restrictions দিন এবং Firestore Security Rules ঠিক রাখুন।
+
+স্থানীয়ভাবে চালাতে `.env.example` কপি করে `.env.local` তৈরি করুন, Firebase Web App-এর মানগুলো পূরণ করুন, তারপর চালান:
+
+```sh
+node scripts/build-site.js .
+```
+
+GitHub Pages-এর জন্য repository **Settings → Secrets and variables → Actions**-এ `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_STORAGE_BUCKET`, `FIREBASE_MESSAGING_SENDER_ID`, `FIREBASE_APP_ID`, এবং `FIREBASE_MEASUREMENT_ID` secrets যোগ করুন। এরপর **Settings → Pages → Build and deployment → Source**-এ **GitHub Actions** নির্বাচন করুন। `main` branch-এ push হলে workflow কনফিগারেশনসহ site তৈরি ও deploy করবে। প্রকাশিত `firebase-config.js`-এ config থাকবে—এটি Firebase Web SDK-এর স্বাভাবিক আচরণ।
+
 ## সুবিধাসমূহ
 
 - বিক্রয়, খরচ, ক্যাশ/ব্যালেন্স, পাওনাদার এবং ড্যাশবোর্ডের জন্য আলাদা ট্যাব।

@@ -22,6 +22,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-analytics-compat.js"></script>
+<script src="./firebase-config.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Noto Sans Bengali', sans-serif; }
 :root {
@@ -1569,15 +1570,12 @@ function hideLoading() {
 // ===== Google Firebase Multi-Tenant Architecture & Real-Time Sync =====
 
 // Firebase configuration for project abc-pos-webapp
-const firebaseConfig = {
-  apiKey: "AIzaSyCyqeeiDFEfhQLB4VrGra-UKVXORbnHyGA",
-  authDomain: "abc-pos-webapp.firebaseapp.com",
-  projectId: "abc-pos-webapp",
-  storageBucket: "abc-pos-webapp.firebasestorage.app",
-  messagingSenderId: "316988028882",
-  appId: "1:316988028882:web:319f8a418a5bf1fea8fa0b",
-  measurementId: "G-6TBPGJM44V"
-};
+// Firebase Console: enable Google at Authentication > Sign-in method.
+// Add the deployed hostname (and localhost for development) at Authentication > Settings > Authorized domains.
+const firebaseConfig = window.FIREBASE_CONFIG;
+if (!firebaseConfig || !firebaseConfig.apiKey || !firebaseConfig.projectId) {
+  throw new Error('Firebase config is missing. Run "node scripts/build-site.js ." for local development.');
+}
 
 // Initialize once so authentication, analytics, and Firestore share the same app.
 const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
@@ -1733,6 +1731,7 @@ function closeAuthModal() {
   if (modal) modal.classList.remove('active');
 }
 
+// Use the same Firebase app as Firestore and Google provider sign-in.
 const auth = firebase.auth(app);
 // Explicit persistence: keep the session across reloads/redirects to avoid login loops
 try {
@@ -1930,6 +1929,15 @@ function getGoogleAuthErrorMessage(error) {
     const hostname = window.location.hostname || '(unknown)';
     return `এই ডোমেইনটি Firebase-এ অনুমোদিত নয়। Firebase Console > Authentication > Settings > Authorized domains-এ "${hostname}" যোগ করুন।`;
   }
+  if (code === 'auth/configuration-not-found') {
+    return 'Firebase Authentication কনফিগারেশন পাওয়া যায়নি। Firebase Console-এ abc-pos-webapp প্রজেক্টটি খুলে Authentication চালু করুন, Google provider enable করুন, এবং Authentication > Settings > Authorized domains-এ এই ডোমেইন যোগ করুন।';
+  }
+  if (code === 'auth/operation-not-allowed') {
+    return 'এই Firebase প্রজেক্টে Google সাইন-ইন চালু নেই। Firebase Console > Authentication > Sign-in method থেকে Google provider enable করুন।';
+  }
+  if (code === 'auth/invalid-api-key' || code === 'auth/api-key-not-valid') {
+    return 'Firebase API key গ্রহণ করা হয়নি। abc-pos-webapp প্রজেক্টের Web App config এবং Google Cloud Console-এর API key restrictions যাচাই করুন।';
+  }
   return 'লগইন ব্যর্থ হয়েছে: ' + ((error && error.message) || error);
 }
 
@@ -2107,15 +2115,16 @@ async function linkEmailCredential() {
 
 // Google Sign-In — always popup-based (in-session) to avoid redirect loops; falls back to redirect only when popups are unsupported
 async function loginWithGoogle() {
-  const provider = new firebase.auth.GoogleAuthProvider();
-  provider.addScope('email');
-  provider.addScope('profile');
-  provider.setCustomParameters({ prompt: 'select_account' });
-  // Explicitly set browserLocalPersistence BEFORE triggering authentication
-  try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }
-  catch (error) { console.warn('Auth persistence set failed during sign-in:', error); }
   try {
     showLoading('Google দিয়ে সাইন ইন হচ্ছে...');
+    if (auth.app !== app || auth.app.options.projectId !== firebaseConfig.projectId) {
+      throw new Error('Google Sign-In is connected to a different Firebase project than abc-pos-webapp.');
+    }
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.addScope('email');
+    provider.addScope('profile');
+    provider.setCustomParameters({ prompt: 'select_account' });
+    await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
     try {
       // Prefer popup so the SPA never reloads through a redirect cycle
       await auth.signInWithPopup(provider);
@@ -2143,7 +2152,7 @@ async function loginWithGoogle() {
       await auth.signInWithRedirect(provider); // handled by getRedirectResult + onAuthStateChanged
     }
   } catch (error) {
-    console.error('Google Sign-In failed:', error);
+    console.error('Google Sign-In failed for Firebase project "' + firebaseConfig.projectId + '":', error);
     hideLoading();
     showToast(getGoogleAuthErrorMessage(error), 'error');
   }
