@@ -3087,8 +3087,7 @@
     }
 
     function isMasterAdmin(user = currentUser) {
-      return Boolean(user && user.emailVerified
-        && String(user.email || '').toLowerCase() === MASTER_ADMIN_EMAIL);
+      return Boolean(user && user.email === MASTER_ADMIN_EMAIL);
     }
 
     function updateAccessGate(message, title = 'অ্যাকাউন্ট যাচাই হচ্ছে') {
@@ -3163,7 +3162,7 @@
     }
 
     async function resolveUserAccess(user) {
-      if (isMasterAdmin(user)) {
+      if (user && user.email === MASTER_ADMIN_EMAIL) {
         currentAccess = {
           role: 'Admin',
           status: 'approved',
@@ -3207,6 +3206,29 @@
         showFirestoreOperationError(error, 'অ্যাকাউন্ট অনুমতি যাচাই হয়নি');
         currentAccess = { role: 'Pending', status: 'pending' };
         return currentAccess;
+      }
+    }
+
+    async function correctMasterAdminProfile(user) {
+      if (!user || user.email !== MASTER_ADMIN_EMAIL) return false;
+      try {
+        const profileRef = getUserRef(user.uid);
+        const profileSnapshot = await profileRef.get();
+        if (!profileSnapshot.exists) return false;
+        const profile = profileSnapshot.data();
+        if (profile.accountStatus === 'approved' && profile.status === 'approved' && profile.role === 'Admin') {
+          return true;
+        }
+        await profileRef.update({
+          accountStatus: 'approved',
+          status: 'approved',
+          role: 'Admin',
+          updatedAt: new Date().toISOString()
+        });
+        return true;
+      } catch (error) {
+        showFirestoreOperationError(error, 'মাস্টার অ্যাডমিন প্রোফাইল স্বয়ংক্রিয়ভাবে ঠিক হয়নি');
+        return false;
       }
     }
 
@@ -3922,6 +3944,26 @@
     // Authentication State Listener — guard against re-entrant loops so the dashboard renders once and only once per session
     let authBootstrapped = false;
     auth.onAuthStateChanged(async user => {
+      if (user && user.email === MASTER_ADMIN_EMAIL) {
+        const alreadyRendered = authBootstrapped && currentUserId === user.uid;
+        currentUser = user;
+        currentUserId = user.uid;
+        currentAccess = {
+          role: 'Admin',
+          accountStatus: 'approved',
+          status: 'approved',
+          email: user.email
+        };
+        renderAuthUI(user);
+        applyBusinessBranding();
+        startRoleSession(user, currentAccess);
+        if (!alreadyRendered) void correctMasterAdminProfile(user);
+        authBootstrapped = true;
+        sessionStorage.removeItem('pos_auth_modal_dismissed');
+        closeAuthModal();
+        return;
+      }
+
       if (user) {
         const alreadyRendered = authBootstrapped && currentUserId === user.uid;
         currentUser = user;
