@@ -68,8 +68,9 @@
       display: grid;
       place-items: center;
       padding: 20px;
-      background: rgba(15, 23, 42, 0.96);
-      color: #fff;
+      overflow-y: auto;
+      background: linear-gradient(145deg, rgba(6, 32, 27, 0.98), rgba(13, 55, 45, 0.98));
+      color: #173c32;
       text-align: center;
     }
 
@@ -79,23 +80,106 @@
 
     .access-gate-content {
       width: min(100%, 440px);
+      padding: 32px 28px 26px;
+      border: 1px solid rgba(198, 161, 91, 0.65);
+      border-radius: 16px;
+      background: #fffdf7;
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
     }
 
     .access-gate h2 {
-      margin-bottom: 12px;
-      font-size: 22px;
+      margin: 14px 0 8px;
+      color: #174b3d;
+      font-size: 23px;
     }
 
     .access-gate p {
       line-height: 1.8;
     }
 
+    .pending-check-icon {
+      width: 44px;
+      height: 44px;
+      margin: 0 auto;
+      border: 3px solid #dce8df;
+      border-top-color: #b28a42;
+      border-radius: 50%;
+      animation: pending-spin 1.4s linear infinite;
+    }
+
+    .pending-check-icon::after {
+      content: '۞';
+      display: grid;
+      place-items: center;
+      height: 100%;
+      color: #b28a42;
+      font-size: 17px;
+      animation: pending-counter-spin 1.4s linear infinite;
+    }
+
+    @keyframes pending-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes pending-counter-spin {
+      to {
+        transform: rotate(-360deg);
+      }
+    }
+
+    .pending-quote {
+      margin: 22px 0 4px;
+      padding: 16px 18px;
+      border-left: 3px solid #b28a42;
+      border-radius: 4px 10px 10px 4px;
+      background: #f5f2e8;
+      color: #344b41;
+      text-align: left;
+    }
+
+    .pending-quote p {
+      font-size: 14px;
+    }
+
+    .pending-quote cite {
+      display: block;
+      margin-top: 9px;
+      color: #82652e;
+      font-size: 12px;
+      font-style: normal;
+      font-weight: 700;
+    }
+
     .access-gate button {
-      margin: 18px 6px 0;
-      padding: 10px 16px;
+      min-width: 150px;
+      margin: 22px 6px 0;
+      padding: 11px 18px;
       border: 0;
       border-radius: 8px;
+      background: #174b3d;
+      color: white;
+      font: inherit;
+      font-weight: 700;
       cursor: pointer;
+    }
+
+    .access-gate button:hover {
+      background: #0e372c;
+    }
+
+    .access-gate button:focus-visible {
+      outline: 3px solid #c6a15b;
+      outline-offset: 3px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+
+      .pending-check-icon,
+      .pending-check-icon::after {
+        animation: none;
+      }
     }
 
     .role-panel {
@@ -1909,12 +1993,18 @@
 
 <body>
 
-  <div id="accessGate" class="access-gate" role="alert" aria-live="assertive">
+  <div id="accessGate" class="access-gate" role="dialog" aria-modal="true" aria-labelledby="accessGateTitle"
+    tabindex="-1" hidden>
     <div class="access-gate-content">
-      <h2 id="accessGateTitle">অ্যাকাউন্ট যাচাই হচ্ছে</h2>
-      <p id="accessGateMessage">অনুগ্রহ করে অপেক্ষা করুন...</p>
-      <button id="accessGateLogin" type="button" onclick="openAuthModal()">সাইন-ইন</button>
-      <button id="accessGateLogout" type="button" onclick="logoutUser()" hidden>লগআউট</button>
+      <div class="pending-check-icon" role="status" aria-label="অ্যাকাউন্ট যাচাই চলছে"></div>
+      <h2 id="accessGateTitle">অনুমোদন অপেক্ষমাণ</h2>
+      <p id="accessGateMessage">আপনার অ্যাকাউন্টটি পর্যালোচনায় রয়েছে। অনুগ্রহ করে অপেক্ষা করুন।</p>
+      <blockquote id="pendingQuote" class="pending-quote" hidden>
+        <p id="pendingQuoteText"></p>
+        <cite id="pendingQuoteReference"></cite>
+      </blockquote>
+      <button id="accessGateLogin" type="button" onclick="openAuthModal()" hidden>সাইন-ইন</button>
+      <button id="accessGateLogout" type="button" onclick="logoutUser()" hidden>সাইন-আউট</button>
     </div>
   </div>
 
@@ -2936,6 +3026,12 @@
     const MASTER_ADMIN_EMAIL = 'clkmonir@gmail.com';
     const BUSINESS_TENANT_ID = 'abc-computer';
     const PENDING_APPROVAL_MESSAGE = 'আপনার অ্যাকাউন্টটি অনুমোদন অপেক্ষমাণ রয়েছে। এডমিনের অনুমতির পর ব্যবহার করতে পারবেন।';
+    const PENDING_PATIENCE_QUOTES = [
+      { text: 'নিশ্চয়ই আল্লাহ ধৈর্যশীলদের সাথে আছেন।', reference: 'সূরা আল-বাকারা: ১৫৩' },
+      { text: 'ধৈর্য ধারণ করো, নিশ্চয়ই আল্লাহর ওয়াদা সত্য।', reference: 'সূরা আর-রূম: ৬০' },
+      { text: 'নিশ্চয়ই ধৈর্যশীলদের তাদের প্রতিদান দেওয়া হবে অগণিতভাবে।', reference: 'সূরা আয-যুমার: ১০' },
+      { text: 'যে ধৈর্য ধারণ করে, আল্লাহ তাকে ধৈর্য ধারণের শক্তি দান করেন। ধৈর্যের চেয়ে উত্তম ও ব্যাপক কোনো দান কাউকে দেওয়া হয়নি।', reference: 'সহীহ বুখারী: ১৪৬৯' }
+    ];
     let currentAccess = { role: 'Pending', status: 'pending' };
     let partnerSales = [];
     let partnerExpenses = [];
@@ -3001,11 +3097,22 @@
       const messageEl = document.getElementById('accessGateMessage');
       const loginButton = document.getElementById('accessGateLogin');
       const logoutButton = document.getElementById('accessGateLogout');
+      const quote = document.getElementById('pendingQuote');
+      const isPending = title === 'অনুমোদন অপেক্ষমাণ';
       if (titleEl) titleEl.textContent = title;
       if (messageEl) messageEl.textContent = message;
-      if (loginButton) loginButton.hidden = Boolean(currentUser);
+      if (loginButton) loginButton.hidden = true;
       if (logoutButton) logoutButton.hidden = !currentUser;
       if (gate) gate.hidden = !message;
+      if (quote) quote.hidden = !isPending;
+      if (isPending) {
+        const selected = PENDING_PATIENCE_QUOTES[Math.floor(Math.random() * PENDING_PATIENCE_QUOTES.length)];
+        document.getElementById('pendingQuoteText').textContent = '“' + selected.text + '”';
+        document.getElementById('pendingQuoteReference').textContent = '— ' + selected.reference;
+        if (logoutButton) logoutButton.focus();
+      }
+      const appContent = document.querySelector('.no-print');
+      if (appContent && message) appContent.inert = true;
     }
 
     function applyRoleVisibility() {
@@ -3052,12 +3159,17 @@
         return;
       }
       if (appContent) appContent.inert = true;
-      updateAccessGate(PENDING_APPROVAL_MESSAGE, 'অনুমোদন প্রয়োজন');
+      updateAccessGate('আপনার অ্যাকাউন্টটি পর্যালোচনায় রয়েছে। অনুগ্রহ করে অপেক্ষা করুন।', 'অনুমোদন অপেক্ষমাণ');
     }
 
     async function resolveUserAccess(user) {
       if (isMasterAdmin(user)) {
-        currentAccess = { role: 'Admin', status: 'approved', email: user.email };
+        currentAccess = {
+          role: 'Admin',
+          status: 'approved',
+          accountStatus: 'approved',
+          email: user.email
+        };
         return currentAccess;
       }
 
@@ -3065,7 +3177,8 @@
       try {
         const profileSnapshot = await profileRef.get();
         const profile = profileSnapshot.exists ? profileSnapshot.data() : {};
-        if (!profileSnapshot.exists || !profile.accountStatus) {
+        const accountStatus = String(profile.accountStatus || profile.status || '').trim().toLowerCase();
+        if (!profileSnapshot.exists || !accountStatus) {
           trackFirestoreWrite(() => profileRef.set({
             email: user.email || '',
             displayName: user.displayName || '',
@@ -3078,10 +3191,16 @@
           currentAccess = { ...profile, role: 'Pending', status: 'Pending Approval', accountStatus: 'Pending Approval' };
           return currentAccess;
         }
+        const roleValue = String(profile.role || '').trim().toLowerCase();
+        const approvedRole = roleValue === 'admin'
+          ? 'Admin'
+          : ['partner/staff', 'partner', 'staff'].includes(roleValue) ? 'Partner/Staff' : null;
+        const isApproved = accountStatus === 'approved' && Boolean(approvedRole);
         currentAccess = {
           ...profile,
-          role: profile.accountStatus === 'approved' ? profile.role : 'Pending',
-          status: profile.accountStatus
+          role: isApproved ? approvedRole : 'Pending',
+          status: isApproved ? 'approved' : accountStatus || 'pending',
+          accountStatus: isApproved ? 'approved' : accountStatus || 'Pending Approval'
         };
         return currentAccess;
       } catch (error) {
@@ -3766,12 +3885,17 @@
       accountProfileUnsubscribe = profileRef.onSnapshot(snapshot => {
         if (currentUserId !== user.uid || !snapshot.exists) return;
         const profile = snapshot.data();
+        const accountStatus = String(profile.accountStatus || profile.status || '').trim().toLowerCase();
+        const roleValue = String(profile.role || '').trim().toLowerCase();
+        const approvedRole = roleValue === 'admin'
+          ? 'Admin'
+          : ['partner/staff', 'partner', 'staff'].includes(roleValue) ? 'Partner/Staff' : null;
+        const isApproved = accountStatus === 'approved' && Boolean(approvedRole);
         const nextAccess = {
           ...profile,
-          role: profile.accountStatus === 'approved' && ['Admin', 'Partner/Staff'].includes(profile.role)
-            ? profile.role
-            : 'Pending',
-          status: profile.accountStatus || 'pending'
+          role: isApproved ? approvedRole : 'Pending',
+          status: isApproved ? 'approved' : accountStatus || 'pending',
+          accountStatus: isApproved ? 'approved' : accountStatus || 'Pending Approval'
         };
         const roleChanged = nextAccess.role !== currentAccess.role || nextAccess.status !== currentAccess.status;
         const shareChanged = nextAccess.sharePercent !== currentAccess.sharePercent;
@@ -3835,7 +3959,9 @@
         stopUserDataListeners();
         renderAuthUI(null);
         applyBusinessBranding();
-        updateAccessGate('POS ব্যবহার করতে সাইন-ইন করুন।', 'সাইন-ইন প্রয়োজন');
+        const appContent = document.querySelector('.no-print');
+        if (appContent) appContent.inert = false;
+        updateAccessGate('');
         // Prompt login modal on initial app launch if not dismissed in this session
         if (!sessionStorage.getItem('pos_auth_modal_dismissed')) {
           setTimeout(() => openAuthModal(), 400);
@@ -4047,7 +4173,7 @@
     function renderAdminManagement() {
       if (!isMasterAdmin()) return;
       const pendingUsers = adminUserProfiles.filter(profile => profile.uid !== currentUserId
-        && profile.accountStatus !== 'approved');
+        && String(profile.accountStatus || profile.status || '').trim().toLowerCase() !== 'approved');
       const pendingList = document.getElementById('pendingUsersList');
       pendingList.innerHTML = pendingUsers.length ? pendingUsers.map(profile => `
         <div class="role-row">

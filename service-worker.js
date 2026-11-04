@@ -1,5 +1,5 @@
-const CACHE_NAME = 'abc-computer-pos-v13-pwa';
-const ICON_VER = '?v=20261105a';
+const CACHE_NAME = 'abc-computer-pos-v14-pwa';
+const ICON_VER = '?v=20261105b';
 const APP_SHELL = [
   './',
   './index.html',
