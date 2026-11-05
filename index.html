@@ -413,9 +413,154 @@
       border-bottom: 0;
     }
 
+    .partner-record-card {
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+      border: 1px solid #dbe5ed;
+      border-radius: 14px;
+      background: linear-gradient(145deg, #fff, #f8fbff);
+      box-shadow: 0 5px 16px rgba(15, 23, 42, .05);
+    }
+
+    .partner-record-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .partner-record-identity {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    .partner-record-identity strong {
+      color: var(--dark);
+      font-size: 15px;
+    }
+
+    .partner-record-identity span,
+    .partner-record-summary {
+      color: var(--gray-500);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .partner-record-balance {
+      display: grid;
+      gap: 2px;
+      flex-shrink: 0;
+      text-align: right;
+    }
+
+    .partner-record-balance span {
+      color: var(--gray-500);
+      font-size: 11px;
+    }
+
+    .partner-record-balance strong {
+      color: #b91c1c;
+      font-size: 16px;
+    }
+
+    .partner-date-details {
+      padding: 10px 12px;
+      border: 1px solid var(--gray-200);
+      border-radius: 10px;
+      background: white;
+    }
+
+    .partner-date-details summary {
+      color: var(--dark-2);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .partner-date-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .partner-date-metrics div {
+      padding: 9px;
+      border-radius: 8px;
+      background: var(--gray-50);
+      color: var(--gray-500);
+      font-size: 11px;
+    }
+
+    .partner-date-metrics strong {
+      display: block;
+      margin-top: 3px;
+      color: var(--dark);
+      font-size: 13px;
+    }
+
+    .partner-record-transactions {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--gray-100);
+      color: var(--gray-700);
+      font-size: 12px;
+      line-height: 1.8;
+      overflow-wrap: anywhere;
+    }
+
+    .partner-record-actions {
+      padding-top: 4px;
+      border-top: 1px solid var(--gray-100);
+    }
+
+    .metric-strip.admin-core-metrics {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .admin-core-metrics .metric-card:nth-child(1) .value {
+      color: #047857;
+    }
+
+    .admin-core-metrics .metric-card:nth-child(2) .value {
+      color: #b45309;
+    }
+
+    .admin-core-metrics .metric-card:nth-child(3) .value {
+      color: var(--dark-2);
+    }
+
     @media (max-width: 600px) {
       .role-row {
         grid-template-columns: 1fr;
+      }
+
+      .partner-record-heading {
+        flex-direction: column;
+      }
+
+      .partner-record-balance {
+        text-align: left;
+      }
+
+      .admin-core-metrics {
+        gap: 6px;
+      }
+
+      .admin-core-metrics .metric-card {
+        min-width: 0;
+        padding: 10px 8px;
+      }
+
+      .admin-core-metrics .metric-card .label {
+        font-size: 10px;
+      }
+
+      .admin-core-metrics .metric-card .value {
+        font-size: clamp(12px, 4vw, 17px);
+        overflow-wrap: anywhere;
       }
     }
 
@@ -1203,8 +1348,40 @@
 
       .item-row,
       .items-header {
-        grid-template-columns: minmax(0, 1.3fr) minmax(42px, 0.55fr) minmax(60px, 0.8fr) minmax(58px, 0.75fr) 30px;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(58px, .8fr) 30px;
         gap: 4px;
+      }
+
+      .items-header {
+        display: none;
+      }
+
+      .item-row .item-description {
+        grid-column: 1 / -1;
+      }
+
+      .item-row .itemQty {
+        grid-column: 1;
+      }
+
+      .item-row .itemPrice {
+        grid-column: 2;
+      }
+
+      .item-row .item-total-display {
+        grid-column: 3;
+        padding: 8px 2px;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+
+      .item-row .item-total-display::before {
+        content: 'মোট ';
+        color: var(--gray-500);
+      }
+
+      .item-row .remove-btn {
+        grid-column: 4;
       }
 
       .item-row input,
@@ -2419,23 +2596,18 @@
             <button type="button" class="quick-today-btn" onclick="setAdminDateToday()">আজকে</button>
           </div>
         </div>
-        <div class="metric-strip">
+        <div class="metric-strip admin-core-metrics">
           <div class="metric-card">
             <div class="label" id="adminSalesCardLabel">আজকের বিক্রি</div>
             <div class="value" id="adminTodaySales">৳০</div>
           </div>
           <div class="metric-card">
-            <div class="label">পার্টনারদের লাভের অংশ</div>
-            <div class="value" id="adminTodayPartnerShare">৳০</div>
+            <div class="label">মোট কস্ট</div>
+            <div class="value" id="adminTodayCost">৳০</div>
           </div>
           <div class="metric-card">
-            <div class="label">মালিকের অংশ</div>
-            <div class="value" id="adminTodayOwnerShare">৳০</div>
-          </div>
-          <div class="metric-card">
-            <div class="label">হস্তান্তর বাকি</div>
-            <div class="value" id="adminTodayPendingCash">৳০</div>
-            <div class="sublabel" style="font-size:11px;color:var(--gray-500);margin-top:4px;">মালিকের অংশ (বাকি)</div>
+            <div class="label">নিট লাভ</div>
+            <div class="value" id="adminTodayNetProfit">৳০</div>
           </div>
         </div>
         <div class="role-panel">
@@ -3602,6 +3774,7 @@
     let businessUnsubscribers = [];
     let accountProfileUnsubscribe = null;
     const settlingPartnerIds = new Set();
+    const deletingPartnerIds = new Set();
     let firestoreUnsubscribers = [];
     let cashHistoryRecords = [];
     let firestoreReconnectTimer = null;
@@ -4871,15 +5044,21 @@
       const selectedDate = (dateInput && dateInput.value) || localDateKey();
       const isToday = selectedDate === localDateKey();
 
-      // Strict date-based metrics calculation for selected date across all partners
+      // Combine owner invoices and partner sales; settled partner invoices are excluded to avoid double counting.
       const dateSales = adminPartnerSales.filter(sale => localDateKey(sale.date) === selectedDate);
-      const totalSales = dateSales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
-      const totalPartnerShare = dateSales.reduce((sum, sale) => sum + safeNum(sale.partnerShare), 0);
-      const totalOwnerShare = dateSales.reduce((sum, sale) => sum + safeNum(sale.ownerShare), 0);
-
-      const allSettledSales = new Set(adminSettlements.flatMap(settlement => settlement.salesIds || []));
-      const totalPendingHandover = dateSales.filter(sale => !allSettledSales.has(sale.docId))
-        .reduce((sum, sale) => sum + safeNum(sale.ownerShare), 0);
+      const dateInvoices = invoices.filter(invoice => !invoice.partnerUid && !invoice.sourcePartnerSaleId
+        && localDateKey(invoice.date) === selectedDate);
+      const salesForMetrics = [...dateSales, ...dateInvoices];
+      const totalSales = salesForMetrics.reduce((sum, sale) => sum + safeNum(sale.total), 0);
+      const totalCost = salesForMetrics.reduce((sum, sale) => {
+        const itemCost = (sale.items || []).reduce((itemSum, item) =>
+          itemSum + safeNum(item.costPrice) * safeNum(item.qty), 0);
+        const saleCost = sale.costTotal !== undefined && sale.costTotal !== null
+          ? sale.costTotal
+          : itemCost;
+        return sum + Math.max(0, safeNum(saleCost));
+      }, 0);
+      const netProfit = totalSales - totalCost;
 
       const salesCardLabel = document.getElementById('adminSalesCardLabel');
       if (salesCardLabel) {
@@ -4887,12 +5066,10 @@
       }
       const salesEl = document.getElementById('adminTodaySales');
       if (salesEl) salesEl.textContent = formatMoney(totalSales);
-      const partnerShareEl = document.getElementById('adminTodayPartnerShare');
-      if (partnerShareEl) partnerShareEl.textContent = formatMoney(totalPartnerShare);
-      const ownerShareEl = document.getElementById('adminTodayOwnerShare');
-      if (ownerShareEl) ownerShareEl.textContent = formatMoney(totalOwnerShare);
-      const pendingCashEl = document.getElementById('adminTodayPendingCash');
-      if (pendingCashEl) pendingCashEl.textContent = formatMoney(Math.max(0, totalPendingHandover));
+      const costEl = document.getElementById('adminTodayCost');
+      if (costEl) costEl.textContent = formatMoney(totalCost);
+      const profitEl = document.getElementById('adminTodayNetProfit');
+      if (profitEl) profitEl.textContent = formatMoney(netProfit);
 
       const pendingUsers = adminUserProfiles.filter(profile => profile.uid !== currentUserId
         && String(profile.accountStatus || profile.status || '').trim().toLowerCase() !== 'approved');
@@ -4937,23 +5114,41 @@
 
           const details = sales.map(sale => `${escapeHtml(sale.customer || '')} (${escapeHtml(sale.phone || '')}): ${(sale.items || []).map(item => `${escapeHtml(item.name)} × ${toBnNum(item.qty)}`).join(', ')} · ${formatMoney(sale.total)}${settledSales.has(sale.docId) ? ' · হস্তান্তরিত' : ''}`).join('<br>');
           const disabled = unsettledSales.length + unsettledExpenses.length && !settlingPartnerIds.has(member.uid) ? '' : 'disabled';
-          return `<div class="role-record">
-            <strong>${escapeHtml(member.displayName || member.email || member.uid)}</strong> · ${escapeHtml(member.email || '')}
-            <div style="margin:4px 0; color:var(--dark); font-size:13px;">
-              <strong>📅 নির্বাচিত তারিখে (${formatDate(selectedDate)}):</strong> বিক্রি ${formatMoney(memberDateTotal)} · পার্টনারের লাভ ${formatMoney(memberDatePartnerShare)} · মালিকের অংশ ${formatMoney(memberDateOwnerShare)} · হস্তান্তর বাকি ${formatMoney(memberDateHandoverDue)}
+          const safeUid = escapeHtml(member.uid);
+          const challengeText = escapeHtml(member.email || member.displayName || member.uid);
+          return `<article class="partner-record-card">
+            <div class="partner-record-heading">
+              <div class="partner-record-identity">
+                <strong>${escapeHtml(member.displayName || member.email || member.uid)}</strong>
+                <span>${escapeHtml(member.email || '')}</span>
+              </div>
+              <div class="partner-record-balance"><span>মোট হস্তান্তর বাকি</span><strong>${formatMoney(pending)}</strong></div>
             </div>
-            <div style="font-size:12px; color:var(--gray-600);">
-              সর্বমোট বিক্রি ${formatMoney(allSalesAmount)} · আইটেম ${toBnNum(itemCount)} · মোট হস্তান্তর বাকি ${formatMoney(pending)}
-            </div>
-            <div>অপারেশনাল ক্যাশ ${formatMoney(businessCashBalance)} · ${details || 'নতুন কোনো বাকি বিক্রি নেই'}</div>
-            <div class="role-actions" style="margin-top:8px;">
+            <div class="partner-record-summary">সর্বমোট বিক্রি ${formatMoney(allSalesAmount)} · আইটেম ${toBnNum(itemCount)} · অপারেশনাল ক্যাশ ${formatMoney(businessCashBalance)}</div>
+            <details class="partner-date-details">
+              <summary>📅 ${formatDate(selectedDate)}-এর হিসাব ও লেনদেন দেখুন</summary>
+              <div class="partner-date-metrics">
+                <div>বিক্রি<strong>${formatMoney(memberDateTotal)}</strong></div>
+                <div>পার্টনারের লাভ<strong>${formatMoney(memberDatePartnerShare)}</strong></div>
+                <div>মালিকের অংশ<strong>${formatMoney(memberDateOwnerShare)}</strong></div>
+                <div>হস্তান্তর বাকি<strong>${formatMoney(memberDateHandoverDue)}</strong></div>
+              </div>
+              <div class="partner-record-transactions">${details || 'নতুন কোনো বিক্রি নেই'}</div>
+            </details>
+            <div class="role-actions partner-record-actions">
               <label>লাভের ভাগ % <input id="share-${escapeHtml(member.uid)}" type="number" min="0" max="100" value="${Math.min(100, Math.max(0, safeNum(member.sharePercent ?? 40)))}"></label>
-              <button type="button" onclick="savePartnerShare('${escapeHtml(member.uid)}')">ভাগ সংরক্ষণ</button>
-              <button type="button" ${disabled} onclick="markPartnerPaid('${escapeHtml(member.uid)}')">বুঝে পেলাম / Mark as Paid</button>
+              <button type="button" ${deletingPartnerIds.has(member.uid) ? 'disabled' : ''} onclick="savePartnerShare('${safeUid}')">ভাগ সংরক্ষণ</button>
+              <button type="button" ${disabled} onclick="markPartnerPaid('${safeUid}')">বুঝে পেলাম / Mark as Paid</button>
+              <button type="button" class="mini-btn del delete-partner-button" data-partner-uid="${safeUid}" data-challenge="${challengeText}" ${deletingPartnerIds.has(member.uid) ? 'disabled' : ''}>ডিলিট পার্টনার</button>
             </div>
-          </div>`;
+          </article>`;
         });
         membersList.innerHTML = partnerRows.length ? partnerRows.join('') : '<div class="empty">কোনো সক্রিয় পার্টনার নেই</div>';
+        membersList.querySelectorAll('.delete-partner-button').forEach(button => {
+          button.addEventListener('click', () => {
+            void deletePartnerAccount(button.dataset.partnerUid, button.dataset.challenge);
+          });
+        });
       }
     }
 
@@ -5004,6 +5199,61 @@
         showToast('লাভের ভাগ সংরক্ষিত হয়েছে ✓');
       } catch (error) {
         showFirestoreOperationError(error, 'লাভের ভাগ সংরক্ষণ হয়নি');
+      }
+    }
+
+    async function deletePartnerAccount(uid, challengeLabel) {
+      if (!isMasterAdmin()) return showToast('শুধু মাস্টার অ্যাডমিন পার্টনার মুছে ফেলতে পারবেন।', 'error');
+      if (!navigator.onLine) return showToast('ইন্টারনেট নেই। পার্টনার মুছতে সংযোগ ফিরে এলে আবার চেষ্টা করুন।', 'error');
+      if (deletingPartnerIds.has(uid)) return;
+      if (settlingPartnerIds.has(uid)) return showToast('সেটেলমেন্ট চলাকালে পার্টনার মুছে ফেলা যাবে না।', 'error');
+      const member = adminMembers.find(item => item.uid === uid);
+      if (!member) return showToast('পার্টনারের তথ্য পাওয়া যায়নি।', 'error');
+      const confirmationPhrase = 'DELETE ' + (challengeLabel || uid);
+      const confirmation = prompt(
+        'এই কাজটি স্থায়ীভাবে পার্টনারের Firestore অ্যাকাউন্টের তথ্য ও সংশ্লিষ্ট লেনদেন মুছে দেবে। Firebase Authentication-এর সাইন-ইন পরিচয়টি মুছবে না, তবে অ্যাপের পার্টনার অ্যাক্সেস থাকবে না।\n' +
+        'নিশ্চিত করতে হুবহু লিখুন: ' + confirmationPhrase
+      );
+      if (confirmation === null) return;
+      if (confirmation !== confirmationPhrase) {
+        return showToast('নিশ্চিতকরণ বাক্য মেলেনি। কোনো তথ্য মুছে ফেলা হয়নি।', 'error');
+      }
+
+      deletingPartnerIds.add(uid);
+      renderAdminManagement();
+      try {
+        const partnerUserRef = getUserRef(uid);
+        const ownerSalesRef = getSalesRef();
+        const ownerExpensesRef = getExpensesRef();
+        const snapshots = await Promise.all([
+          getPartnerSalesRef().where('partnerUid', '==', uid).get(),
+          getPartnerExpensesRef().where('partnerUid', '==', uid).get(),
+          getBusinessRef().collection('settlements').where('partnerUid', '==', uid).get(),
+          partnerUserRef.collection('sales').get(),
+          partnerUserRef.collection('expenses').get(),
+          partnerUserRef.collection('creditors').get(),
+          partnerUserRef.collection('cash_register').get(),
+          partnerUserRef.collection('settings').get(),
+          ownerSalesRef.where('partnerUid', '==', uid).get(),
+          ownerExpensesRef.where('partnerUid', '==', uid).get()
+        ]);
+        const recordRefs = [...new Set(snapshots.flatMap(snapshot => snapshot.docs.map(doc => doc.ref)))];
+        for (let offset = 0; offset < recordRefs.length; offset += 400) {
+          const batch = db.batch();
+          recordRefs.slice(offset, offset + 400).forEach(ref => batch.delete(ref));
+          await batch.commit();
+        }
+
+        const accountBatch = db.batch();
+        accountBatch.delete(getMembersRef().doc(uid));
+        accountBatch.delete(partnerUserRef);
+        await accountBatch.commit();
+        showToast('পার্টনারের Firestore অ্যাকাউন্টের তথ্য ও সংশ্লিষ্ট রেকর্ড স্থায়ীভাবে মুছে ফেলা হয়েছে।');
+      } catch (error) {
+        showFirestoreOperationError(error, 'পার্টনার ও সংশ্লিষ্ট রেকর্ড সম্পূর্ণ মুছে ফেলা যায়নি');
+      } finally {
+        deletingPartnerIds.delete(uid);
+        renderAdminManagement();
       }
     }
 
@@ -5339,21 +5589,38 @@
         const select = row.querySelector('select');
         if (!select) return;
         const selected = select.value;
-        const presets = (settings.presetItems || '').split('\n').map(item => item.trim()).filter(Boolean);
-        select.innerHTML = '<option value="">-- বাছাই --</option>';
-        presets.forEach(name => {
-          const option = document.createElement('option');
-          option.value = name;
-          option.textContent = name;
-          select.appendChild(option);
-        });
-        const customOption = document.createElement('option');
-        customOption.value = '__custom__';
-        customOption.textContent = '✏️ কাস্টম...';
-        select.appendChild(customOption);
-        select.value = selected;
-        updateItem(select);
+        populatePresetSelect(select, selected);
+        if (select.value === '__custom__') {
+          const customInput = row.querySelector('.customName');
+          if (selected !== '__custom__') customInput.value = selected;
+          customInput.style.display = 'block';
+        } else {
+          updateItem(select);
+        }
       });
+    }
+
+    function populatePresetSelect(select, selectedValue = '') {
+      const presets = [...new Set((settings.presetItems || '').split('\n')
+        .map(item => item.trim()).filter(Boolean))];
+      select.replaceChildren();
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = '-- বাছাই --';
+      select.appendChild(placeholder);
+      presets.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+      });
+      const customOption = document.createElement('option');
+      customOption.value = '__custom__';
+      customOption.textContent = '✏️ কাস্টম...';
+      select.appendChild(customOption);
+      select.value = selectedValue && !presets.includes(selectedValue) && selectedValue !== '__custom__'
+        ? '__custom__'
+        : selectedValue;
     }
 
     // সেটিংস মডালের সব ইনপুটে বর্তমান মান বসায়
@@ -5373,12 +5640,7 @@
       const row = document.createElement('div');
       row.className = 'item-row';
 
-      let optionsHtml = '<option value="">-- বাছাই --</option>';
       const escAttr = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-      presets.forEach(p => {
-        optionsHtml += `<option value="${escAttr(p)}" ${p === name ? 'selected' : ''}>${p}</option>`;
-      });
-
       const isCustom = name && !presets.includes(name);
       const initialPrice = price == null ? Number((settings.sellingPrices || {})[name] || 0) : safeNum(price);
       const initialCost = costPrice == null
@@ -5386,10 +5648,7 @@
         : safeNum(costPrice);
       row.innerHTML = `
     <div class="item-description">
-      <select onchange="updateItem(this); calculateRowTotal(this.closest('.item-row')); calculateTotal()">
-      ${optionsHtml}
-      <option value="__custom__" ${isCustom ? 'selected' : ''}>✏️ কাস্টম...</option>
-      </select>
+      <select aria-label="আইটেম প্রিসেট"></select>
       <input type="text" class="customName" placeholder="নাম" value="${isCustom ? escAttr(name) : ''}" style="display:${isCustom ? 'block' : 'none'}">
       <div class="item-cost-display">ক্রয়: ${formatMoney(initialCost)} / ইউনিট</div>
       <input type="hidden" class="itemCostPrice" value="${initialCost}">
@@ -5399,6 +5658,12 @@
     <div class="item-total-display">৳০</div>
     <button class="remove-btn" onclick="this.parentElement.remove(); calculateTotal()">×</button>
   `;
+      const select = row.querySelector('select');
+      populatePresetSelect(select, isCustom ? '__custom__' : name);
+      select.addEventListener('change', () => {
+        updateItem(select);
+        calculateTotal();
+      });
       container.appendChild(row);
       calculateRowTotal(row);
       calculateTotal();
@@ -6365,6 +6630,24 @@
     }
 
     // ===== Initialize =====
+    window.addEventListener('storage', event => {
+      if (event.key !== 'pos_settings' || !event.newValue) return;
+      try {
+        const updatedSettings = JSON.parse(event.newValue);
+        if (!updatedSettings || typeof updatedSettings !== 'object' || Array.isArray(updatedSettings)) {
+          throw new Error('Settings data must be an object');
+        }
+        settings = { ...settings, ...updatedSettings };
+        refreshPresetOptions();
+        populateExpenseCategoryOptions();
+        updateStats();
+        renderInvoices();
+        renderFinanceSummary();
+      } catch (error) {
+        console.error('Cross-tab settings sync failed:', error);
+        showToast('অন্য ট্যাবের সেটিংস সিঙ্ক করা যায়নি।', 'error');
+      }
+    });
     document.getElementById('itemsContainer').innerHTML = '';
     addItem();
     updateStats();
@@ -6686,9 +6969,10 @@
         const paid = Math.max(0, safeNum(paidEl.value));
         if (!name) return showToast('পাওনাদারের নাম লিখুন', 'error');
         if (taken <= 0 && paid <= 0) return showToast('ধারার পরিমাণ অথবা পরিশোধের পরিমাণ দিন', 'error');
+        if (paid > taken) return showToast('পরিশোধের পরিমাণ ধারার অঙ্কের চেয়ে বেশি হতে পারবে না।', 'error');
         const creditor = {
           id: Date.now(), name: name, taken: taken, paid: paid,
-          due: taken - paid, date: new Date().toISOString()
+          due: Math.max(0, Number((taken - paid).toFixed(2))), date: new Date().toISOString()
         };
         creditors.unshift(creditor);
         saveCreditors();
@@ -6707,18 +6991,20 @@
     function payCreditorPrompt(id) {
       const c = creditors.find(x => safeNum(x.id) === safeNum(id));
       if (!c) return showToast('পাওনাদার খুঁজে পাওয়া যায়নি', 'error');
-      const due = Math.max(0, safeNum(c.taken) - safeNum(c.paid));
+      const due = Math.max(0, Number((safeNum(c.taken) - safeNum(c.paid)).toFixed(2)));
       if (due <= 0) return showToast('"' + c.name + '" এর কোনো বকেয়া নেই');
-      const input = prompt('"' + c.name + '" কে কত টাকা পরিশোধ করবেন?\n(বর্তমান বকেয়া: ' + Math.round(due) + ' টাকা)', String(Math.round(due)));
+      const input = prompt('"' + c.name + '" কে কত টাকা পরিশোধ করবেন?\n(বর্তমান বকেয়া: ' + formatMoney(due) + ')', due.toFixed(2));
       if (input === null) return;
-      const amount = safeNum(input);
+      const amount = Number(safeNum(input).toFixed(2));
       if (amount <= 0) return showToast('সঠিক পরিমাণ দিন', 'error');
-      c.paid = safeNum(c.paid) + amount;
+      if (amount - due > 0.001) return showToast('পরিশোধের পরিমাণ বর্তমান বকেয়ার চেয়ে বেশি হতে পারবে না।', 'error');
+      c.paid = Number((safeNum(c.paid) + amount).toFixed(2));
+      c.due = Math.max(0, Number((safeNum(c.taken) - c.paid).toFixed(2)));
       saveCreditors();
       backupCreditorToSheet(c);
       renderCreditorList();
       renderFinanceSummary();
-      showToast('✓ "' + c.name + '" — ' + formatMoney(amount) + ' পরিশোধ হিসাব হয়েছে (নতুন বকেয়া ' + formatMoney(Math.max(0, safeNum(c.taken) - safeNum(c.paid))) + ')');
+      showToast('✓ "' + c.name + '" — ' + formatMoney(amount) + ' পরিশোধ হিসাব হয়েছে (নতুন বকেয়া ' + formatMoney(c.due) + ')');
     }
 
     function deleteCreditor(id) {

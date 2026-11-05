@@ -1,4 +1,4 @@
-const CACHE_NAME = 'abc-computer-pos-v15-pwa';
+const CACHE_NAME = 'abc-computer-pos-v16-pwa';
 const ICON_VER = '?v=20261105c';
 const APP_SHELL = [
   './',
