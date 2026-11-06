@@ -237,6 +237,30 @@
       font-weight: 700;
     }
 
+    .payment-type-control {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    .payment-type-option {
+      display: flex !important;
+      align-items: center;
+      gap: 7px !important;
+      padding: 9px 13px;
+      border: 1.5px solid var(--gray-200);
+      border-radius: 10px;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .payment-type-option input {
+      width: auto;
+      margin: 0;
+      accent-color: var(--primary);
+    }
+
     #partnerSaleForm.role-form {
       display: block;
     }
@@ -2546,6 +2570,10 @@
           <form id="partnerSaleForm" class="role-form" onsubmit="savePartnerSale(event)">
             <label>কাস্টমারের নাম<input id="partnerCustomer" required maxlength="120"></label>
             <label>ফোন নম্বর<input id="partnerPhone" maxlength="40"></label>
+            <div class="payment-type-control" role="group" aria-label="পেমেন্টের ধরন">
+              <label class="payment-type-option"><input type="radio" name="partnerPaymentType" value="cash" checked> নগদ (Cash)</label>
+              <label class="payment-type-option"><input type="radio" name="partnerPaymentType" value="due"> বাকি (Due)</label>
+            </div>
             <div class="partner-items-heading"><span>আইটেম</span><span>পরিমাণ</span><span>বিক্রয় মূল্য</span><span>কস্ট
                 / ইউনিট</span><span>মোট</span><span></span></div>
             <div id="partnerItemsContainer" class="partner-items-container"></div>
@@ -2695,6 +2723,11 @@
                   <label>📱 ফোন (WhatsApp)</label>
                   <input type="text" id="customerPhone" value="01877987587" placeholder="০১৭XXXXXXXX">
                 </div>
+              </div>
+
+              <div class="payment-type-control" role="group" aria-label="পেমেন্টের ধরন">
+                <label class="payment-type-option"><input type="radio" name="invoicePaymentType" value="cash" checked> নগদ (Cash)</label>
+                <label class="payment-type-option"><input type="radio" name="invoicePaymentType" value="due"> বাকি (Due)</label>
               </div>
 
               <label style="font-weight:700;color:var(--gray-700);font-size:13px;margin:10px 0 8px;display:block;">📦
@@ -3349,6 +3382,18 @@
       return { items, subtotal, discount, discountAmount, discountType, total, costTotal, netProfit, sharePercent, partnerShare, ownerShare };
     }
 
+    function calculatePartnerProfitShares(sale, fallbackPercent = 40) {
+      const netProfit = Math.max(0, safeNum(sale.netProfit !== undefined
+        ? sale.netProfit
+        : safeNum(sale.total) - safeNum(sale.costTotal)));
+      const savedPercent = sale.profitSharePercent !== undefined && sale.profitSharePercent !== null
+        ? sale.profitSharePercent
+        : fallbackPercent;
+      const sharePercent = Math.min(100, Math.max(0, safeNum(savedPercent)));
+      const partnerShare = Number((netProfit * sharePercent / 100).toFixed(2));
+      return { partnerShare, ownerShare: Number((netProfit - partnerShare).toFixed(2)) };
+    }
+
     function calculatePartnerSale() {
       const container = document.getElementById('partnerItemsContainer');
       if (!container) return null;
@@ -3936,6 +3981,16 @@
           status: isApproved ? 'approved' : accountStatus || 'pending',
           accountStatus: isApproved ? 'approved' : accountStatus || 'Pending Approval'
         };
+        if (isApproved && approvedRole === 'Partner/Staff') {
+          try {
+            const memberSnapshot = await getMembersRef().doc(user.uid).get();
+            if (memberSnapshot.exists && memberSnapshot.data().sharePercent !== undefined) {
+              currentAccess.sharePercent = memberSnapshot.data().sharePercent;
+            }
+          } catch (error) {
+            showFirestoreOperationError(error, 'পার্টনারের লাভের ভাগ লোড হয়নি');
+          }
+        }
         return currentAccess;
       } catch (error) {
         showFirestoreOperationError(error, 'অ্যাকাউন্ট অনুমতি যাচাই হয়নি');
@@ -4703,6 +4758,7 @@
         const isApproved = accountStatus === 'approved' && Boolean(approvedRole);
         const nextAccess = {
           ...profile,
+          ...(currentAccess.role === 'Partner/Staff' ? { sharePercent: currentAccess.sharePercent } : {}),
           role: isApproved ? approvedRole : 'Pending',
           status: isApproved ? 'approved' : accountStatus || 'pending',
           accountStatus: isApproved ? 'approved' : accountStatus || 'Pending Approval'
@@ -4846,7 +4902,17 @@
         refreshPartnerSaleCatalog();
         renderPartnerDashboard();
       }, error => handleFirestoreSyncError('অপারেশনাল ক্যাশ', error));
-      businessUnsubscribers.push(salesUnsubscribe, expensesUnsubscribe, settlementsUnsubscribe, businessUnsubscribe);
+      const memberUnsubscribe = getMembersRef().doc(uid).onSnapshot(snapshot => {
+        if (!snapshot.exists) {
+          handleFirestoreSyncError('পার্টনারের লাভের ভাগ', new Error('পার্টনার সদস্যের রেকর্ড পাওয়া যায়নি'));
+          return;
+        }
+        const member = snapshot.data();
+        if (member.sharePercent !== undefined) currentAccess.sharePercent = member.sharePercent;
+        renderPartnerDashboard();
+        calculatePartnerSale();
+      }, error => handleFirestoreSyncError('পার্টনারের লাভের ভাগ', error));
+      businessUnsubscribers.push(salesUnsubscribe, expensesUnsubscribe, settlementsUnsubscribe, businessUnsubscribe, memberUnsubscribe);
       const metricsInput = document.getElementById('partnerMetricsDate');
       if (metricsInput && !metricsInput.value) metricsInput.value = localDateKey();
       const dateInput = document.getElementById('partnerHistoryDate');
@@ -4862,24 +4928,28 @@
       // Strict date-based metrics calculation for selected date
       const dateSales = partnerSales.filter(sale => localDateKey(sale.date) === selectedDate);
       const totalSales = dateSales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
-      const partnerShare = dateSales.reduce((sum, sale) => sum + safeNum(sale.partnerShare), 0);
-      const ownerShare = dateSales.reduce((sum, sale) => sum + safeNum(sale.ownerShare), 0);
       const partnerPercent = Math.min(100, Math.max(0, safeNum(currentAccess.sharePercent ?? 40)));
+      const dateShares = dateSales.reduce((shares, sale) => {
+        const saleShares = calculatePartnerProfitShares(sale, partnerPercent);
+        shares.partner += saleShares.partnerShare;
+        shares.owner += saleShares.ownerShare;
+        return shares;
+      }, { partner: 0, owner: 0 });
 
       const settledSales = new Set(partnerSettlements.flatMap(settlement => settlement.salesIds || []));
       const settledExpenses = new Set(partnerSettlements.flatMap(settlement => settlement.expenseIds || []));
 
       // Handover Due strictly reflects Owner's Share (মালিকের অংশ) for the selected date pending handover
       const pendingOwnerShare = dateSales.filter(sale => !settledSales.has(sale.docId))
-        .reduce((sum, sale) => sum + safeNum(sale.ownerShare), 0);
+        .reduce((sum, sale) => sum + calculatePartnerProfitShares(sale, partnerPercent).ownerShare, 0);
 
       const salesCardLabel = document.getElementById('partnerSalesCardLabel');
       if (salesCardLabel) {
         salesCardLabel.textContent = isToday ? 'আজকের বিক্রি' : 'মোট বিক্রি';
       }
       document.getElementById('partnerTodaySales').textContent = formatMoney(totalSales);
-      document.getElementById('partnerTodayShare').textContent = formatMoney(partnerShare);
-      document.getElementById('ownerTodayShare').textContent = formatMoney(ownerShare);
+      document.getElementById('partnerTodayShare').textContent = formatMoney(dateShares.partner);
+      document.getElementById('ownerTodayShare').textContent = formatMoney(dateShares.owner);
       document.getElementById('partnerSharePercent').textContent = toBnNum(partnerPercent);
       document.getElementById('ownerSharePercent').textContent = toBnNum(100 - partnerPercent);
       document.getElementById('partnerPendingCash').textContent = formatMoney(Math.max(0, pendingOwnerShare));
@@ -4897,7 +4967,7 @@
             <strong>${escapeHtml(sale.customer || 'কাস্টমার')}</strong> · ${formatMoney(sale.total)}
             <div>${escapeHtml(sale.phone || 'ফোন নেই')} · ${formatDate(sale.date)}</div>
             <div>${(sale.items || []).map(item => `${escapeHtml(item.name)} × ${toBnNum(item.qty)}`).join(', ')}</div>
-            <div>আমার অংশ ${formatMoney(sale.partnerShare)} · মালিকের অংশ ${formatMoney(sale.ownerShare)} · ${settledSales.has(sale.docId) ? 'হস্তান্তরিত' : 'হস্তান্তর বাকি'}</div>
+            <div>আমার অংশ ${formatMoney(calculatePartnerProfitShares(sale, partnerPercent).partnerShare)} · মালিকের অংশ ${formatMoney(calculatePartnerProfitShares(sale, partnerPercent).ownerShare)} · ${settledSales.has(sale.docId) ? 'হস্তান্তরিত' : 'হস্তান্তর বাকি'}</div>
           </div>`).join('') : '<div class="empty">এই তারিখে কোনো বিক্রির রেকর্ড নেই</div>';
       }
       const expenseList = document.getElementById('partnerExpensesHistory');
@@ -4914,6 +4984,7 @@
       if (currentAccess.role !== 'Partner/Staff' || !currentUserId) return showToast(PENDING_APPROVAL_MESSAGE, 'error');
       const customer = document.getElementById('partnerCustomer').value.trim();
       const phone = document.getElementById('partnerPhone').value.trim();
+      const paymentType = document.querySelector('input[name="partnerPaymentType"]:checked').value;
       const draft = calculatePartnerSale();
       if (!customer) return showToast('কাস্টমারের নাম দিন।', 'error');
       if (!draft || !draft.items.length) return showToast('কমপক্ষে একটি আইটেম বাছাই বা লিখুন।', 'error');
@@ -4940,26 +5011,49 @@
         profitSharePercent: draft.sharePercent,
         partnerShare: draft.partnerShare,
         ownerShare: draft.ownerShare,
+        paymentType,
+        paymentStatus: paymentType === 'due' ? 'due' : 'paid',
+        dueAmount: paymentType === 'due' ? draft.total : 0,
+        cashBalanceApplied: paymentType === 'cash',
         invoiceNo: 'P-' + saleId,
         date: new Date().toISOString(),
         settled: false,
         createdAt: new Date().toISOString()
       };
+      const dueCreditor = paymentType === 'due' ? {
+        id: Date.now(),
+        name: customer,
+        taken: draft.total,
+        paid: 0,
+        due: draft.total,
+        date: sale.date,
+        source: 'pos_sale',
+        sourcePartnerSaleId: saleId,
+        invoiceNo: sale.invoiceNo
+      } : null;
+      if (dueCreditor) sale.dueLedgerId = dueCreditor.id;
       try {
         const batch = db.batch();
         batch.set(getPartnerSalesRef().doc(saleId), sale);
         batch.update(getBusinessRef(), {
-          operationalCashBalance: firebase.firestore.FieldValue.increment(draft.total),
+          operationalCashBalance: firebase.firestore.FieldValue.increment(paymentType === 'cash' ? draft.total : 0),
           lastLedgerId: saleId,
           lastLedgerType: 'partner_sale',
           updatedAt: new Date().toISOString()
         });
+        if (dueCreditor) {
+          batch.set(getCreditorsRef().doc(String(dueCreditor.id)), dueCreditor);
+          creditors.unshift(dueCreditor);
+          saveCreditors();
+        }
         trackFirestoreWrite(() => batch.commit(), 'পার্টনার বিক্রয়');
         document.getElementById('partnerSaleForm').reset();
         document.getElementById('partnerItemsContainer').replaceChildren();
         addPartnerSaleItem();
         calculatePartnerSale();
-        showToast('বিক্রয় সংরক্ষিত হয়েছে · ক্যাশ ব্যালেন্স আপডেট হচ্ছে');
+        showToast(paymentType === 'due'
+          ? 'বাকি বিক্রয় সংরক্ষিত হয়েছে · পাওনাদার লেজারে যোগ হয়েছে'
+          : 'নগদ বিক্রয় সংরক্ষিত হয়েছে · ক্যাশ ব্যালেন্স আপডেট হচ্ছে');
       } catch (error) {
         showFirestoreOperationError(error, 'বিক্রয় সংরক্ষণ হয়নি');
       }
@@ -5096,7 +5190,8 @@
           const memberSettlements = adminSettlements.filter(settlement => settlement.partnerUid === member.uid);
           const settledSales = new Set(memberSettlements.flatMap(settlement => settlement.salesIds || []));
           const settledExpenses = new Set(memberSettlements.flatMap(settlement => settlement.expenseIds || []));
-          const unsettledSales = sales.filter(sale => !settledSales.has(sale.docId));
+          const unsettledSales = sales.filter(sale => !settledSales.has(sale.docId)
+            && sale.paymentType !== 'due' && safeNum(sale.dueAmount) <= 0);
           const unsettledExpenses = expenses.filter(expense => !settledExpenses.has(expense.docId));
           const allSalesAmount = sales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
           const pending = Math.max(0,
@@ -5107,12 +5202,18 @@
           // Selected date calculations for member
           const memberDateSales = sales.filter(sale => localDateKey(sale.date) === selectedDate);
           const memberDateTotal = memberDateSales.reduce((sum, s) => sum + safeNum(s.total), 0);
-          const memberDatePartnerShare = memberDateSales.reduce((sum, s) => sum + safeNum(s.partnerShare), 0);
-          const memberDateOwnerShare = memberDateSales.reduce((sum, s) => sum + safeNum(s.ownerShare), 0);
+          const memberDatePartnerShare = memberDateSales.reduce((sum, sale) =>
+            sum + calculatePartnerProfitShares(sale, member.sharePercent ?? 40).partnerShare, 0);
+          const memberDateOwnerShare = memberDateSales.reduce((sum, sale) =>
+            sum + calculatePartnerProfitShares(sale, member.sharePercent ?? 40).ownerShare, 0);
+          const memberDateCustomerDue = memberDateSales.reduce((sum, sale) => sum + Math.max(0,
+            safeNum(sale.dueAmount !== undefined ? sale.dueAmount : sale.paymentType === 'due' ? sale.total : 0)), 0);
           const memberDateHandoverDue = memberDateSales.filter(s => !settledSales.has(s.docId))
-            .reduce((sum, s) => sum + safeNum(s.ownerShare), 0);
+            .filter(s => s.paymentType !== 'due' && safeNum(s.dueAmount) <= 0)
+            .reduce((sum, sale) =>
+              sum + calculatePartnerProfitShares(sale, member.sharePercent ?? 40).ownerShare, 0);
 
-          const details = sales.map(sale => `${escapeHtml(sale.customer || '')} (${escapeHtml(sale.phone || '')}): ${(sale.items || []).map(item => `${escapeHtml(item.name)} × ${toBnNum(item.qty)}`).join(', ')} · ${formatMoney(sale.total)}${settledSales.has(sale.docId) ? ' · হস্তান্তরিত' : ''}`).join('<br>');
+          const details = sales.map(sale => `${escapeHtml(sale.customer || '')} (${escapeHtml(sale.phone || '')}): ${(sale.items || []).map(item => `${escapeHtml(item.name)} × ${toBnNum(item.qty)}`).join(', ')} · ${formatMoney(sale.total)} · ${sale.paymentType === 'due' ? 'বাকি ' + formatMoney(sale.dueAmount !== undefined ? sale.dueAmount : sale.total) : 'নগদ'}${settledSales.has(sale.docId) ? ' · হস্তান্তরিত' : ''}`).join('<br>');
           const disabled = unsettledSales.length + unsettledExpenses.length && !settlingPartnerIds.has(member.uid) ? '' : 'disabled';
           const safeUid = escapeHtml(member.uid);
           const challengeText = escapeHtml(member.email || member.displayName || member.uid);
@@ -5131,6 +5232,7 @@
                 <div>বিক্রি<strong>${formatMoney(memberDateTotal)}</strong></div>
                 <div>পার্টনারের লাভ<strong>${formatMoney(memberDatePartnerShare)}</strong></div>
                 <div>মালিকের অংশ<strong>${formatMoney(memberDateOwnerShare)}</strong></div>
+                <div>কাস্টমারের বাকি<strong>${formatMoney(memberDateCustomerDue)}</strong></div>
                 <div>হস্তান্তর বাকি<strong>${formatMoney(memberDateHandoverDue)}</strong></div>
               </div>
               <div class="partner-record-transactions">${details || 'নতুন কোনো বিক্রি নেই'}</div>
