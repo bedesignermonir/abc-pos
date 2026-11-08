@@ -26,2446 +26,365 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-analytics-compat.js"></script>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      font-family: 'Noto Sans Bengali', sans-serif;
-    }
-
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Noto Sans Bengali', sans-serif; }
     :root {
-      --primary: #25d366;
-      --primary-dark: #128c7e;
-      --dark: #0f172a;
-      --dark-2: #1e3a8a;
-      --accent: #f59e0b;
-      --danger: #ef4444;
-      --success: #10b981;
-      --gray-50: #f8fafc;
-      --gray-100: #f1f5f9;
-      --gray-200: #e2e8f0;
-      --gray-500: #64748b;
-      --gray-700: #334155;
-      --gray-900: #0f172a;
+      --primary: #25d366; --primary-dark: #128c7e; --dark: #0f172a; --dark-2: #1e3a8a;
+      --accent: #f59e0b; --danger: #ef4444; --success: #10b981;
+      --gray-50: #f8fafc; --gray-100: #f1f5f9; --gray-200: #e2e8f0;
+      --gray-500: #64748b; --gray-700: #334155; --gray-900: #0f172a;
     }
-
-    body {
-      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #0f172a 100%);
-      min-height: 100vh;
-      padding: 15px;
-      color: #333;
-    }
-
-    .container {
-      max-width: 1280px;
-      margin: 0 auto;
-    }
-
-    .access-gate {
-      position: fixed;
-      inset: 0;
-      z-index: 10000;
-      display: grid;
-      place-items: center;
-      padding: 20px;
-      overflow-y: auto;
-      background: linear-gradient(145deg, rgba(6, 32, 27, 0.98), rgba(13, 55, 45, 0.98));
-      color: #173c32;
-      text-align: center;
-    }
-
-    .access-gate[hidden] {
-      display: none;
-    }
-
-    .access-gate-content {
-      width: min(100%, 440px);
-      padding: 32px 28px 26px;
-      border: 1px solid rgba(198, 161, 91, 0.65);
-      border-radius: 16px;
-      background: #fffdf7;
-      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
-    }
-
-    .access-gate h2 {
-      margin: 14px 0 8px;
-      color: #174b3d;
-      font-size: 23px;
-    }
-
-    .access-gate p {
-      line-height: 1.8;
-    }
-
-    .pending-check-icon {
-      width: 44px;
-      height: 44px;
-      margin: 0 auto;
-      border: 3px solid #dce8df;
-      border-top-color: #b28a42;
-      border-radius: 50%;
-      animation: pending-spin 1.4s linear infinite;
-    }
-
-    .pending-check-icon::after {
-      content: '۞';
-      display: grid;
-      place-items: center;
-      height: 100%;
-      color: #b28a42;
-      font-size: 17px;
-      animation: pending-counter-spin 1.4s linear infinite;
-    }
-
-    @keyframes pending-spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-
-    @keyframes pending-counter-spin {
-      to {
-        transform: rotate(-360deg);
-      }
-    }
-
-    .pending-quote {
-      margin: 22px 0 4px;
-      padding: 16px 18px;
-      border-left: 3px solid #b28a42;
-      border-radius: 4px 10px 10px 4px;
-      background: #f5f2e8;
-      color: #344b41;
-      text-align: left;
-    }
-
-    .pending-quote p {
-      font-size: 14px;
-    }
-
-    .pending-quote cite {
-      display: block;
-      margin-top: 9px;
-      color: #82652e;
-      font-size: 12px;
-      font-style: normal;
-      font-weight: 700;
-    }
-
-    .access-gate button {
-      min-width: 150px;
-      margin: 22px 6px 0;
-      padding: 11px 18px;
-      border: 0;
-      border-radius: 8px;
-      background: #174b3d;
-      color: white;
-      font: inherit;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    .access-gate button:hover {
-      background: #0e372c;
-    }
-
-    .access-gate button:focus-visible {
-      outline: 3px solid #c6a15b;
-      outline-offset: 3px;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-
-      .pending-check-icon,
-      .pending-check-icon::after {
-        animation: none;
-      }
-    }
-
-    .role-panel {
-      margin: 12px 0;
-      padding: 16px;
-      background: #fff;
-      border-radius: 12px;
-    }
-
-    .role-list {
-      display: grid;
-      gap: 10px;
-      margin-top: 12px;
-    }
-
-    .role-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 10px;
-      align-items: center;
-      padding: 12px 0;
-      border-bottom: 1px solid var(--gray-200);
-    }
-
-    .role-row:last-child {
-      border-bottom: 0;
-    }
-
-    .role-actions {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .role-actions select,
-    .role-actions button,
-    .role-form input {
-      padding: 9px 10px;
-      border: 1px solid var(--gray-200);
-      border-radius: 7px;
-    }
-
-    .role-form {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 10px;
-      margin: 12px 0;
-    }
-
-    .role-form label {
-      display: grid;
-      gap: 5px;
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .payment-type-control {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin: 12px 0;
-    }
-
-    .payment-type-option {
-      display: flex !important;
-      align-items: center;
-      gap: 7px !important;
-      padding: 9px 13px;
-      border: 1.5px solid var(--gray-200);
-      border-radius: 10px;
-      background: #fff;
-      cursor: pointer;
-    }
-
-    .payment-type-option input {
-      width: auto;
-      margin: 0;
-      accent-color: var(--primary);
-    }
-
-    #partnerSaleForm.role-form {
-      display: block;
-    }
-
-    .partner-items-heading,
-    .partner-item-row {
-      display: grid;
-      grid-template-columns: minmax(150px, 2fr) 68px minmax(90px, 1fr) 86px 86px 36px;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .partner-items-heading {
-      margin: 14px 0 7px;
-      color: var(--gray-500);
-      font-size: 11px;
-      font-weight: 700;
-    }
-
-    .partner-items-container {
-      display: grid;
-      gap: 8px;
-    }
-
-    .partner-item-choice {
-      min-width: 0;
-    }
-
-    .partner-item-row select,
-    .partner-item-row input {
-      width: 100%;
-      min-width: 0;
-      min-height: 40px;
-      padding: 8px;
-      border: 1px solid var(--gray-200);
-      border-radius: 7px;
-      background: #fff;
-      font: inherit;
-      font-size: 12px;
-    }
-
-    .partner-item-row .partner-line-total {
-      text-align: right;
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .partner-remove-item {
-      width: 34px;
-      height: 34px;
-      border: 0;
-      border-radius: 7px;
-      background: #fee2e2;
-      color: #b91c1c;
-      font-size: 20px;
-      cursor: pointer;
-    }
-
-    .partner-add-item {
-      margin-top: 10px;
-      padding: 9px 12px;
-      border: 1px solid var(--primary-dark);
-      border-radius: 7px;
-      background: #fff;
-      color: var(--primary-dark);
-      font: inherit;
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    .partner-sale-calculation {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px 14px;
-      margin-top: 14px;
-      padding: 14px;
-      border-radius: 8px;
-      background: var(--gray-50);
-    }
-
-    .partner-sale-calculation label {
-      display: grid;
-      gap: 5px;
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .partner-sale-calculation input,
-    .partner-sale-calculation select {
-      min-height: 38px;
-      padding: 8px;
-      border: 1px solid var(--gray-200);
-      border-radius: 7px;
-      background: white;
-      font: inherit;
-    }
-
-    .partner-sale-calculation>div {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      align-items: center;
-      font-size: 12px;
-    }
-
-    .partner-sale-calculation .partner-sale-total {
-      grid-column: 1 / -1;
-      padding-top: 9px;
-      border-top: 1px solid var(--gray-200);
-      color: var(--success);
-      font-size: 15px;
-    }
-
-    .partner-save-sale {
-      width: 100%;
-      margin-top: 12px;
-      padding: 12px;
-      border: 0;
-      border-radius: 8px;
-      background: var(--primary-dark);
-      color: #fff;
-      font: inherit;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
+    body { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #0f172a 100%); min-height: 100vh; padding: 15px; color: #333; }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .access-gate { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; padding: 20px; overflow-y: auto; background: linear-gradient(145deg, rgba(6, 32, 27, 0.98), rgba(13, 55, 45, 0.98)); color: #173c32; text-align: center; }
+    .access-gate[hidden] { display: none; }
+    .access-gate-content { width: min(100%, 440px); padding: 32px 28px 26px; border: 1px solid rgba(198, 161, 91, 0.65); border-radius: 16px; background: #fffdf7; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3); }
+    .access-gate h2 { margin: 14px 0 8px; color: #174b3d; font-size: 23px; }
+    .access-gate p { line-height: 1.8; }
+    .pending-check-icon { width: 44px; height: 44px; margin: 0 auto; border: 3px solid #dce8df; border-top-color: #b28a42; border-radius: 50%; animation: pending-spin 1.4s linear infinite; }
+    .pending-check-icon::after { content: '۞'; display: grid; place-items: center; height: 100%; color: #b28a42; font-size: 17px; animation: pending-counter-spin 1.4s linear infinite; }
+    @keyframes pending-spin { to { transform: rotate(360deg); } }
+    @keyframes pending-counter-spin { to { transform: rotate(-360deg); } }
+    .pending-quote { margin: 22px 0 4px; padding: 16px 18px; border-left: 3px solid #b28a42; border-radius: 4px 10px 10px 4px; background: #f5f2e8; color: #344b41; text-align: left; }
+    .pending-quote p { font-size: 14px; }
+    .pending-quote cite { display: block; margin-top: 9px; color: #82652e; font-size: 12px; font-style: normal; font-weight: 700; }
+    .access-gate button { min-width: 150px; margin: 22px 6px 0; padding: 11px 18px; border: 0; border-radius: 8px; background: #174b3d; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+    .access-gate button:hover { background: #0e372c; }
+    .access-gate button:focus-visible { outline: 3px solid #c6a15b; outline-offset: 3px; }
+    @media (prefers-reduced-motion: reduce) { .pending-check-icon, .pending-check-icon::after { animation: none; } }
+    .role-panel { margin: 12px 0; padding: 16px; background: #fff; border-radius: 12px; }
+    .role-list { display: grid; gap: 10px; margin-top: 12px; }
+    .role-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--gray-200); }
+    .role-row:last-child { border-bottom: 0; }
+    .role-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .role-actions select, .role-actions button, .role-form input { padding: 9px 10px; border: 1px solid var(--gray-200); border-radius: 7px; }
+    .role-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 12px 0; }
+    .role-form label { display: grid; gap: 5px; font-size: 12px; font-weight: 700; }
+    .payment-type-control { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+    .payment-type-option { display: flex !important; align-items: center; gap: 7px !important; padding: 9px 13px; border: 1.5px solid var(--gray-200); border-radius: 10px; background: #fff; cursor: pointer; }
+    .payment-type-option input { width: auto; margin: 0; accent-color: var(--primary); }
+    #partnerSaleForm.role-form { display: block; }
+    .partner-items-heading, .partner-item-row { display: grid; grid-template-columns: minmax(150px, 2fr) 68px minmax(90px, 1fr) 86px 86px 36px; gap: 8px; align-items: center; }
+    .partner-items-heading { margin: 14px 0 7px; color: var(--gray-500); font-size: 11px; font-weight: 700; }
+    .partner-items-container { display: grid; gap: 8px; }
+    .partner-item-choice { min-width: 0; }
+    .partner-item-row select, .partner-item-row input { width: 100%; min-width: 0; min-height: 40px; padding: 8px; border: 1px solid var(--gray-200); border-radius: 7px; background: #fff; font: inherit; font-size: 12px; }
+    .partner-item-row .partner-line-total { text-align: right; font-size: 12px; font-weight: 700; }
+    .partner-remove-item { width: 34px; height: 34px; border: 0; border-radius: 7px; background: #fee2e2; color: #b91c1c; font-size: 20px; cursor: pointer; }
+    .partner-add-item { margin-top: 10px; padding: 9px 12px; border: 1px solid var(--primary-dark); border-radius: 7px; background: #fff; color: var(--primary-dark); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .partner-sale-calculation { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin-top: 14px; padding: 14px; border-radius: 8px; background: var(--gray-50); }
+    .partner-sale-calculation label { display: grid; gap: 5px; font-size: 12px; font-weight: 700; }
+    .partner-sale-calculation input, .partner-sale-calculation select { min-height: 38px; padding: 8px; border: 1px solid var(--gray-200); border-radius: 7px; background: white; font: inherit; }
+    .partner-sale-calculation>div { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 12px; }
+    .partner-sale-calculation .partner-sale-total { grid-column: 1 / -1; padding-top: 9px; border-top: 1px solid var(--gray-200); color: var(--success); font-size: 15px; }
+    .partner-save-sale { width: 100%; margin-top: 12px; padding: 12px; border: 0; border-radius: 8px; background: var(--primary-dark); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
     @media (max-width: 640px) {
-      .partner-items-heading {
-        display: none;
-      }
-
-      .partner-item-row {
-        grid-template-columns: minmax(0, 1fr) 64px minmax(72px, 1fr) 76px 76px 34px;
-      }
-
-      .partner-item-row select {
-        grid-column: 1 / -1;
-      }
-
-      .partner-item-choice {
-        grid-column: 1 / -1;
-      }
-
-      .partner-item-row .partner-line-total {
-        text-align: left;
-      }
-
-      .partner-sale-calculation {
-        grid-template-columns: 1fr;
-      }
-
-      .partner-sale-calculation .partner-sale-total {
-        grid-column: 1;
-      }
+      .partner-items-heading { display: none; }
+      .partner-item-row { grid-template-columns: minmax(0, 1fr) 64px minmax(72px, 1fr) 76px 76px 34px; }
+      .partner-item-row select { grid-column: 1 / -1; }
+      .partner-item-choice { grid-column: 1 / -1; }
+      .partner-item-row .partner-line-total { text-align: left; }
+      .partner-sale-calculation { grid-template-columns: 1fr; }
+      .partner-sale-calculation .partner-sale-total { grid-column: 1; }
     }
-
-    .role-form button {
-      align-self: end;
-      padding: 10px;
-      border: 0;
-      border-radius: 7px;
-      background: var(--primary-dark);
-      color: #fff;
-      cursor: pointer;
-    }
-
-    .role-record {
-      padding: 12px 0;
-      border-bottom: 1px solid var(--gray-200);
-    }
-
-    .role-record:last-child {
-      border-bottom: 0;
-    }
-
-    .partner-record-card {
-      display: grid;
-      gap: 12px;
-      padding: 16px;
-      border: 1px solid #dbe5ed;
-      border-radius: 14px;
-      background: linear-gradient(145deg, #fff, #f8fbff);
-      box-shadow: 0 5px 16px rgba(15, 23, 42, .05);
-    }
-
-    .partner-record-heading {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-    }
-
-    .partner-record-identity {
-      display: grid;
-      gap: 3px;
-      min-width: 0;
-    }
-
-    .partner-record-identity strong {
-      color: var(--dark);
-      font-size: 15px;
-    }
-
-    .partner-record-identity span,
-    .partner-record-summary {
-      color: var(--gray-500);
-      font-size: 12px;
-      overflow-wrap: anywhere;
-    }
-
-    .partner-record-balance {
-      display: grid;
-      gap: 2px;
-      flex-shrink: 0;
-      text-align: right;
-    }
-
-    .partner-record-balance span {
-      color: var(--gray-500);
-      font-size: 11px;
-    }
-
-    .partner-record-balance strong {
-      color: #b91c1c;
-      font-size: 16px;
-    }
-
-    .partner-date-details {
-      padding: 10px 12px;
-      border: 1px solid var(--gray-200);
-      border-radius: 10px;
-      background: white;
-    }
-
-    .partner-date-details summary {
-      color: var(--dark-2);
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    .partner-date-metrics {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-      gap: 8px;
-      margin-top: 12px;
-    }
-
-    .partner-date-metrics div {
-      padding: 9px;
-      border-radius: 8px;
-      background: var(--gray-50);
-      color: var(--gray-500);
-      font-size: 11px;
-    }
-
-    .partner-date-metrics strong {
-      display: block;
-      margin-top: 3px;
-      color: var(--dark);
-      font-size: 13px;
-    }
-
-    .partner-record-transactions {
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px solid var(--gray-100);
-      color: var(--gray-700);
-      font-size: 12px;
-      line-height: 1.8;
-      overflow-wrap: anywhere;
-    }
-
-    .partner-record-actions {
-      padding-top: 4px;
-      border-top: 1px solid var(--gray-100);
-    }
-
-    .metric-strip.admin-core-metrics {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
-    .admin-core-metrics .metric-card:nth-child(1) .value {
-      color: #047857;
-    }
-
-    .admin-core-metrics .metric-card:nth-child(2) .value {
-      color: #b45309;
-    }
-
-    .admin-core-metrics .metric-card:nth-child(3) .value {
-      color: var(--dark-2);
-    }
-
+    .role-form button { align-self: end; padding: 10px; border: 0; border-radius: 7px; background: var(--primary-dark); color: #fff; cursor: pointer; }
+    .role-record { padding: 12px 0; border-bottom: 1px solid var(--gray-200); }
+    .role-record:last-child { border-bottom: 0; }
+    .partner-record-card { display: grid; gap: 12px; padding: 16px; border: 1px solid #dbe5ed; border-radius: 14px; background: linear-gradient(145deg, #fff, #f8fbff); box-shadow: 0 5px 16px rgba(15, 23, 42, .05); }
+    .partner-record-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .partner-record-identity { display: grid; gap: 3px; min-width: 0; }
+    .partner-record-identity strong { color: var(--dark); font-size: 15px; }
+    .partner-record-identity span, .partner-record-summary { color: var(--gray-500); font-size: 12px; overflow-wrap: anywhere; }
+    .partner-record-balance { display: grid; gap: 2px; flex-shrink: 0; text-align: right; }
+    .partner-record-balance span { color: var(--gray-500); font-size: 11px; }
+    .partner-record-balance strong { color: #b91c1c; font-size: 16px; }
+    .partner-date-details { padding: 10px 12px; border: 1px solid var(--gray-200); border-radius: 10px; background: white; }
+    .partner-date-details summary { color: var(--dark-2); font-size: 12px; font-weight: 700; cursor: pointer; }
+    .partner-date-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-top: 12px; }
+    .partner-date-metrics div { padding: 9px; border-radius: 8px; background: var(--gray-50); color: var(--gray-500); font-size: 11px; }
+    .partner-date-metrics strong { display: block; margin-top: 3px; color: var(--dark); font-size: 13px; }
+    .partner-record-transactions { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--gray-100); color: var(--gray-700); font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+    .partner-record-actions { padding-top: 4px; border-top: 1px solid var(--gray-100); }
+    .metric-strip.admin-core-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .admin-core-metrics .metric-card:nth-child(1) .value { color: #047857; }
+    .admin-core-metrics .metric-card:nth-child(2) .value { color: #b45309; }
+    .admin-core-metrics .metric-card:nth-child(3) .value { color: var(--dark-2); }
     @media (max-width: 600px) {
-      .role-row {
-        grid-template-columns: 1fr;
-      }
-
-      .partner-record-heading {
-        flex-direction: column;
-      }
-
-      .partner-record-balance {
-        text-align: left;
-      }
-
-      .admin-core-metrics {
-        gap: 6px;
-      }
-
-      .admin-core-metrics .metric-card {
-        min-width: 0;
-        padding: 10px 8px;
-      }
-
-      .admin-core-metrics .metric-card .label {
-        font-size: 10px;
-      }
-
-      .admin-core-metrics .metric-card .value {
-        font-size: clamp(12px, 4vw, 17px);
-        overflow-wrap: anywhere;
-      }
+      .role-row { grid-template-columns: 1fr; }
+      .partner-record-heading { flex-direction: column; }
+      .partner-record-balance { text-align: left; }
+      .admin-core-metrics { gap: 6px; }
+      .admin-core-metrics .metric-card { min-width: 0; padding: 10px 8px; }
+      .admin-core-metrics .metric-card .label { font-size: 10px; }
+      .admin-core-metrics .metric-card .value { font-size: clamp(12px, 4vw, 17px); overflow-wrap: anywhere; }
     }
-
-    /* ===== Header ===== */
-    .header {
-      background: white;
-      padding: 18px 28px;
-      border-radius: 20px;
-      margin-bottom: 18px;
-      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 15px;
-      border-top: 5px solid var(--primary);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .header::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      right: 0;
-      width: 200px;
-      height: 100%;
-      background: linear-gradient(135deg, rgba(37, 211, 102, 0.08), transparent);
-      pointer-events: none;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 15px;
-      z-index: 1;
-    }
-
-    .logo {
-      width: 58px;
-      height: 58px;
-      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-      border-radius: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-size: 30px;
-      font-weight: 700;
-      box-shadow: 0 6px 16px rgba(37, 211, 102, 0.4);
-      flex-shrink: 0;
-    }
-
-    .brand-text h1 {
-      color: var(--dark);
-      font-size: 22px;
-      line-height: 1.2;
-    }
-
-    .brand-text .tagline {
-      color: var(--gray-500);
-      font-size: 12px;
-      margin-top: 3px;
-    }
-
-    .header-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      z-index: 1;
-    }
-
-    .header-btn {
-      background: var(--gray-100);
-      border: none;
-      padding: 10px 16px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-weight: 700;
-      color: var(--gray-700);
-      transition: 0.3s;
-      font-size: 13px;
-    }
-
-    .header-btn:hover {
-      background: var(--primary);
-      color: white;
-      transform: translateY(-2px);
-    }
-
-    /* ===== Stats ===== */
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 12px;
-      margin-bottom: 18px;
-    }
-
-    .stat-card {
-      background: white;
-      padding: 18px;
-      border-radius: 16px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-      position: relative;
-      overflow: hidden;
-      transition: transform 0.3s;
-    }
-
-    .stat-card:hover {
-      transform: translateY(-3px);
-    }
-
-    .stat-card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 5px;
-      height: 100%;
-    }
-
-    .stat-card.today::before {
-      background: var(--success);
-    }
-
-    .stat-card.count::before {
-      background: var(--danger);
-    }
-
-    .stat-card.netassets::before {
-      background: #f59e0b;
-    }
-
-    .stat-card .sublabel {
-      color: var(--gray-500);
-      font-size: 11px;
-      margin-top: 5px;
-      font-weight: 600;
-    }
-
-    .stat-card .icon {
-      position: absolute;
-      top: 12px;
-      right: 15px;
-      font-size: 28px;
-      opacity: 0.15;
-    }
-
-    .stat-card .label {
-      color: var(--gray-500);
-      font-size: 12px;
-      margin-bottom: 6px;
-      font-weight: 700;
-    }
-
-    .stat-card .value {
-      font-size: 24px;
-      font-weight: 700;
-      color: var(--dark);
-    }
-
-    /* ===== Main Layout ===== */
-    .main-grid {
-      display: grid;
-      grid-template-columns: 1.4fr 1fr;
-      gap: 18px;
-    }
-
-    @media (max-width: 960px) {
-      .main-grid {
-        grid-template-columns: minmax(0, 1fr);
-      }
-    }
-
-    .main-grid>div,
-    .card {
-      min-width: 0;
-    }
-
-    .card {
-      background: white;
-      padding: 22px;
-      border-radius: 18px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-      margin-bottom: 18px;
-    }
-
-    .card-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 18px;
-      padding-bottom: 12px;
-      border-bottom: 2px solid var(--gray-100);
-    }
-
-    .card-header .icon-box {
-      width: 38px;
-      height: 38px;
-      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-size: 18px;
-    }
-
-    .card-header h2 {
-      color: var(--dark);
-      font-size: 17px;
-    }
-
-    /* ===== Form ===== */
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-
+    .header { background: white; padding: 18px 28px; border-radius: 20px; margin-bottom: 18px; box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; border-top: 5px solid var(--primary); position: relative; overflow: hidden; }
+    .header::before { content: ''; position: absolute; top: 0; right: 0; width: 200px; height: 100%; background: linear-gradient(135deg, rgba(37, 211, 102, 0.08), transparent); pointer-events: none; }
+    .brand { display: flex; align-items: center; gap: 15px; z-index: 1; }
+    .logo { width: 58px; height: 58px; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); border-radius: 14px; display: flex; align-items: center; justify-content: center; color: white; font-size: 30px; font-weight: 700; box-shadow: 0 6px 16px rgba(37, 211, 102, 0.4); flex-shrink: 0; }
+    .brand-text h1 { color: var(--dark); font-size: 22px; line-height: 1.2; }
+    .brand-text .tagline { color: var(--gray-500); font-size: 12px; margin-top: 3px; }
+    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; z-index: 1; }
+    .header-btn { background: var(--gray-100); border: none; padding: 10px 16px; border-radius: 10px; cursor: pointer; font-weight: 700; color: var(--gray-700); transition: 0.3s; font-size: 13px; }
+    .header-btn:hover { background: var(--primary); color: white; transform: translateY(-2px); }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .stat-card { background: white; padding: 18px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); position: relative; overflow: hidden; transition: transform 0.3s; }
+    .stat-card:hover { transform: translateY(-3px); }
+    .stat-card::before { content: ''; position: absolute; top: 0; left: 0; width: 5px; height: 100%; }
+    .stat-card.today::before { background: var(--success); }
+    .stat-card.count::before { background: var(--danger); }
+    .stat-card.netassets::before { background: #f59e0b; }
+    .stat-card .sublabel { color: var(--gray-500); font-size: 11px; margin-top: 5px; font-weight: 600; }
+    .stat-card .icon { position: absolute; top: 12px; right: 15px; font-size: 28px; opacity: 0.15; }
+    .stat-card .label { color: var(--gray-500); font-size: 12px; margin-bottom: 6px; font-weight: 700; }
+    .stat-card .value { font-size: 24px; font-weight: 700; color: var(--dark); }
+    .main-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; }
+    @media (max-width: 960px) { .main-grid { grid-template-columns: minmax(0, 1fr); } }
+    .main-grid>div, .card { min-width: 0; }
+    .card { background: white; padding: 22px; border-radius: 18px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15); margin-bottom: 18px; }
+    .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 2px solid var(--gray-100); }
+    .card-header .icon-box { width: 38px; height: 38px; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; }
+    .card-header h2 { color: var(--dark); font-size: 17px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; margin-bottom: 6px; font-weight: 700; color: var(--gray-700); font-size: 13px; }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 11px 14px; border: 2px solid var(--gray-200); border-radius: 10px; font-size: 14px; transition: 0.3s; font-family: inherit; background: white; }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.15); }
+    .invoice-number-box { background: linear-gradient(135deg, var(--dark), var(--dark-2)); color: white; padding: 12px 18px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 14px; }
+    .invoice-number-box .inv-label { opacity: 0.85; font-size: 12px; }
+    .invoice-number-box .inv-number { font-size: 20px; font-weight: 700; letter-spacing: 1px; color: var(--primary); }
+    .items-header { display: grid; grid-template-columns: 2.5fr 0.8fr 1fr 1fr 40px; gap: 6px; padding: 8px 10px; background: var(--gray-100); border-radius: 10px; margin-bottom: 8px; font-size: 12px; font-weight: 700; color: var(--gray-700); }
+    .item-row { display: grid; grid-template-columns: 2.5fr 0.8fr 1fr 1fr 40px; gap: 6px; margin-bottom: 8px; align-items: center; animation: slideIn 0.3s ease; }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    .item-row input, .item-row select { padding: 9px 10px; border: 2px solid var(--gray-200); border-radius: 8px; font-size: 13px; transition: 0.2s; width: 100%; }
+    .item-row input:focus, .item-row select:focus { border-color: var(--primary); outline: none; }
+    .item-total-display { padding: 9px 10px; background: var(--gray-50); border-radius: 8px; font-weight: 700; color: var(--success); font-size: 13px; text-align: right; }
+    .remove-btn { background: #fee2e2; color: var(--danger); border: none; width: 36px; height: 36px; border-radius: 8px; cursor: pointer; font-size: 18px; font-weight: 700; transition: 0.2s; }
+    .remove-btn:hover { background: var(--danger); color: white; transform: rotate(90deg); }
+    .add-item-btn { background: var(--gray-50); color: var(--success); border: 2px dashed var(--success); padding: 10px; width: 100%; border-radius: 10px; cursor: pointer; font-weight: 700; margin-bottom: 15px; transition: 0.3s; }
+    .add-item-btn:hover { background: var(--success); color: white; }
+    .summary-section { background: linear-gradient(135deg, var(--gray-50), white); padding: 15px; border-radius: 14px; margin-bottom: 15px; border: 2px solid var(--gray-200); }
+    .summary-line { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; color: var(--gray-700); }
+    .summary-line.discount { color: var(--danger); font-weight: 700; }
+    .discount-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+    .discount-row input { flex: 1; padding: 8px 12px; border: 2px solid var(--gray-200); border-radius: 8px; font-size: 14px; }
+    .discount-row select { padding: 8px 12px; border: 2px solid var(--gray-200); border-radius: 8px; font-size: 13px; background: white; font-weight: 700; }
+    .total-box { background: linear-gradient(135deg, var(--dark), var(--dark-2)); color: white; padding: 18px; border-radius: 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; box-shadow: 0 8px 20px rgba(15, 23, 42, 0.3); }
+    .total-box .label { font-size: 15px; opacity: 0.9; }
+    .total-box .amount { font-size: 28px; font-weight: 700; color: var(--primary); }
+    .action-btns-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    @media (max-width: 600px) { .action-btns-3 { grid-template-columns: 1fr; } }
+    .btn { padding: 13px; border: none; border-radius: 12px; cursor: pointer; font-weight: 700; font-size: 14px; transition: 0.3s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2); }
+    .btn:active { transform: translateY(0); }
+    .btn-whatsapp { background: linear-gradient(135deg, #25d366, #128c7e); color: white; }
+    .btn-print { background: linear-gradient(135deg, #3b82f6, #1e40af); color: white; }
+    .btn-reset { background: linear-gradient(135deg, #64748b, #334155); color: white; }
+    .btn-save { background: linear-gradient(135deg, #10b981, #047857); color: white; }
+    .filter-row { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+    .filter-row input { padding: 9px 12px; border: 2px solid var(--gray-200); border-radius: 10px; font-size: 13px; flex: 1; min-width: 120px; }
+    .filter-row input:focus { outline: none; border-color: var(--primary); }
+    .invoice-list { max-height: 650px; overflow-y: auto; padding-right: 4px; }
+    .invoice-item { background: white; padding: 14px; border-radius: 12px; margin-bottom: 10px; cursor: pointer; transition: 0.3s; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06); border: 1px solid var(--gray-200); border-left: 4px solid var(--primary); }
+    .invoice-item:hover { transform: translateX(4px); box-shadow: 0 6px 16px rgba(37, 211, 102, 0.2); border-left-color: var(--primary-dark); }
+    .invoice-item .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .invoice-item .inv-no { font-size: 11px; color: var(--primary-dark); font-weight: 700; background: rgba(37, 211, 102, 0.1); padding: 2px 8px; border-radius: 6px; }
+    .invoice-item .customer { font-weight: 700; color: var(--dark); font-size: 15px; }
+    .invoice-item .amount { font-weight: 700; color: var(--success); font-size: 16px; }
+    .invoice-item .meta { font-size: 12px; color: var(--gray-500); }
+    .invoice-item .actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+    .invoice-item .actions button { padding: 6px 10px; font-size: 11px; border-radius: 7px; border: none; cursor: pointer; font-weight: 700; transition: 0.2s; }
+    .invoice-item .actions button:hover { transform: scale(1.05); }
+    .empty { text-align: center; padding: 40px 20px; color: var(--gray-500); }
+    .empty .icon { font-size: 48px; margin-bottom: 10px; opacity: 0.3; }
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 1000; justify-content: center; align-items: center; padding: 20px; backdrop-filter: blur(4px); }
+    .modal.active { display: flex; animation: fadeIn 0.3s; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .modal-content { position: relative; background: white; padding: 28px; border-radius: 20px; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; animation: slideUp 0.3s; }
+    @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .modal-content h2 { color: var(--dark); margin-bottom: 18px; display: flex; align-items: center; gap: 10px; }
+    .modal-close-button { position: absolute; top: 10px; right: 12px; display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 50%; background: var(--gray-100); color: var(--gray-700); font: inherit; font-size: 25px; line-height: 1; cursor: pointer; }
+    .modal-close-button:hover { background: var(--gray-200); }
+    .modal-close-button:focus-visible { outline: 3px solid var(--primary-dark); outline-offset: 2px; }
+    .preset-price-list { display: grid; gap: 8px; max-height: 220px; overflow-y: auto; padding: 10px; background: var(--gray-50); border-radius: 10px; }
+    .preset-price-row { display: grid; grid-template-columns: minmax(100px, 1fr) repeat(2, minmax(85px, 125px)); align-items: center; gap: 8px; font-size: 12px; }
+    .preset-price-row input { width: 100%; padding: 8px; border: 2px solid var(--gray-200); border-radius: 8px; font: inherit; }
+    .preset-price-labels { display: grid; grid-template-columns: minmax(100px, 1fr) repeat(2, minmax(85px, 125px)); gap: 8px; margin-bottom: 6px; color: var(--gray-500); font-size: 11px; font-weight: 700; }
+    .item-description { display: grid; gap: 4px; min-width: 0; }
+    .item-description select, .item-description .customName { min-width: 0; }
+    .item-cost-display { color: var(--gray-500); font-size: 10px; line-height: 1.3; padding: 0 3px; }
     @media (max-width: 600px) {
-      .form-row {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .form-group {
-      margin-bottom: 12px;
-    }
-
-    .form-group label {
-      display: block;
-      margin-bottom: 6px;
-      font-weight: 700;
-      color: var(--gray-700);
-      font-size: 13px;
-    }
-
-    .form-group input,
-    .form-group select,
-    .form-group textarea {
-      width: 100%;
-      padding: 11px 14px;
-      border: 2px solid var(--gray-200);
-      border-radius: 10px;
-      font-size: 14px;
-      transition: 0.3s;
-      font-family: inherit;
-      background: white;
-    }
-
-    .form-group input:focus,
-    .form-group select:focus,
-    .form-group textarea:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.15);
-    }
-
-    /* ===== Invoice Number Display ===== */
-    .invoice-number-box {
-      background: linear-gradient(135deg, var(--dark), var(--dark-2));
-      color: white;
-      padding: 12px 18px;
-      border-radius: 12px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 15px;
-      font-size: 14px;
-    }
-
-    .invoice-number-box .inv-label {
-      opacity: 0.85;
-      font-size: 12px;
-    }
-
-    .invoice-number-box .inv-number {
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: 1px;
-      color: var(--primary);
-    }
-
-    /* ===== Items Table ===== */
-    .items-header {
-      display: grid;
-      grid-template-columns: 2.5fr 0.8fr 1fr 1fr 40px;
-      gap: 6px;
-      padding: 8px 10px;
-      background: var(--gray-100);
-      border-radius: 10px;
-      margin-bottom: 8px;
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--gray-700);
-    }
-
-    .item-row {
-      display: grid;
-      grid-template-columns: 2.5fr 0.8fr 1fr 1fr 40px;
-      gap: 6px;
-      margin-bottom: 8px;
-      align-items: center;
-      animation: slideIn 0.3s ease;
-    }
-
-    @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .item-row input,
-    .item-row select {
-      padding: 9px 10px;
-      border: 2px solid var(--gray-200);
-      border-radius: 8px;
-      font-size: 13px;
-      transition: 0.2s;
-      width: 100%;
-    }
-
-    .item-row input:focus,
-    .item-row select:focus {
-      border-color: var(--primary);
-      outline: none;
-    }
-
-    .item-total-display {
-      padding: 9px 10px;
-      background: var(--gray-50);
-      border-radius: 8px;
-      font-weight: 700;
-      color: var(--success);
-      font-size: 13px;
-      text-align: right;
-    }
-
-    .remove-btn {
-      background: #fee2e2;
-      color: var(--danger);
-      border: none;
-      width: 36px;
-      height: 36px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 18px;
-      font-weight: 700;
-      transition: 0.2s;
-    }
-
-    .remove-btn:hover {
-      background: var(--danger);
-      color: white;
-      transform: rotate(90deg);
-    }
-
-    .add-item-btn {
-      background: var(--gray-50);
-      color: var(--success);
-      border: 2px dashed var(--success);
-      padding: 10px;
-      width: 100%;
-      border-radius: 10px;
-      cursor: pointer;
-      font-weight: 700;
-      margin-bottom: 15px;
-      transition: 0.3s;
-    }
-
-    .add-item-btn:hover {
-      background: var(--success);
-      color: white;
-    }
-
-    /* ===== Discount & Total ===== */
-    .summary-section {
-      background: linear-gradient(135deg, var(--gray-50), white);
-      padding: 15px;
-      border-radius: 14px;
-      margin-bottom: 15px;
-      border: 2px solid var(--gray-200);
-    }
-
-    .summary-line {
-      display: flex;
-      justify-content: space-between;
-      padding: 6px 0;
-      font-size: 14px;
-      color: var(--gray-700);
-    }
-
-    .summary-line.discount {
-      color: var(--danger);
-      font-weight: 700;
-    }
-
-    .discount-row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      margin-top: 8px;
-    }
-
-    .discount-row input {
-      flex: 1;
-      padding: 8px 12px;
-      border: 2px solid var(--gray-200);
-      border-radius: 8px;
-      font-size: 14px;
-    }
-
-    .discount-row select {
-      padding: 8px 12px;
-      border: 2px solid var(--gray-200);
-      border-radius: 8px;
-      font-size: 13px;
-      background: white;
-      font-weight: 700;
-    }
-
-    .total-box {
-      background: linear-gradient(135deg, var(--dark), var(--dark-2));
-      color: white;
-      padding: 18px;
-      border-radius: 14px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 15px;
-      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.3);
-    }
-
-    .total-box .label {
-      font-size: 15px;
-      opacity: 0.9;
-    }
-
-    .total-box .amount {
-      font-size: 28px;
-      font-weight: 700;
-      color: var(--primary);
-    }
-
-    /* ===== Action Buttons ===== */
-    .action-btns-3 {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 10px;
-    }
-
-    @media (max-width: 600px) {
-      .action-btns-3 {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .btn {
-      padding: 13px;
-      border: none;
-      border-radius: 12px;
-      cursor: pointer;
-      font-weight: 700;
-      font-size: 14px;
-      transition: 0.3s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-    }
-
-    .btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-    }
-
-    .btn:active {
-      transform: translateY(0);
-    }
-
-    .btn-whatsapp {
-      background: linear-gradient(135deg, #25d366, #128c7e);
-      color: white;
-    }
-
-    .btn-print {
-      background: linear-gradient(135deg, #3b82f6, #1e40af);
-      color: white;
-    }
-
-    .btn-reset {
-      background: linear-gradient(135deg, #64748b, #334155);
-      color: white;
-    }
-
-    .btn-save {
-      background: linear-gradient(135deg, #10b981, #047857);
-      color: white;
-    }
-
-    /* ===== Invoice List ===== */
-    .filter-row {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 15px;
-      flex-wrap: wrap;
-    }
-
-    .filter-row input {
-      padding: 9px 12px;
-      border: 2px solid var(--gray-200);
-      border-radius: 10px;
-      font-size: 13px;
-      flex: 1;
-      min-width: 120px;
-    }
-
-    .filter-row input:focus {
-      outline: none;
-      border-color: var(--primary);
-    }
-
-    .invoice-list {
-      max-height: 650px;
-      overflow-y: auto;
-      padding-right: 4px;
-    }
-
-    .invoice-item {
-      background: white;
-      padding: 14px;
-      border-radius: 12px;
-      margin-bottom: 10px;
-      border-left: 4px solid var(--primary);
-      cursor: pointer;
-      transition: 0.3s;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-      border: 1px solid var(--gray-200);
-      border-left: 4px solid var(--primary);
-    }
-
-    .invoice-item:hover {
-      transform: translateX(4px);
-      box-shadow: 0 6px 16px rgba(37, 211, 102, 0.2);
-      border-left-color: var(--primary-dark);
-    }
-
-    .invoice-item .top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 6px;
-    }
-
-    .invoice-item .inv-no {
-      font-size: 11px;
-      color: var(--primary-dark);
-      font-weight: 700;
-      background: rgba(37, 211, 102, 0.1);
-      padding: 2px 8px;
-      border-radius: 6px;
-    }
-
-    .invoice-item .customer {
-      font-weight: 700;
-      color: var(--dark);
-      font-size: 15px;
-    }
-
-    .invoice-item .amount {
-      font-weight: 700;
-      color: var(--success);
-      font-size: 16px;
-    }
-
-    .invoice-item .meta {
-      font-size: 12px;
-      color: var(--gray-500);
-    }
-
-    .invoice-item .actions {
-      display: flex;
-      gap: 6px;
-      margin-top: 10px;
-      flex-wrap: wrap;
-    }
-
-    .invoice-item .actions button {
-      padding: 6px 10px;
-      font-size: 11px;
-      border-radius: 7px;
-      border: none;
-      cursor: pointer;
-      font-weight: 700;
-      transition: 0.2s;
-    }
-
-    .invoice-item .actions button:hover {
-      transform: scale(1.05);
-    }
-
-    .empty {
-      text-align: center;
-      padding: 40px 20px;
-      color: var(--gray-500);
-    }
-
-    .empty .icon {
-      font-size: 48px;
-      margin-bottom: 10px;
-      opacity: 0.3;
-    }
-
-    /* ===== Modal ===== */
-    .modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.7);
-      z-index: 1000;
-      justify-content: center;
-      align-items: center;
-      padding: 20px;
-      backdrop-filter: blur(4px);
-    }
-
-    .modal.active {
-      display: flex;
-      animation: fadeIn 0.3s;
-    }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-      }
-
-      to {
-        opacity: 1;
-      }
-    }
-
-    .modal-content {
-      position: relative;
-      background: white;
-      padding: 28px;
-      border-radius: 20px;
-      max-width: 500px;
-      width: 100%;
-      max-height: 90vh;
-      overflow-y: auto;
-      animation: slideUp 0.3s;
-    }
-
-    @keyframes slideUp {
-      from {
-        transform: translateY(30px);
-        opacity: 0;
-      }
-
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
-    }
-
-    .modal-content h2 {
-      color: var(--dark);
-      margin-bottom: 18px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .modal-close-button {
-      position: absolute;
-      top: 10px;
-      right: 12px;
-      display: grid;
-      place-items: center;
-      width: 36px;
-      height: 36px;
-      border: 0;
-      border-radius: 50%;
-      background: var(--gray-100);
-      color: var(--gray-700);
-      font: inherit;
-      font-size: 25px;
-      line-height: 1;
-      cursor: pointer;
-    }
-
-    .modal-close-button:hover {
-      background: var(--gray-200);
-    }
-
-    .modal-close-button:focus-visible {
-      outline: 3px solid var(--primary-dark);
-      outline-offset: 2px;
-    }
-
-    .preset-price-list {
-      display: grid;
-      gap: 8px;
-      max-height: 220px;
-      overflow-y: auto;
-      padding: 10px;
-      background: var(--gray-50);
-      border-radius: 10px;
-    }
-
-    .preset-price-row {
-      display: grid;
-      grid-template-columns: minmax(100px, 1fr) repeat(2, minmax(85px, 125px));
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-    }
-
-    .preset-price-row input {
-      width: 100%;
-      padding: 8px;
-      border: 2px solid var(--gray-200);
-      border-radius: 8px;
-      font: inherit;
-    }
-
-    .preset-price-labels {
-      display: grid;
-      grid-template-columns: minmax(100px, 1fr) repeat(2, minmax(85px, 125px));
-      gap: 8px;
-      margin-bottom: 6px;
-      color: var(--gray-500);
-      font-size: 11px;
-      font-weight: 700;
-    }
-
-    .item-description {
-      display: grid;
-      gap: 4px;
-      min-width: 0;
-    }
-
-    .item-description select,
-    .item-description .customName {
-      min-width: 0;
-    }
-
-    .item-cost-display {
-      color: var(--gray-500);
-      font-size: 10px;
-      line-height: 1.3;
-      padding: 0 3px;
-    }
-
-    @media (max-width: 600px) {
-
-      .preset-price-row,
-      .preset-price-labels {
-        grid-template-columns: minmax(70px, 1fr) repeat(2, minmax(75px, 100px));
-        gap: 5px;
-      }
-
-      body {
-        padding: 8px;
-      }
-
-      .header {
-        padding: 14px;
-      }
-
-      .card {
-        padding: 15px;
-      }
-
-      .item-row,
-      .items-header {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(58px, .8fr) 30px;
-        gap: 4px;
-      }
-
-      .items-header {
-        display: none;
-      }
-
-      .item-row .item-description {
-        grid-column: 1 / -1;
-      }
-
-      .item-row .itemQty {
-        grid-column: 1;
-      }
-
-      .item-row .itemPrice {
-        grid-column: 2;
-      }
-
-      .item-row .item-total-display {
-        grid-column: 3;
-        padding: 8px 2px;
-        font-size: 11px;
-        white-space: nowrap;
-      }
-
-      .item-row .item-total-display::before {
-        content: 'মোট ';
-        color: var(--gray-500);
-      }
-
-      .item-row .remove-btn {
-        grid-column: 4;
-      }
-
-      .item-row input,
-      .item-row select {
-        padding: 8px 4px;
-        font-size: 16px;
-      }
-
-      .remove-btn {
-        width: 30px;
-        height: 36px;
-      }
-
-      .header-btn,
-      .btn {
-        min-height: 44px;
-      }
-
-      .discount-row {
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr) minmax(0, 90px);
-        gap: 6px;
-      }
-
-      .discount-row label {
-        white-space: nowrap;
-        font-size: 12px !important;
-      }
-
-      .discount-row input,
-      .discount-row select {
-        min-width: 0;
-        width: 100%;
-        padding: 8px 5px;
-      }
-    }
-
-    /* ===== Print Styles ===== */
-    .print-area {
-      display: none;
-    }
-
+      .preset-price-row, .preset-price-labels { grid-template-columns: minmax(70px, 1fr) repeat(2, minmax(75px, 100px)); gap: 5px; }
+      body { padding: 8px; }
+      .header { padding: 14px; }
+      .card { padding: 15px; }
+      .item-row, .items-header { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(58px, .8fr) 30px; gap: 4px; }
+      .items-header { display: none; }
+      .item-row .item-description { grid-column: 1 / -1; }
+      .item-row .itemQty { grid-column: 1; }
+      .item-row .itemPrice { grid-column: 2; }
+      .item-row .item-total-display { grid-column: 3; padding: 8px 2px; font-size: 11px; white-space: nowrap; }
+      .item-row .item-total-display::before { content: 'মোট '; color: var(--gray-500); }
+      .item-row .remove-btn { grid-column: 4; }
+      .item-row input, .item-row select { padding: 8px 4px; font-size: 16px; }
+      .remove-btn { width: 30px; height: 36px; }
+      .header-btn, .btn { min-height: 44px; }
+      .discount-row { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 90px); gap: 6px; }
+      .discount-row label { white-space: nowrap; font-size: 12px !important; }
+      .discount-row input, .discount-row select { min-width: 0; width: 100%; padding: 8px 5px; }
+    }
+    .print-area { display: none; }
     @media print {
-      @page {
-        size: A5;
-        margin: 8mm;
-      }
-
-      body * {
-        visibility: hidden;
-      }
-
-      .print-area,
-      .print-area * {
-        visibility: visible;
-      }
-
-      .print-area {
-        display: block !important;
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        background: white;
-        color: #000;
-        padding: 0;
-      }
-
-      .no-print {
-        display: none !important;
-      }
-    }
-
-    .print-area {
-      font-family: 'Noto Sans Bengali', sans-serif;
-      color: var(--dark);
-      padding: 6mm;
-      font-size: 11pt;
-    }
-
-    .print-header {
-      text-align: center;
-      border-bottom: 2px solid var(--dark);
-      padding-bottom: 8px;
-      margin-bottom: 10px;
-    }
-
-    .print-header .biz-name {
-      font-size: 20pt;
-      font-weight: 700;
-      letter-spacing: 1px;
-    }
-
-    .print-header .biz-tag {
-      font-size: 9pt;
-      color: var(--gray-500);
-      margin-top: 3px;
-    }
-
-    .print-header .biz-addr {
-      font-size: 8.5pt;
-      color: var(--gray-500);
-      margin-top: 2px;
-    }
-
-    .print-header .biz-services {
-      font-size: 8pt;
-      color: var(--success);
-      margin-top: 4px;
-      font-weight: 700;
-    }
-
-    .print-inv-no {
-      background: var(--dark);
-      color: var(--primary);
-      padding: 6px 12px;
-      border-radius: 8px;
-      text-align: center;
-      font-size: 14pt;
-      font-weight: 700;
-      margin-bottom: 10px;
-      letter-spacing: 1px;
-    }
-
-    .print-meta {
-      display: flex;
-      justify-content: space-between;
-      font-size: 9pt;
-      margin-bottom: 6px;
-      padding: 5px 8px;
-      background: var(--gray-50);
-      border-radius: 6px;
-    }
-
-    .print-meta div span {
-      font-weight: 700;
-    }
-
-    .print-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 8px;
-      font-size: 10pt;
-    }
-
-    .print-table th {
-      background: var(--dark);
-      color: white;
-      padding: 5px 6px;
-      text-align: left;
-      font-weight: 700;
-      font-size: 9pt;
-    }
-
-    .print-table td {
-      padding: 5px 6px;
-      border-bottom: 1px solid var(--gray-200);
-    }
-
-    .print-table tr:nth-child(even) td {
-      background: var(--gray-50);
-    }
-
-    .print-table .text-right {
-      text-align: right;
-    }
-
-    .print-table .text-center {
-      text-align: center;
-    }
-
-    .print-totals {
-      margin-bottom: 10px;
-    }
-
-    .print-totals .line {
-      display: flex;
-      justify-content: flex-end;
-      gap: 20px;
-      padding: 3px 0;
-      font-size: 10pt;
-    }
-
-    .print-totals .line.discount {
-      color: var(--danger);
-    }
-
-    .print-totals .final-total {
-      background: var(--dark);
-      color: white;
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 14pt;
-      font-weight: 700;
-      display: inline-block;
-      float: right;
-      margin-top: 5px;
-    }
-
-    .print-footer {
-      border-top: 1px dashed #94a3b8;
-      padding-top: 8px;
-      margin-top: 10px;
-      text-align: center;
-      font-size: 8.5pt;
-      color: var(--gray-500);
-    }
-
-    .print-footer .thanks {
-      font-size: 10.5pt;
-      font-weight: 700;
-      color: var(--success);
-      margin-bottom: 6px;
-    }
-
-    .print-footer-content {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-      margin: 8px 0;
-    }
-
-    .print-footer-content.small-bill {
-      flex-direction: column;
-    }
-
-    .print-footer-content.large-bill {
-      flex-direction: row;
-    }
-
-    .print-social-qr-section {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-
-    .print-social-text {
-      text-align: left;
-      font-size: 8pt;
-    }
-
-    .print-social-text .review-line {
-      margin-top: 4px;
-      font-weight: 700;
-      color: #92400e;
-      background: #fef3c7;
-      padding: 3px 8px;
-      border-radius: 4px;
-      display: inline-block;
-    }
-
-    .print-qr-img {
-      width: 60px;
-      height: 60px;
-      border: 2px solid var(--dark);
-      padding: 3px;
-      background: white;
-    }
-
-    .print-qr-img.large {
-      width: 80px;
-      height: 80px;
-    }
-
-    .print-social-row {
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin: 6px 0;
-      font-size: 8pt;
-      color: var(--dark);
-    }
-
-    .print-social-row span {
-      font-weight: 700;
-    }
-
-    .print-computer-gen {
-      font-size: 7.5pt;
-      color: #94a3b8;
-      text-align: center;
-      margin-top: 6px;
-    }
-
-    /* ===== Toast ===== */
-    .toast {
-      position: fixed;
-      bottom: 30px;
-      right: 30px;
-      background: var(--success);
-      color: white;
-      padding: 14px 22px;
-      border-radius: 12px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-      transform: translateX(400px);
-      transition: 0.4s;
-      z-index: 2000;
-      font-weight: 700;
-      max-width: 320px;
-    }
-
-    .toast.show {
-      transform: translateX(0);
-    }
-
-    .toast.error {
-      background: var(--danger);
-    }
-
-    .toast.loading {
-      background: #3b82f6;
-    }
-
-    /* ===== Loading Overlay ===== */
-    .loading-overlay {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(15, 23, 42, 0.8);
-      z-index: 3000;
-      justify-content: center;
-      align-items: center;
-      backdrop-filter: blur(4px);
-    }
-
-    .loading-overlay.active {
-      display: flex;
-    }
-
-    .loading-box {
-      background: white;
-      padding: 30px 40px;
-      border-radius: 16px;
-      text-align: center;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    }
-
-    .spinner {
-      width: 50px;
-      height: 50px;
-      border: 5px solid var(--gray-200);
-      border-top-color: var(--primary);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin: 0 auto 15px;
-    }
-
-    @keyframes spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-
-    /* ===== Scrollbar ===== */
-    ::-webkit-scrollbar {
-      width: 8px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: var(--gray-100);
-      border-radius: 10px;
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: var(--primary);
-      border-radius: 10px;
-    }
-
-    /* ===== ক্যাশ ও ব্যালেন্স রেজিস্টার ===== */
-    .cash-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 12px;
-      margin-bottom: 6px;
-    }
-
-    .cash-cell label {
-      display: block;
-      color: var(--gray-500);
-      font-size: 12px;
-      font-weight: 700;
-      margin-bottom: 5px;
-    }
-
-    .cash-cell input {
-      width: 100%;
-      padding: 10px 12px;
-      border: 2px solid var(--gray-200);
-      border-radius: 10px;
-      font-size: 14px;
-      font-family: inherit;
-      box-sizing: border-box;
-    }
-
-    .cash-cell input:focus {
-      outline: none;
-      border-color: var(--primary);
-    }
-
-    .cash-subtotal-row {
-      text-align: right;
-      font-weight: 700;
-      color: var(--dark);
-      margin: 10px 0 18px;
-      font-size: 15px;
-    }
-
-    .reg-divider {
-      border: none;
-      border-top: 2px dashed var(--gray-200);
-      margin: 16px 0;
-    }
-
-    .grand-total-card {
-      background: linear-gradient(135deg, var(--dark), #1e3a5f);
-      border-radius: 16px;
-      padding: 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 6px;
-    }
-
-    .grand-total-card .gt-label {
-      color: rgba(255, 255, 255, 0.75);
-      font-size: 13px;
-      font-weight: 700;
-    }
-
-    .grand-total-card .gt-value {
-      color: #fff;
-      font-size: 28px;
-      font-weight: 700;
-    }
-
-    .grand-total-card .gt-breakdown {
-      color: rgba(255, 255, 255, 0.65);
-      font-size: 12px;
-      font-weight: 600;
-      width: 100%;
-    }
-
-    /* ===== Creditors / Expenses / Summary ===== */
-    .creditor-form-grid,
-    .expense-form-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-      gap: 12px;
-      align-items: end;
-    }
-
-    .creditor-form-grid .btn,
-    .expense-form-grid .btn {
-      padding: 11px 14px;
-    }
-
-    .creditor-row,
-    .expense-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 12px;
-      border: 1.5px solid var(--gray-200);
-      border-radius: 12px;
-      margin-top: 8px;
-      flex-wrap: wrap;
-    }
-
-    .creditor-info,
-    .expense-info {
-      min-width: 0;
-    }
-
-    .creditor-name {
-      font-weight: 700;
-      font-size: 14px;
-    }
-
-    .creditor-sub,
-    .expense-sub {
-      color: var(--gray-500);
-      font-size: 12px;
-      margin-top: 2px;
-    }
-
-    .creditor-due {
-      font-weight: 700;
-      font-size: 15px;
-      white-space: nowrap;
-    }
-
-    .expense-cat-tag {
-      display: inline-block;
-      background: var(--primary-light, #e8f0fe);
-      color: var(--primary, #1a73e8);
-      font-size: 11px;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 999px;
-      margin-right: 6px;
-    }
-
-    .row-actions {
-      display: flex;
-      gap: 6px;
-      flex-shrink: 0;
-    }
-
-    .mini-btn {
-      border: none;
-      border-radius: 8px;
-      padding: 6px 10px;
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-      font-family: inherit;
-    }
-
-    .mini-btn.pay {
-      background: linear-gradient(135deg, #10b981, #047857);
-      color: #fff;
-    }
-
-    .mini-btn.del {
-      background: linear-gradient(135deg, #ef4444, #b91c1c);
-      color: #fff;
-    }
-
-    .mini-btn.edit {
-      background: linear-gradient(135deg, #f59e0b, #d97706);
-      color: #fff;
-    }
-
-    .exp-item-row {
-      display: grid;
-      grid-template-columns: 2fr 1.6fr 0.9fr 1fr 1.1fr 34px;
-      gap: 8px;
-      align-items: center;
-      margin-top: 8px;
-    }
-
-    .exp-item-row select,
-    .exp-item-row input {
-      width: 100%;
-      padding: 9px 10px;
-      border: 1.5px solid var(--gray-200);
-      border-radius: 8px;
-      font-family: inherit;
-      font-size: 13px;
-      box-sizing: border-box;
-    }
-
-    .exp-item-total {
-      font-weight: 700;
-      font-size: 13px;
-      white-space: nowrap;
-    }
-
-    .exp-remove-btn {
-      border: none;
-      background: #fee2e2;
-      color: #b91c1c;
-      border-radius: 8px;
-      width: 32px;
-      height: 32px;
-      font-size: 16px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    @media (max-width: 720px) {
-      .exp-item-row {
-        grid-template-columns: 1.6fr 0.9fr 1fr 34px;
-      }
-
-      .exp-item-row .exp-desc-col {
-        grid-column: 1 / -1;
-      }
-    }
-
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 10px;
-    }
-
-    .summary-cell {
-      background: var(--gray-50, #f8fafc);
-      border: 1.5px solid var(--gray-200);
-      border-radius: 12px;
-      padding: 12px;
-    }
-
-    .summary-cell .sc-label {
-      color: var(--gray-500);
-      font-size: 11px;
-      font-weight: 700;
-    }
-
-    .summary-cell .sc-value {
-      font-size: 18px;
-      font-weight: 700;
-      margin-top: 4px;
-    }
-
-    .sc-green {
-      color: var(--success, #10b981);
-    }
-
-    .sc-red {
-      color: #dc2626;
-    }
-
-    .sc-blue {
-      color: var(--primary, #1a73e8);
-    }
-
+      @page { size: A5; margin: 8mm; }
+      body * { visibility: hidden; }
+      .print-area, .print-area * { visibility: visible; }
+      .print-area { display: block !important; position: absolute; left: 0; top: 0; width: 100%; background: white; color: #000; padding: 0; }
+      .no-print { display: none !important; }
+    }
+    .print-area { font-family: 'Noto Sans Bengali', sans-serif; color: var(--dark); padding: 6mm; font-size: 11pt; }
+    .print-header { text-align: center; border-bottom: 2px solid var(--dark); padding-bottom: 8px; margin-bottom: 10px; }
+    .print-header .biz-name { font-size: 20pt; font-weight: 700; letter-spacing: 1px; }
+    .print-header .biz-tag { font-size: 9pt; color: var(--gray-500); margin-top: 3px; }
+    .print-header .biz-addr { font-size: 8.5pt; color: var(--gray-500); margin-top: 2px; }
+    .print-header .biz-services { font-size: 8pt; color: var(--success); margin-top: 4px; font-weight: 700; }
+    .print-inv-no { background: var(--dark); color: var(--primary); padding: 6px 12px; border-radius: 8px; text-align: center; font-size: 14pt; font-weight: 700; margin-bottom: 10px; letter-spacing: 1px; }
+    .print-meta { display: flex; justify-content: space-between; font-size: 9pt; margin-bottom: 6px; padding: 5px 8px; background: var(--gray-50); border-radius: 6px; }
+    .print-meta div span { font-weight: 700; }
+    .print-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 10pt; }
+    .print-table th { background: var(--dark); color: white; padding: 5px 6px; text-align: left; font-weight: 700; font-size: 9pt; }
+    .print-table td { padding: 5px 6px; border-bottom: 1px solid var(--gray-200); }
+    .print-table tr:nth-child(even) td { background: var(--gray-50); }
+    .print-table .text-right { text-align: right; }
+    .print-table .text-center { text-align: center; }
+    .print-totals { margin-bottom: 10px; }
+    .print-totals .line { display: flex; justify-content: flex-end; gap: 20px; padding: 3px 0; font-size: 10pt; }
+    .print-totals .line.discount { color: var(--danger); }
+    .print-totals .final-total { background: var(--dark); color: white; padding: 8px 16px; border-radius: 8px; font-size: 14pt; font-weight: 700; display: inline-block; float: right; margin-top: 5px; }
+    .print-footer { border-top: 1px dashed #94a3b8; padding-top: 8px; margin-top: 10px; text-align: center; font-size: 8.5pt; color: var(--gray-500); }
+    .print-footer .thanks { font-size: 10.5pt; font-weight: 700; color: var(--success); margin-bottom: 6px; }
+    .print-footer-content { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; margin: 8px 0; }
+    .print-footer-content.small-bill { flex-direction: column; }
+    .print-footer-content.large-bill { flex-direction: row; }
+    .print-social-qr-section { display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; }
+    .print-social-text { text-align: left; font-size: 8pt; }
+    .print-social-text .review-line { margin-top: 4px; font-weight: 700; color: #92400e; background: #fef3c7; padding: 3px 8px; border-radius: 4px; display: inline-block; }
+    .print-qr-img { width: 60px; height: 60px; border: 2px solid var(--dark); padding: 3px; background: white; }
+    .print-qr-img.large { width: 80px; height: 80px; }
+    .print-social-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 6px 0; font-size: 8pt; color: var(--dark); }
+    .print-social-row span { font-weight: 700; }
+    .print-computer-gen { font-size: 7.5pt; color: #94a3b8; text-align: center; margin-top: 6px; }
+    .toast { position: fixed; bottom: 30px; right: 30px; background: var(--success); color: white; padding: 14px 22px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25); transform: translateX(400px); transition: 0.4s; z-index: 2000; font-weight: 700; max-width: 320px; }
+    .toast.show { transform: translateX(0); }
+    .toast.error { background: var(--danger); }
+    .toast.loading { background: #3b82f6; }
+    .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.8); z-index: 3000; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+    .loading-overlay.active { display: flex; }
+    .loading-box { background: white; padding: 30px 40px; border-radius: 16px; text-align: center; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); }
+    .spinner { width: 50px; height: 50px; border: 5px solid var(--gray-200); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 15px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: var(--gray-100); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 10px; }
+    .cash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 6px; }
+    .cash-cell label { display: block; color: var(--gray-500); font-size: 12px; font-weight: 700; margin-bottom: 5px; }
+    .cash-cell input { width: 100%; padding: 10px 12px; border: 2px solid var(--gray-200); border-radius: 10px; font-size: 14px; font-family: inherit; box-sizing: border-box; }
+    .cash-cell input:focus { outline: none; border-color: var(--primary); }
+    .cash-subtotal-row { text-align: right; font-weight: 700; color: var(--dark); margin: 10px 0 18px; font-size: 15px; }
+    .reg-divider { border: none; border-top: 2px dashed var(--gray-200); margin: 16px 0; }
+    .grand-total-card { background: linear-gradient(135deg, var(--dark), #1e3a5f); border-radius: 16px; padding: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+    .grand-total-card .gt-label { color: rgba(255, 255, 255, 0.75); font-size: 13px; font-weight: 700; }
+    .grand-total-card .gt-value { color: #fff; font-size: 28px; font-weight: 700; }
+    .grand-total-card .gt-breakdown { color: rgba(255, 255, 255, 0.65); font-size: 12px; font-weight: 600; width: 100%; }
+    .creditor-form-grid, .expense-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: end; }
+    .creditor-form-grid .btn, .expense-form-grid .btn { padding: 11px 14px; }
+    .creditor-row, .expense-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--gray-200); border-radius: 12px; margin-top: 8px; flex-wrap: wrap; }
+    .creditor-info, .expense-info { min-width: 0; }
+    .creditor-name { font-weight: 700; font-size: 14px; }
+    .creditor-sub, .expense-sub { color: var(--gray-500); font-size: 12px; margin-top: 2px; }
+    .creditor-due { font-weight: 700; font-size: 15px; white-space: nowrap; }
+    .expense-cat-tag { display: inline-block; background: var(--primary-light, #e8f0fe); color: var(--primary, #1a73e8); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-right: 6px; }
+    .row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .mini-btn { border: none; border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .mini-btn.pay { background: linear-gradient(135deg, #10b981, #047857); color: #fff; }
+    .mini-btn.del { background: linear-gradient(135deg, #ef4444, #b91c1c); color: #fff; }
+    .mini-btn.edit { background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; }
+    .exp-item-row { display: grid; grid-template-columns: 2fr 1.6fr 0.9fr 1fr 1.1fr 34px; gap: 8px; align-items: center; margin-top: 8px; }
+    .exp-item-row select, .exp-item-row input { width: 100%; padding: 9px 10px; border: 1.5px solid var(--gray-200); border-radius: 8px; font-family: inherit; font-size: 13px; box-sizing: border-box; }
+    .exp-item-total { font-weight: 700; font-size: 13px; white-space: nowrap; }
+    .exp-remove-btn { border: none; background: #fee2e2; color: #b91c1c; border-radius: 8px; width: 32px; height: 32px; font-size: 16px; font-weight: 700; cursor: pointer; }
+    @media (max-width: 720px) { .exp-item-row { grid-template-columns: 1.6fr 0.9fr 1fr 34px; } .exp-item-row .exp-desc-col { grid-column: 1 / -1; } }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .summary-cell { background: var(--gray-50, #f8fafc); border: 1.5px solid var(--gray-200); border-radius: 12px; padding: 12px; }
+    .summary-cell .sc-label { color: var(--gray-500); font-size: 11px; font-weight: 700; }
+    .summary-cell .sc-value { font-size: 18px; font-weight: 700; margin-top: 4px; }
+    .sc-green { color: var(--success, #10b981); }
+    .sc-red { color: #dc2626; }
+    .sc-blue { color: var(--primary, #1a73e8); }
+    @media (max-width: 600px) { .creditor-form-grid, .expense-form-grid { grid-template-columns: 1fr; } }
+    .google-signin-btn:hover { background: #f9fafb !important; border-color: #d1d5db !important; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1) !important; transform: translateY(-1px); }
+    .print-logo-wrap { text-align: center; margin-bottom: 6px; }
+    .print-logo-img { max-height: 65px; max-width: 200px; object-fit: contain; display: inline-block; }
+    @media print { .print-logo-img { max-height: 55px !important; max-width: 180px !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    body { background: #f1f5f9; padding: 18px; color: var(--dark); }
+    .container { max-width: 1180px; }
+    .header { border: 1px solid var(--gray-200); border-top: 4px solid var(--primary); border-radius: 18px; margin-bottom: 12px; box-shadow: 0 4px 18px rgba(15, 23, 42, .06); }
+    .header::before { display: none; }
+    .header-actions { align-items: center; }
+    .header-btn { background: var(--gray-100); }
+    .profile-button { width: 44px; height: 44px; padding: 3px; border: 2px solid var(--gray-200); border-radius: 50%; background: white; cursor: pointer; overflow: hidden; }
+    .profile-button img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+    .app-nav { display: flex; gap: 6px; padding: 7px; margin-bottom: 16px; background: white; border: 1px solid var(--gray-200); border-radius: 16px; box-shadow: 0 4px 18px rgba(15, 23, 42, .05); }
+    .app-nav button { flex: 1; min-height: 46px; border: 0; border-radius: 11px; background: transparent; color: var(--gray-500); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .2s, color .2s, transform .2s; }
+    .app-nav button:hover { background: var(--gray-50); color: var(--dark); }
+    .app-nav button[aria-current="page"] { color: #047857; background: #ecfdf5; }
+    .tab-panel { animation: tabReveal .2s ease-out; }
+    @keyframes tabReveal { from { opacity: .7; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .tab-panel[hidden] { display: none !important; }
+    .panel-heading { margin: 4px 0 14px; color: var(--dark); font-size: 20px; }
+    .date-selector-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; background: white; border: 1px solid var(--gray-200); border-radius: 14px; padding: 10px 14px; margin-bottom: 14px; box-shadow: 0 2px 8px rgba(15, 23, 42, .03); }
+    .date-selector-bar label { font-weight: 700; font-size: 13px; color: var(--gray-700); display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer; }
+    .date-selector-bar .date-input-group { display: flex; align-items: center; gap: 8px; }
+    .date-selector-bar input[type="date"] { padding: 7px 12px; border: 1.5px solid var(--gray-200); border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--dark); background: #f8fafc; outline: none; transition: border-color .15s ease, background .15s ease; }
+    .date-selector-bar input[type="date"]:focus { border-color: var(--primary); background: #fff; }
+    .date-selector-bar .quick-today-btn { padding: 7px 12px; background: var(--gray-100); border: 1px solid var(--gray-200); border-radius: 10px; font-size: 12px; font-weight: 600; color: var(--gray-700); cursor: pointer; transition: all .15s ease; white-space: nowrap; }
+    .date-selector-bar .quick-today-btn:hover { background: var(--primary); color: white; border-color: var(--primary); }
+    .metric-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .metric-card { padding: 18px; background: white; border: 1px solid var(--gray-200); border-radius: 16px; box-shadow: 0 4px 16px rgba(15, 23, 42, .04); }
+    .metric-card .label { color: var(--gray-500); font-size: 12px; font-weight: 700; }
+    .metric-card .value { margin-top: 6px; color: var(--dark); font-size: 23px; font-weight: 700; }
+    .card { border: 1px solid var(--gray-200); box-shadow: 0 4px 18px rgba(15, 23, 42, .05); }
+    .stat-card { border: 1px solid var(--gray-200); box-shadow: 0 4px 18px rgba(15, 23, 42, .05); }
+    .stat-card .label { padding-right: 22px; }
+    .sync-status { margin: 10px 0; padding: 10px 12px; border-radius: 10px; background: white; border: 1px solid var(--gray-200); color: var(--gray-700); font-size: 12px; font-weight: 700; }
+    .sync-status[data-state="synced"] { color: #047857; background: #ecfdf5; border-color: #a7f3d0; }
+    .sync-status[data-state="pending"] { color: #92400e; background: #fffbeb; border-color: #fde68a; }
+    .sync-status[data-state="offline"], .sync-status[data-state="error"] { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+    .sync-now-button { width: 100%; margin-top: 8px; }
+    .cash-history-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; margin-top: 8px; border: 1px solid var(--gray-200); border-radius: 11px; background: white; }
+    .cash-history-row strong { color: var(--dark); }
+    .cash-history-row span { color: var(--gray-500); font-size: 12px; }
     @media (max-width: 600px) {
-
-      .creditor-form-grid,
-      .expense-form-grid {
-        grid-template-columns: 1fr;
-      }
+      body { padding: 8px 8px 92px; }
+      .header { padding: 12px; margin-bottom: 10px; border-radius: 14px; }
+      .brand { gap: 9px; }
+      .logo { width: 42px; height: 42px; border-radius: 11px; font-size: 22px; }
+      .brand-text h1 { font-size: 17px; }
+      .brand-text .tagline { display: none; }
+      .header-actions { gap: 5px; }
+      .header-actions .header-btn { padding: 8px 9px; font-size: 11px; }
+      .profile-button { width: 40px; height: 40px; }
+      .app-nav { position: fixed; z-index: 900; left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom)); margin: 0; padding: 6px; gap: 3px; border-radius: 16px; box-shadow: 0 8px 30px rgba(15, 23, 42, .18); }
+      .app-nav button { min-width: 0; min-height: 54px; padding: 5px 2px; font-size: 10px; line-height: 1.25; }
+      .date-selector-bar { padding: 8px 10px; gap: 8px; }
+      .date-selector-bar label { font-size: 12px; }
+      .date-selector-bar input[type="date"] { padding: 6px 8px; font-size: 12px; }
+      .date-selector-bar .quick-today-btn { padding: 6px 10px; font-size: 11px; }
+      .metric-strip { gap: 8px; }
+      .metric-card { padding: 14px; }
+      .metric-card .value { font-size: 19px; }
     }
-
-    /* Google Sign-In & Auth Modal Styling */
-    .google-signin-btn:hover {
-      background: #f9fafb !important;
-      border-color: #d1d5db !important;
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1) !important;
-      transform: translateY(-1px);
-    }
-
-    .print-logo-wrap {
-      text-align: center;
-      margin-bottom: 6px;
-    }
-
-    .print-logo-img {
-      max-height: 65px;
-      max-width: 200px;
-      object-fit: contain;
-      display: inline-block;
-    }
-
-    @media print {
-      .print-logo-img {
-        max-height: 55px !important;
-        max-width: 180px !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
-    }
-
-    /* ===== Responsive tab dashboard ===== */
-    body {
-      background: #f1f5f9;
-      padding: 18px;
-      color: var(--dark);
-    }
-
-    .container {
-      max-width: 1180px;
-    }
-
-    .header {
-      border: 1px solid var(--gray-200);
-      border-top: 4px solid var(--primary);
-      border-radius: 18px;
-      margin-bottom: 12px;
-      box-shadow: 0 4px 18px rgba(15, 23, 42, .06);
-    }
-
-    .header::before {
-      display: none;
-    }
-
-    .header-actions {
-      align-items: center;
-    }
-
-    .header-btn {
-      background: var(--gray-100);
-    }
-
-    .profile-button {
-      width: 44px;
-      height: 44px;
-      padding: 3px;
-      border: 2px solid var(--gray-200);
-      border-radius: 50%;
-      background: white;
-      cursor: pointer;
-      overflow: hidden;
-    }
-
-    .profile-button img {
-      width: 100%;
-      height: 100%;
-      border-radius: 50%;
-      object-fit: cover;
-    }
-
-    .app-nav {
-      display: flex;
-      gap: 6px;
-      padding: 7px;
-      margin-bottom: 16px;
-      background: white;
-      border: 1px solid var(--gray-200);
-      border-radius: 16px;
-      box-shadow: 0 4px 18px rgba(15, 23, 42, .05);
-    }
-
-    .app-nav button {
-      flex: 1;
-      min-height: 46px;
-      border: 0;
-      border-radius: 11px;
-      background: transparent;
-      color: var(--gray-500);
-      font: inherit;
-      font-size: 13px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: background .2s, color .2s, transform .2s;
-    }
-
-    .app-nav button:hover {
-      background: var(--gray-50);
-      color: var(--dark);
-    }
-
-    .app-nav button[aria-current="page"] {
-      color: #047857;
-      background: #ecfdf5;
-    }
-
-    .tab-panel {
-      animation: tabReveal .2s ease-out;
-    }
-
-    @keyframes tabReveal {
-      from {
-        opacity: .7;
-        transform: translateY(4px);
-      }
-
-      to {
-        opacity: 1;
-        transform: none;
-      }
-    }
-
-    .tab-panel[hidden] {
-      display: none !important;
-    }
-
-    .panel-heading {
-      margin: 4px 0 14px;
-      color: var(--dark);
-      font-size: 20px;
-    }
-
-    .date-selector-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 10px;
-      background: white;
-      border: 1px solid var(--gray-200);
-      border-radius: 14px;
-      padding: 10px 14px;
-      margin-bottom: 14px;
-      box-shadow: 0 2px 8px rgba(15, 23, 42, .03);
-    }
-
-    .date-selector-bar label {
-      font-weight: 700;
-      font-size: 13px;
-      color: var(--gray-700);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin: 0;
-      cursor: pointer;
-    }
-
-    .date-selector-bar .date-input-group {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .date-selector-bar input[type="date"] {
-      padding: 7px 12px;
-      border: 1.5px solid var(--gray-200);
-      border-radius: 10px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--dark);
-      background: #f8fafc;
-      outline: none;
-      transition: border-color .15s ease, background .15s ease;
-    }
-
-    .date-selector-bar input[type="date"]:focus {
-      border-color: var(--primary);
-      background: #fff;
-    }
-
-    .date-selector-bar .quick-today-btn {
-      padding: 7px 12px;
-      background: var(--gray-100);
-      border: 1px solid var(--gray-200);
-      border-radius: 10px;
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--gray-700);
-      cursor: pointer;
-      transition: all .15s ease;
-      white-space: nowrap;
-    }
-
-    .date-selector-bar .quick-today-btn:hover {
-      background: var(--primary);
-      color: white;
-      border-color: var(--primary);
-    }
-
-    /* date selector */
-    .metric-strip {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-
-    .metric-card {
-      padding: 18px;
-      background: white;
-      border: 1px solid var(--gray-200);
-      border-radius: 16px;
-      box-shadow: 0 4px 16px rgba(15, 23, 42, .04);
-    }
-
-    .metric-card .label {
-      color: var(--gray-500);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .metric-card .value {
-      margin-top: 6px;
-      color: var(--dark);
-      font-size: 23px;
-      font-weight: 700;
-    }
-
-    .card {
-      border: 1px solid var(--gray-200);
-      box-shadow: 0 4px 18px rgba(15, 23, 42, .05);
-    }
-
-    .stat-card {
-      border: 1px solid var(--gray-200);
-      box-shadow: 0 4px 18px rgba(15, 23, 42, .05);
-    }
-
-    .stat-card .label {
-      padding-right: 22px;
-    }
-
-    .sync-status {
-      margin: 10px 0;
-      padding: 10px 12px;
-      border-radius: 10px;
-      background: white;
-      border: 1px solid var(--gray-200);
-      color: var(--gray-700);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .sync-status[data-state="synced"] {
-      color: #047857;
-      background: #ecfdf5;
-      border-color: #a7f3d0;
-    }
-
-    .sync-status[data-state="pending"] {
-      color: #92400e;
-      background: #fffbeb;
-      border-color: #fde68a;
-    }
-
-    .sync-status[data-state="offline"],
-    .sync-status[data-state="error"] {
-      color: #b91c1c;
-      background: #fef2f2;
-      border-color: #fecaca;
-    }
-
-    .sync-now-button {
-      width: 100%;
-      margin-top: 8px;
-    }
-
-    .cash-history-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 12px 14px;
-      margin-top: 8px;
-      border: 1px solid var(--gray-200);
-      border-radius: 11px;
-      background: white;
-    }
-
-    .cash-history-row strong {
-      color: var(--dark);
-    }
-
-    .cash-history-row span {
-      color: var(--gray-500);
-      font-size: 12px;
-    }
-
-    @media (max-width: 600px) {
-      body {
-        padding: 8px 8px 92px;
-      }
-
-      .header {
-        padding: 12px;
-        margin-bottom: 10px;
-        border-radius: 14px;
-      }
-
-      .brand {
-        gap: 9px;
-      }
-
-      .logo {
-        width: 42px;
-        height: 42px;
-        border-radius: 11px;
-        font-size: 22px;
-      }
-
-      .brand-text h1 {
-        font-size: 17px;
-      }
-
-      .brand-text .tagline {
-        display: none;
-      }
-
-      .header-actions {
-        gap: 5px;
-      }
-
-      .header-actions .header-btn {
-        padding: 8px 9px;
-        font-size: 11px;
-      }
-
-      .profile-button {
-        width: 40px;
-        height: 40px;
-      }
-
-      .app-nav {
-        position: fixed;
-        z-index: 900;
-        left: 8px;
-        right: 8px;
-        bottom: max(8px, env(safe-area-inset-bottom));
-        margin: 0;
-        padding: 6px;
-        gap: 3px;
-        border-radius: 16px;
-        box-shadow: 0 8px 30px rgba(15, 23, 42, .18);
-      }
-
-      .app-nav button {
-        min-width: 0;
-        min-height: 54px;
-        padding: 5px 2px;
-        font-size: 10px;
-        line-height: 1.25;
-      }
-
-      .date-selector-bar {
-        padding: 8px 10px;
-        gap: 8px;
-      }
-
-      .date-selector-bar label {
-        font-size: 12px;
-      }
-
-      .date-selector-bar input[type="date"] {
-        padding: 6px 8px;
-        font-size: 12px;
-      }
-
-      .date-selector-bar .quick-today-btn {
-        padding: 6px 10px;
-        font-size: 11px;
-      }
-
-      /* date selector */
-    .metric-strip {
-        gap: 8px;
-      }
-
-      .metric-card {
-        padding: 14px;
-      }
-
-      .metric-card .value {
-        font-size: 19px;
-      }
-    }
-
-    @media (min-width: 960px) {
-      .metric-strip {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-      }
-
-      .app-nav {
-        position: sticky;
-        top: 8px;
-        z-index: 800;
-      }
-    }
-
-    @media print {
-      body {
-        background: white;
-        padding: 0;
-      }
-
-      .app-nav {
-        display: none !important;
-      }
-    }
+    @media (min-width: 960px) { .metric-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); } .app-nav { position: sticky; top: 8px; z-index: 800; } }
+    @media print { body { background: white; padding: 0; } .app-nav { display: none !important; } }
   </style>
 </head>
 
@@ -2650,14 +569,29 @@
 
       <section class="tab-panel" id="salesPanel" data-tab-panel="sales">
         <h2 class="panel-heading">বিক্রয়</h2>
-        <div class="metric-strip">
-          <div class="metric-card">
-            <div class="label">আজকের প্রফিট</div>
-            <div class="value" id="todayProfit">৳০</div>
+        <div class="date-selector-bar">
+          <label for="salesMetricsDate">
+            <span>📅</span> তারিখ নির্বাচন
+          </label>
+          <div class="date-input-group">
+            <input type="date" id="salesMetricsDate" onchange="renderSalesMetrics()">
+            <button type="button" class="quick-today-btn" onclick="setSalesDateToday()">আজকে</button>
           </div>
         </div>
-
-        <!-- Date Filter (dashboard stats period) -->
+        <div class="metric-strip admin-core-metrics">
+          <div class="metric-card">
+            <div class="label" id="salesMetricsLabel">আজকের বিক্রি</div>
+            <div class="value" id="salesMetricsTotal">৳০</div>
+          </div>
+          <div class="metric-card">
+            <div class="label">মোট কস্ট</div>
+            <div class="value" id="salesMetricsCost">৳০</div>
+          </div>
+          <div class="metric-card">
+            <div class="label">নিট লাভ / প্রফিট</div>
+            <div class="value" id="salesMetricsProfit">৳০</div>
+          </div>
+        </div>
       </section>
       <section class="tab-panel" id="dashboardPanel" data-tab-panel="dashboard" hidden>
         <h2 class="panel-heading">ড্যাশবোর্ড</h2>
@@ -2770,7 +704,6 @@
                 <div class="amount" id="grandTotal">৳০</div>
               </div>
 
-              <!-- 2 Action Buttons: Save & Reset (WhatsApp/Print/Delete are in the invoice list) -->
               <div class="action-btns-3">
                 <button class="btn btn-save" onclick="saveInvoiceOnly()">💾 সেভ</button>
                 <button class="btn btn-reset" onclick="resetForm()">🔄 রিসেট</button>
@@ -2922,7 +855,6 @@
           </div>
         </div>
 
-        <!-- Expense List (খরচের তালিকা) -->
         <div class="card">
           <div class="card-header">
             <div class="icon-box">📒</div>
@@ -2957,7 +889,7 @@
     </div>
   </div>
 
-  <!-- Sleek Popup Authentication Modal (Google + Email/Password toggle) -->
+  <!-- Sleek Popup Authentication Modal -->
   <div class="modal" id="authLoginModal">
     <div class="modal-content" style="max-width:440px;text-align:center;padding:28px 24px;border-radius:24px;">
       <button type="button" class="modal-close-button" onclick="closeAuthModal()" aria-label="বন্ধ করুন"
@@ -2972,7 +904,6 @@
         আপনার বিশ্বস্ত ডিজিটাল সেবা ও হিসাব রক্ষণ
       </p>
 
-      <!-- Primary option inside popup: Continue with Google (no direct page redirect) -->
       <button type="button" id="googleSignInModalBtn" onclick="loginWithGoogle()" class="google-signin-btn"
         style="width:100%;display:flex;align-items:center;justify-content:center;gap:12px;background:white;color:#1f2937;border:2px solid #e5e7eb;border-radius:12px;padding:13px 18px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 12px rgba(0,0,0,0.06);">
         <svg width="22" height="22" viewBox="0 0 24 24" style="flex-shrink:0;">
@@ -2988,14 +919,12 @@
         <span>Google দিয়ে চালিয়ে যান</span>
       </button>
 
-      <!-- Divider -->
       <div style="display:flex;align-items:center;gap:10px;margin:14px 0;">
         <div style="flex:1;height:1px;background:var(--gray-200);"></div>
         <span style="font-size:12px;color:var(--gray-500);font-weight:600;">অথবা</span>
         <div style="flex:1;height:1px;background:var(--gray-200);"></div>
       </div>
 
-      <!-- Email & Password Login / Smart Sign-Up pane -->
       <div id="authPaneEmail" style="text-align:left;margin-bottom:6px;">
         <div class="form-group" style="margin-bottom:10px;">
           <label for="emailLoginInput" style="font-size:12px;font-weight:700;color:var(--gray-700);">ইমেইল</label>
@@ -3012,13 +941,11 @@
         <button type="button" id="emailSignInModalBtn" onclick="loginWithEmail()" class="btn btn-primary"
           style="width:100%;padding:12px 18px;font-size:14px;font-weight:700;border-radius:12px;">🔑 লগইন /
           সাইন-ইন</button>
-        <!-- Forgot Password link -->
         <div style="text-align:center;margin-top:10px;">
           <a href="javascript:void(0)" onclick="sendPasswordResetLink()"
             style="font-size:13px;color:#2563eb;font-weight:600;text-decoration:underline;">পাসওয়ার্ড ভুলে গেছেন?</a>
         </div>
       </div>
-
 
       <button type="button" onclick="closeAuthModal()"
         style="background:none;border:none;color:var(--gray-500);font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;margin-top:16px;">
@@ -3034,7 +961,6 @@
         title="বন্ধ করুন">×</button>
       <h2>⚙️ সেটিংস ও প্রোফাইল</h2>
 
-      <!-- Merchant Account Profile Section -->
       <div class="form-group"
         style="background:var(--gray-50);padding:14px;border-radius:12px;border:1.5px solid var(--gray-200);margin-bottom:14px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -3073,7 +999,6 @@
             onclick="openAuthModal()">🔑 সাইন-ইন</button>
         </div>
 
-        <!-- In-App Password Setup (for any authenticated session, e.g. Google login) -->
         <div id="settingsPasswordSetupCard"
           style="display:none;margin-top:12px;background:white;padding:12px 14px;border-radius:10px;border:1.5px solid var(--gray-200);">
           <label for="settingsNewPasswordInput"
@@ -3097,7 +1022,6 @@
           onclick="logoutUser()">🚪 লগআউট</button>
       </div>
 
-      <!-- Business Profile & Branding Section -->
       <div class="form-group"
         style="background:#f8fafc;padding:16px;border-radius:14px;border:1.5px solid var(--gray-200);margin-bottom:14px;">
         <div
@@ -3182,7 +1106,6 @@
         </small>
       </div>
 
-
       <div class="action-btns-3">
         <button class="btn btn-whatsapp" onclick="saveSettings()">💾 সেভ</button>
         <button class="btn btn-print" onclick="testFirebaseConnection()">🧪 টেস্ট সংযোগ</button>
@@ -3191,7 +1114,6 @@
     </div>
   </div>
 
-  <!-- Invoice Detail Modal -->
   <div class="modal" id="invoiceModal">
     <div class="modal-content">
       <button type="button" class="modal-close-button" onclick="closeInvoiceModal()" aria-label="বন্ধ করুন"
@@ -3206,7 +1128,6 @@
     </div>
   </div>
 
-  <!-- Print Area -->
   <div class="print-area" id="printArea"></div>
 
   <div class="modal" id="accountPasswordModal">
@@ -3224,10 +1145,8 @@
     </div>
   </div>
 
-  <!-- Toast -->
   <div class="toast" id="toast"></div>
 
-  <!-- Loading Overlay -->
   <div class="loading-overlay" id="loadingOverlay">
     <div class="loading-box">
       <div class="spinner"></div>
@@ -3236,6 +1155,9 @@
   </div>
 
   <script>
+    /* =========================================================
+       ALL APP LOGIC MOVED INTO index.html inline script
+       ========================================================= */
     function refreshPartnerSaleCatalog() {
       const container = document.getElementById('partnerItemsContainer');
       if (!container) return;
@@ -3428,6 +1350,7 @@
       });
       if (tabName === 'partner') renderPartnerDashboard();
       if (tabName === 'admin') renderAdminManagement();
+      if (tabName === 'sales') renderSalesMetrics();
       if (tabName === 'dashboard') updateStats();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -3475,9 +1398,6 @@
     if (!Array.isArray(creditors)) creditors = [];
     if (!Array.isArray(expenses)) expenses = [];
 
-    // Multi-Tenant Cloud POS System
-
-    // ===== ইমোজি সাপোর্ট =====
     function supportsEmoji() {
       try {
         const c = document.createElement('canvas');
@@ -3490,11 +1410,8 @@
     const EMOJI_OK = supportsEmoji();
     function em(emoji, fallback = '>>') { return EMOJI_OK ? emoji : fallback; }
 
-    // ===== ইউটিলিটি ফাংশন =====
-    // নিরাপদ সংখ্যা রূপান্তর: undefined/null/NaN/'' -> 0 (কোনো NaN দেখাবে না)
     function safeNum(n) {
       if (typeof n === 'string') {
-        // বাংলা ডিজিট ও হাজার সেপারেটর (+/- চিহ্ন বজায়) পরিষ্কার করে ASCII নম্বরে রূপান্তর
         const cleaned = n.replace(/[০-৯]/g, ch => String('০১২৩৪৫৬৭৮৯'.indexOf(ch)))
           .replace(/[, ]/g, '');
         const x = parseFloat(cleaned);
@@ -3507,7 +1424,6 @@
 
     function toBnNum(n) {
       const bn = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
-      // undefined/null/NaN/অবজেক্ট — কিছুতেই crash করবে না; খালি মান -> '০'
       if (n === undefined || n === null) return '০';
       const s = typeof n === 'number' ? (isFinite(n) ? String(n) : '০') : String(n);
       return s.replace(/\d/g, d => bn[+d]);
@@ -3579,6 +1495,42 @@
       }
     }
 
+    // ★★ NEW: Sales-tab date picker
+    function setSalesDateToday() {
+      const dateInput = document.getElementById('salesMetricsDate');
+      if (dateInput) {
+        dateInput.value = localDateKey();
+        renderSalesMetrics();
+      }
+    }
+
+    // ★★ NEW: Sales-tab 3-card metrics
+    function renderSalesMetrics() {
+      const dateInput = document.getElementById('salesMetricsDate');
+      if (!dateInput) return;
+      if (!dateInput.value) dateInput.value = localDateKey();
+      const selectedDate = dateInput.value;
+      const isToday = selectedDate === localDateKey();
+
+      const dayInvoices = invoices.filter(inv => localDateKey(inv.date) === selectedDate);
+      const totalSales = dayInvoices.reduce((sum, inv) => sum + safeNum(inv.total), 0);
+      const totalCost = dayInvoices.reduce((sum, inv) => sum + getInvoiceCostTotal(inv), 0);
+      const netProfit = totalSales - totalCost;
+
+      const labelEl = document.getElementById('salesMetricsLabel');
+      if (labelEl) labelEl.textContent = isToday ? 'আজকের বিক্রি' : 'মোট বিক্রি';
+
+      const setVal = (id, amount) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = formatMoney(amount);
+        el.style.color = amount < 0 ? '#dc2626' : '';
+      };
+      setVal('salesMetricsTotal', totalSales);
+      setVal('salesMetricsCost', totalCost);
+      setVal('salesMetricsProfit', netProfit);
+    }
+
     let toastTimeoutId = null;
 
     function showToast(msg, type = 'success') {
@@ -3615,11 +1567,6 @@
       document.getElementById('loadingOverlay').classList.remove('active');
     }
 
-    // ===== Google Firebase Multi-Tenant Architecture & Real-Time Sync =====
-
-    // Firebase configuration for project abc-pos-webapp
-    // Firebase Console: enable Google at Authentication > Sign-in method.
-    // Add the deployed hostname (and localhost for development) at Authentication > Settings > Authorized domains.
     const firebaseConfig = {
       apiKey: 'AIzaSyCyqeeiDFEfhQLB4VrGra-UKVXORbnHyGA',
       authDomain: 'abc-pos-webapp.firebaseapp.com',
@@ -3630,7 +1577,6 @@
       measurementId: 'G-6TBPGJM44V'
     };
 
-    // Initialize once so authentication, analytics, and Firestore share the same app.
     const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
     let analytics = null;
     window.firebaseServices = { app, auth: null, db: null, analytics: null, persistenceReady: null };
@@ -3647,7 +1593,6 @@
       });
     window.firebaseServices.analyticsReady = analyticsReady;
 
-    // ===== Dynamic Business Profile & Branding Model =====
     function getBusinessInfo() {
       return {
         name: (settings.businessName && settings.businessName.trim()) ? settings.businessName.trim() : BUSINESS.name,
@@ -3732,13 +1677,11 @@
 
     function applyBusinessBranding() {
       const biz = getBusinessInfo();
-      // Update header text
       const brandH1 = document.querySelector('.brand-text h1');
       if (brandH1) brandH1.textContent = biz.name;
       const brandTagline = document.querySelector('.brand-text .tagline');
       if (brandTagline) brandTagline.textContent = biz.tagline + ' (মাল্টি-টেন্যান্ট ক্লাউড POS)';
 
-      // Update header logo
       const logoEl = document.querySelector('.header .logo');
       if (logoEl) {
         if (biz.logo) {
@@ -3749,15 +1692,12 @@
           logoEl.style.background = 'linear-gradient(135deg, var(--primary), var(--primary-dark))';
         }
       }
-
     }
 
     function openAuthModal() {
-      // Re-opening the popup always clears the dismissed flag so it instantly shows again after close/dismiss
       sessionStorage.removeItem('pos_auth_modal_dismissed');
       const modal = document.getElementById('authLoginModal');
       if (!modal) return;
-      // Prefill the email login field with the signed-in user's email if available
       try {
         const emEl = document.getElementById('emailLoginInput');
         if (emEl && !emEl.value && window.currentUser && currentUser.email) emEl.value = currentUser.email;
@@ -3766,14 +1706,11 @@
       modal.classList.add('active');
     }
 
-    // The login popup now contains only Google + Email/Password (set-password moved to Settings,
-    // so there is no conflicting "প্রথমে Google দিয়ে লগইন করুন" blocking on the login screen).
     function showAuthEmailPane() {
       const paneEmail = document.getElementById('authPaneEmail');
       if (paneEmail) paneEmail.style.display = 'block';
     }
 
-    // Backward-compatible stub: old callers of switchAuthTab() keep working (single-pane modal).
     function switchAuthTab(tab) {
       showAuthEmailPane();
     }
@@ -3784,9 +1721,7 @@
       if (modal) modal.classList.remove('active');
     }
 
-    // Use the same Firebase app as Firestore and Google provider sign-in.
     const auth = firebase.auth(app);
-    // Explicit persistence: keep the session across reloads/redirects to avoid login loops
     try {
       auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
         .catch(pErr => console.warn('Auth persistence set failed:', pErr));
@@ -3797,7 +1732,6 @@
     window.firebaseServices.auth = auth;
     window.firebaseServices.db = db;
 
-    // Multi-Tenant Isolation: State of authenticated business owner
     let currentUser = null;
     let currentUserId = null;
     const MASTER_ADMIN_EMAIL = 'clkmonir@gmail.com';
@@ -3829,42 +1763,21 @@
     let legacySettingsSnapshot = null;
     let presetMigrationStarted = false;
 
-    // Isolated Firestore references under users/{user_uid}/
     function getUserRef(uid = currentUserId) {
       if (!uid) throw new Error('ব্যবহারকারী লগইন করেননি');
       return db.collection('users').doc(uid);
     }
-    function getSalesRef(uid = currentUserId) {
-      return getUserRef(uid).collection('sales');
-    }
-    function getExpensesRef(uid = currentUserId) {
-      return getUserRef(uid).collection('expenses');
-    }
-    function getCreditorsRef(uid = currentUserId) {
-      return getUserRef(uid).collection('creditors');
-    }
-    function getCashRegisterRef(uid = currentUserId) {
-      return getUserRef(uid).collection('cash_register');
-    }
-    function getSettingsRef(uid = currentUserId) {
-      return getUserRef(uid).collection('settings').doc('doc');
-    }
-    function getPresetsRef(uid = currentUserId) {
-      return getUserRef(uid).collection('settings').doc('presets');
-    }
+    function getSalesRef(uid = currentUserId) { return getUserRef(uid).collection('sales'); }
+    function getExpensesRef(uid = currentUserId) { return getUserRef(uid).collection('expenses'); }
+    function getCreditorsRef(uid = currentUserId) { return getUserRef(uid).collection('creditors'); }
+    function getCashRegisterRef(uid = currentUserId) { return getUserRef(uid).collection('cash_register'); }
+    function getSettingsRef(uid = currentUserId) { return getUserRef(uid).collection('settings').doc('doc'); }
+    function getPresetsRef(uid = currentUserId) { return getUserRef(uid).collection('settings').doc('presets'); }
 
-    function getBusinessRef() {
-      return db.collection('businesses').doc(BUSINESS_TENANT_ID);
-    }
-    function getMembersRef() {
-      return getBusinessRef().collection('members');
-    }
-    function getPartnerSalesRef() {
-      return getBusinessRef().collection('partner_sales');
-    }
-    function getPartnerExpensesRef() {
-      return getBusinessRef().collection('partner_expenses');
-    }
+    function getBusinessRef() { return db.collection('businesses').doc(BUSINESS_TENANT_ID); }
+    function getMembersRef() { return getBusinessRef().collection('members'); }
+    function getPartnerSalesRef() { return getBusinessRef().collection('partner_sales'); }
+    function getPartnerExpensesRef() { return getBusinessRef().collection('partner_expenses'); }
 
     function isMasterAdmin(user = currentUser) {
       return Boolean(user && (user.email === MASTER_ADMIN_EMAIL || user.uid === MASTER_ADMIN_UID));
@@ -3938,16 +1851,13 @@
         return;
       }
       if (appContent) appContent.inert = true;
-      updateAccessGate('আপনার অ্যাকাউন্টটি পর্যালোচনায় রয়েছে। অনুগ্রহ করে অপেক্ষা করুন।', 'অনুমোদন অপেক্ষমাণ');
+      updateAccessGate('আপনার অ্যাকাউন্টটি পর্যালোচনায় রয়েছে। অনুগ্রহ করে অপেক্ষা করুন।', 'অনুমোদন অপেক্ষমাণ');
     }
 
     async function resolveUserAccess(user) {
       if (isMasterAdmin(user)) {
         currentAccess = {
-          role: 'Admin',
-          status: 'approved',
-          accountStatus: 'approved',
-          email: user.email
+          role: 'Admin', status: 'approved', accountStatus: 'approved', email: user.email
         };
         return currentAccess;
       }
@@ -4020,12 +1930,8 @@
       }
     }
 
-    // Start multi-tab IndexedDB persistence before any Firestore reads or listeners.
     const firestorePersistenceReady = db.enablePersistence({ synchronizeTabs: true })
-      .then(() => {
-        console.info('Firestore multi-tab offline persistence enabled.');
-        return true;
-      })
+      .then(() => { console.info('Firestore multi-tab offline persistence enabled.'); return true; })
       .catch(error => {
         if (error.code === 'failed-precondition') {
           console.warn('Firestore persistence is disabled because another tab already owns the cache; using in-memory cache.');
@@ -4038,14 +1944,10 @@
       });
     window.firebaseServices.persistenceReady = firestorePersistenceReady;
 
-    // Multi-Tenant UI updates
     function setSyncStatus(state, message) {
       const status = document.getElementById('syncStatus');
       const button = document.getElementById('syncNowButton');
-      if (status) {
-        status.dataset.state = state;
-        status.textContent = message;
-      }
+      if (status) { status.dataset.state = state; status.textContent = message; }
       if (button) {
         button.disabled = state === 'syncing';
         button.textContent = state === 'synced' ? '✓ সব সিঙ্ক হয়েছে · আবার সিঙ্ক করুন' : '🔄 এখনই সিঙ্ক করুন';
@@ -4131,7 +2033,6 @@
         if (profileName) profileName.textContent = user.displayName || user.email || 'ব্যবহারকারী';
         if (profileEmail) profileEmail.textContent = user.email || '';
 
-        // In-app password setup card inside Settings — visible for any authenticated session
         const passCard = document.getElementById('settingsPasswordSetupCard');
         const passStatus = document.getElementById('settingsPasswordStatus');
         const hasPassword = (user.providerData || []).some(p => p.providerId === 'password');
@@ -4170,9 +2071,7 @@
     function shouldUseGoogleRedirect() {
       const hostname = window.location.hostname.toLowerCase();
       const isMobileBrowser = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
-      return hostname === 'localhost'
-        || hostname === '127.0.0.1'
-        || isMobileBrowser;
+      return hostname === 'localhost' || hostname === '127.0.0.1' || isMobileBrowser;
     }
 
     function getGoogleAuthErrorMessage(error) {
@@ -4193,7 +2092,6 @@
       return 'লগইন ব্যর্থ হয়েছে: ' + ((error && error.message) || error);
     }
 
-    // Forgot Password — sends a reset link via sendPasswordResetEmail with Bengali notifications
     async function sendPasswordResetLink() {
       const emailEl = document.getElementById('emailLoginInput');
       let email = '';
@@ -4224,8 +2122,6 @@
       }
     }
 
-    // Email & Password Auth (Firebase) — smart flow: sign in first, auto sign-up if user not found.
-    // No separate "Register" screen needed; verification email sent on new account creation.
     async function loginWithEmail() {
       const emailEl = document.getElementById('emailLoginInput');
       const passEl = document.getElementById('passwordLoginInput');
@@ -4239,12 +2135,10 @@
         showToast('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।', 'error');
         return;
       }
-      // Explicitly keep the session in localStorage before authenticating
       try { await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }
       catch (error) { console.warn('Auth persistence set failed during sign-in:', error); }
       try {
         showLoading('লগইন হচ্ছে...');
-        // a) First attempt: sign in with existing credentials
         await auth.signInWithEmailAndPassword(email, password);
         sessionStorage.removeItem('pos_auth_modal_dismissed');
         hideLoading();
@@ -4254,15 +2148,12 @@
       } catch (error) {
         const code = error && error.code;
         console.warn('Email sign-in failed:', code, error);
-        // b) If user doesn't exist yet — automatically create the account (no register screen)
         if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
           try {
             showLoading('নতুন একাউন্ট তৈরি হচ্ছে...');
             const cred = await auth.createUserWithEmailAndPassword(email, password);
             sessionStorage.removeItem('pos_auth_modal_dismissed');
             hideLoading();
-            // c) Send email verification and notify the user in Bengali
-            // Google-style emails may already be verified server-side; otherwise send verification
             try { if (!cred.user.emailVerified) await cred.user.sendEmailVerification(); } catch (ve) { console.warn('Verification email failed:', ve); }
             closeAuthModal();
             alert('আপনার অ্যাকাউন্ট পাওয়া যায়নি। নতুন অ্যাকাউন্ট তৈরি করা হয়েছে এবং একটি ভেরিফিকেশন ইমেল পাঠানো হয়েছে।');
@@ -4286,7 +2177,6 @@
             return;
           }
         }
-        // d) Graceful Bengali messages for other errors
         let msg = 'লগইন ব্যর্থ হয়েছে: ' + ((error && error.message) || error);
         if (code === 'auth/wrong-password' || code === 'auth/invalid-login-credentials') {
           hideLoading();
@@ -4310,9 +2200,6 @@
       }
     }
 
-    // In-App Password Setup — attaches/updates an Email/Password credential on the CURRENTLY
-    // logged-in user (Google or any authenticated session) via linkWithCredential / updatePassword.
-    // No external verification required and no "প্রথমে Google দিয়ে লগইন করুন" blocking from the login screen.
     function openAccountPasswordModal() {
       const user = auth.currentUser;
       if (!user || !user.email) return showToast('পাসওয়ার্ড সেট করতে প্রথমে সাইন-ইন করুন।', 'error');
@@ -4328,24 +2215,6 @@
     function closeAccountPasswordModal() {
       document.getElementById('accountPasswordModal').classList.remove('active');
     }
-
-    const modalCloseActions = {
-      authLoginModal: closeAuthModal,
-      settingsModal: closeSettings,
-      invoiceModal: closeInvoiceModal,
-      accountPasswordModal: closeAccountPasswordModal
-    };
-    document.querySelectorAll('.modal').forEach(modal => {
-      modal.addEventListener('click', event => {
-        if (event.target === modal && modalCloseActions[modal.id]) modalCloseActions[modal.id]();
-      });
-    });
-    document.addEventListener('keydown', event => {
-      if (event.key !== 'Escape') return;
-      const activeModals = [...document.querySelectorAll('.modal.active')];
-      const activeModal = activeModals[activeModals.length - 1];
-      if (activeModal && modalCloseActions[activeModal.id]) modalCloseActions[activeModal.id]();
-    });
 
     async function saveAccountPassword(inputId) {
       const user = auth.currentUser;
@@ -4364,19 +2233,16 @@
       catch (error) { console.warn('Auth persistence set failed during sign-in:', error); }
       try {
         showLoading('পাসওয়ার্ড সংরক্ষণ হচ্ছে...');
-        // If this account has no password provider yet — link a fresh Email/Password credential.
-        // Google already verified the email, so no verification step is needed for linking.
         const hasPassword = (user.providerData || []).some(p => p.providerId === 'password');
         if (!hasPassword) {
           const cred = firebase.auth.EmailAuthProvider.credential(user.email, password);
           await user.linkWithCredential(cred);
         } else {
-          // Already linked earlier — just update the existing password.
           await user.updatePassword(password);
         }
         hideLoading();
         if (passEl) passEl.value = '';
-        renderAuthUI(auth.currentUser); // refresh status line + button label inside Settings
+        renderAuthUI(auth.currentUser);
         closeAccountPasswordModal();
         showToast(hasPassword
           ? '✅ পাসওয়ার্ড আপডেট হয়েছে!'
@@ -4396,13 +2262,6 @@
       }
     }
 
-    // Backward-compatible stub (kept for old references) — the set-password form now lives in Settings,
-    // so this simply forwards to saveAccountPassword() using the current authenticated session.
-    async function linkEmailCredential() {
-      await saveAccountPassword();
-    }
-
-    // Google Sign-In — always popup-based (in-session) to avoid redirect loops; falls back to redirect only when popups are unsupported
     async function loginWithGoogle() {
       try {
         showLoading('Google দিয়ে সাইন ইন হচ্ছে...');
@@ -4415,7 +2274,6 @@
         provider.setCustomParameters({ prompt: 'select_account' });
         await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
         try {
-          // Prefer popup so the SPA never reloads through a redirect cycle
           await auth.signInWithPopup(provider);
           sessionStorage.removeItem('pos_auth_modal_dismissed');
           hideLoading();
@@ -4425,7 +2283,7 @@
           const code = popupError && popupError.code;
           if (code === 'auth/user-cancelled' || code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
             hideLoading();
-            return; // user cancelled — no loop, just stay on login screen
+            return;
           }
           if (code !== 'auth/popup-blocked'
             && code !== 'auth/operation-not-supported-in-this-environment'
@@ -4438,7 +2296,7 @@
             showToast(getGoogleAuthErrorMessage(popupError), 'error');
             return;
           }
-          await auth.signInWithRedirect(provider); // handled by getRedirectResult + onAuthStateChanged
+          await auth.signInWithRedirect(provider);
         }
       } catch (error) {
         console.error('Google Sign-In failed for Firebase project "' + firebaseConfig.projectId + '":', error);
@@ -4447,7 +2305,6 @@
       }
     }
 
-    // Logout
     async function logoutUser() {
       if (!confirm('আপনি কি নিশ্চিত যে আপনার একাউন্ট থেকে লগআউট করতে চান?')) return;
       try {
@@ -4464,7 +2321,6 @@
       }
     }
 
-    // Attach real-time Firestore listeners for isolated tenant data
     function handleFirestoreSyncError(label, error) {
       console.warn(label + ' listener:', error);
       if (!currentUserId) return;
@@ -4586,7 +2442,6 @@
       setSyncStatus(navigator.onLine ? 'pending' : 'offline',
         navigator.onLine ? 'Firebase-এর সঙ্গে সংযোগ হচ্ছে…' : 'ইন্টারনেট নেই · ডেটা লোকালি সংরক্ষিত');
 
-      // 1. Sales / Invoices Listener
       const unsubSales = getSalesRef(uid).orderBy('date', 'desc').onSnapshot({ includeMetadataChanges: true }, snap => {
         invoices = snap.docs.map(doc => normalizeInvoiceFinancials(doc.data()));
         localStorage.setItem('pos_invoices', JSON.stringify(invoices));
@@ -4602,12 +2457,12 @@
         localStorage.setItem('pos_next_inv_no', nextInvoiceNumber.toString());
         updateStats();
         renderInvoices();
+        renderSalesMetrics();
         updateCurrentInvoiceNo();
         handleFirestoreSnapshot(snap, 'বিক্রয়');
       }, err => handleFirestoreSyncError('বিক্রয়', err));
       firestoreUnsubscribers.push(unsubSales);
 
-      // 2. Expenses Listener
       const unsubExpenses = getExpensesRef(uid).orderBy('date', 'desc').onSnapshot({ includeMetadataChanges: true }, snap => {
         expenses = snap.docs.map(doc => doc.data());
         saveExpenses();
@@ -4617,7 +2472,6 @@
       }, err => handleFirestoreSyncError('খরচ', err));
       firestoreUnsubscribers.push(unsubExpenses);
 
-      // 3. Creditors Listener
       const unsubCreditors = getCreditorsRef(uid).onSnapshot({ includeMetadataChanges: true }, snap => {
         creditors = snap.docs.map(doc => doc.data());
         saveCreditors();
@@ -4628,7 +2482,6 @@
       }, err => handleFirestoreSyncError('পাওনাদার', err));
       firestoreUnsubscribers.push(unsubCreditors);
 
-      // 4. Cash Register Listener
       const unsubCash = getCashRegisterRef(uid).orderBy('date', 'desc').limit(30).onSnapshot({ includeMetadataChanges: true }, snap => {
         cashHistoryRecords = snap.docs.map(doc => doc.data());
         renderCashHistory();
@@ -4643,7 +2496,6 @@
       }, err => handleFirestoreSyncError('ক্যাশ', err));
       firestoreUnsubscribers.push(unsubCash);
 
-      // 5. Settings Listener
       const unsubSettings = getSettingsRef(uid).onSnapshot({ includeMetadataChanges: true }, snap => {
         legacySettingsSnapshot = snap;
         if (snap.exists) {
@@ -4669,7 +2521,6 @@
       }, err => handleFirestoreSyncError('সেটিংস', err));
       firestoreUnsubscribers.push(unsubSettings);
 
-      // 6. Presets Listener — shared by all authenticated devices for this tenant.
       const unsubPresets = getPresetsRef(uid).onSnapshot({ includeMetadataChanges: true }, snap => {
         if (snap.exists) {
           presetsSnapshotExists = true;
@@ -4682,6 +2533,7 @@
       }, err => handleFirestoreSyncError('প্রি-সেট', err));
       firestoreUnsubscribers.push(unsubPresets);
     }
+
     function stopBusinessListeners() {
       businessUnsubscribers.forEach(unsubscribe => { try { unsubscribe(); } catch (error) { } });
       businessUnsubscribers = [];
@@ -4728,13 +2580,11 @@
         stopUserDataListeners();
         return;
       }
-
       if (access.role === 'Partner/Staff') {
         stopUserDataListeners();
         void attachPartnerListeners(user.uid);
         return;
       }
-
       void attachFirestoreListeners(user.uid).catch(error => handleFirestoreSyncError('ডেটা', error));
       if (isMasterAdmin(user)) {
         void ensureBusinessWorkspace().then(() => attachAdminManagementListeners());
@@ -4774,86 +2624,6 @@
         }
       }, error => handleFirestoreSyncError('অনুমোদন', error));
     }
-
-    // Process redirect login if applicable
-    auth.getRedirectResult().then(result => {
-      if (result && result.user) {
-        console.log('Redirect sign-in successful for:', result.user.email);
-      }
-    }).catch(error => {
-      console.error('Google redirect sign-in failed:', error);
-      showToast(getGoogleAuthErrorMessage(error), 'error');
-    });
-
-    // Authentication State Listener — guard against re-entrant loops so the dashboard renders once and only once per session
-    let authBootstrapped = false;
-    auth.onAuthStateChanged(async user => {
-      if (isMasterAdmin(user)) {
-        const alreadyRendered = authBootstrapped && currentUserId === user.uid;
-        currentUser = user;
-        currentUserId = user.uid;
-        currentAccess = {
-          role: 'Admin',
-          accountStatus: 'approved',
-          status: 'approved',
-          email: user.email
-        };
-        renderAuthUI(user);
-        applyBusinessBranding();
-        startRoleSession(user, currentAccess);
-        if (!alreadyRendered) void correctMasterAdminProfile(user);
-        authBootstrapped = true;
-        sessionStorage.removeItem('pos_auth_modal_dismissed');
-        closeAuthModal();
-        return;
-      }
-
-      if (user) {
-        const alreadyRendered = authBootstrapped && currentUserId === user.uid;
-        currentUser = user;
-        currentUserId = user.uid;
-        updateAccessGate('অ্যাকাউন্টের অনুমতি যাচাই হচ্ছে...', 'অ্যাকাউন্ট যাচাই');
-        renderAuthUI(user);
-        if (!alreadyRendered) {
-          applyBusinessBranding();
-          const access = await resolveUserAccess(user);
-          if (auth.currentUser && auth.currentUser.uid === user.uid) {
-            startRoleSession(user, access);
-            if (!alreadyRendered && access.role !== 'Pending') {
-              showToast('স্বাগতম, ' + (user.displayName || user.email) + '!');
-            }
-            watchAccountProfile(user);
-          }
-        }
-        authBootstrapped = true;
-        sessionStorage.removeItem('pos_auth_modal_dismissed');
-        closeAuthModal();
-      } else {
-        currentUser = null;
-        currentUserId = null;
-        currentAccess = { role: 'Pending', status: 'pending' };
-        if (accountProfileUnsubscribe) {
-          accountProfileUnsubscribe();
-          accountProfileUnsubscribe = null;
-        }
-        authBootstrapped = false;
-        firestoreSnapshotStates = Object.create(null);
-        if (firestoreReconnectTimer) {
-          clearTimeout(firestoreReconnectTimer);
-          firestoreReconnectTimer = null;
-        }
-        stopUserDataListeners();
-        renderAuthUI(null);
-        applyBusinessBranding();
-        const appContent = document.querySelector('.no-print');
-        if (appContent) appContent.inert = false;
-        updateAccessGate('');
-        // Prompt login modal on initial app launch if not dismissed in this session
-        if (!sessionStorage.getItem('pos_auth_modal_dismissed')) {
-          setTimeout(() => openAuthModal(), 400);
-        }
-      }
-    });
 
     let adminMembers = [];
     let adminPartnerSales = [];
@@ -4919,13 +2689,13 @@
       if (dateInput && !dateInput.value) dateInput.value = localDateKey();
     }
 
+    // ★★ FIXED: Handover Due = Owner's Share (unsettled cash sales) + Partner's Expenses (unsettled)
     function renderPartnerDashboard() {
       const metricsDateInput = document.getElementById('partnerMetricsDate');
       if (metricsDateInput && !metricsDateInput.value) metricsDateInput.value = localDateKey();
       const selectedDate = (metricsDateInput && metricsDateInput.value) || localDateKey();
       const isToday = selectedDate === localDateKey();
 
-      // Strict date-based metrics calculation for selected date
       const dateSales = partnerSales.filter(sale => localDateKey(sale.date) === selectedDate);
       const totalSales = dateSales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
       const partnerPercent = Math.min(100, Math.max(0, safeNum(currentAccess.sharePercent ?? 40)));
@@ -4939,9 +2709,20 @@
       const settledSales = new Set(partnerSettlements.flatMap(settlement => settlement.salesIds || []));
       const settledExpenses = new Set(partnerSettlements.flatMap(settlement => settlement.expenseIds || []));
 
-      // Handover Due strictly reflects Owner's Share (মালিকের অংশ) for the selected date pending handover
-      const pendingOwnerShare = dateSales.filter(sale => !settledSales.has(sale.docId))
-        .reduce((sum, sale) => sum + calculatePartnerProfitShares(sale, partnerPercent).ownerShare, 0);
+      // Handover-eligible sales: settled-out already, and NOT a due-type sale (no cash to hand over).
+      // ★ If you want due sales to also count, remove `sale.paymentType !== 'due' && safeNum(sale.dueAmount) <= 0`.
+      const handoverEligibleSales = dateSales.filter(sale =>
+        !settledSales.has(sale.docId) && sale.paymentType !== 'due' && safeNum(sale.dueAmount) <= 0);
+
+      const pendingOwnerShare = handoverEligibleSales.reduce(
+        (sum, sale) => sum + calculatePartnerProfitShares(sale, partnerPercent).ownerShare, 0);
+
+      const dateExpenses = partnerExpenses.filter(expense => localDateKey(expense.date) === selectedDate);
+      const pendingPartnerExpenses = dateExpenses
+        .filter(expense => !settledExpenses.has(expense.docId))
+        .reduce((sum, expense) => sum + safeNum(expense.amount), 0);
+
+      const handoverDue = Number((pendingOwnerShare + pendingPartnerExpenses).toFixed(2));
 
       const salesCardLabel = document.getElementById('partnerSalesCardLabel');
       if (salesCardLabel) {
@@ -4952,13 +2733,20 @@
       document.getElementById('ownerTodayShare').textContent = formatMoney(dateShares.owner);
       document.getElementById('partnerSharePercent').textContent = toBnNum(partnerPercent);
       document.getElementById('ownerSharePercent').textContent = toBnNum(100 - partnerPercent);
-      document.getElementById('partnerPendingCash').textContent = formatMoney(Math.max(0, pendingOwnerShare));
+      document.getElementById('partnerPendingCash').textContent = formatMoney(Math.max(0, handoverDue));
 
-      // Bottom date-wise record history table: intact and independent
+      const pendingSublabel = document.getElementById('partnerPendingCashSublabel');
+      if (pendingSublabel) {
+        pendingSublabel.textContent = 'মালিকের অংশ ' + formatMoney(pendingOwnerShare)
+          + ' + খরচ ' + formatMoney(pendingPartnerExpenses);
+      }
+
       const historyDateInput = document.getElementById('partnerHistoryDate');
       if (historyDateInput && !historyDateInput.value) historyDateInput.value = localDateKey();
       const selectedHistoryDay = historyDateInput && historyDateInput.value;
       const historySales = partnerSales.filter(sale => !selectedHistoryDay || localDateKey(sale.date) === selectedHistoryDay);
+      const historyExpenses = partnerExpenses.filter(expense =>
+        !selectedHistoryDay || localDateKey(expense.date) === selectedHistoryDay);
 
       const salesList = document.getElementById('partnerSalesHistory');
       if (salesList) {
@@ -4972,10 +2760,10 @@
       }
       const expenseList = document.getElementById('partnerExpensesHistory');
       if (expenseList) {
-        expenseList.innerHTML = partnerExpenses.length ? partnerExpenses.map(expense => `
+        expenseList.innerHTML = historyExpenses.length ? historyExpenses.map(expense => `
           <div class="role-record">${escapeHtml(expense.description)} · ${toBnNum(expense.qty)} × ${formatMoney(safeNum(expense.amount) / Math.max(1, safeNum(expense.qty)))} = ${formatMoney(expense.amount)}
             <div>${formatDate(expense.date)} · ${settledExpenses.has(expense.docId) ? 'হিসাবে যুক্ত' : 'হস্তান্তর বাকি'}</div>
-          </div>`).join('') : '<div class="empty">কোনো খরচের রেকর্ড নেই</div>';
+          </div>`).join('') : '<div class="empty">এই তারিখে কোনো খরচের রেকর্ড নেই</div>';
       }
     }
 
@@ -4989,10 +2777,10 @@
       if (!customer) return showToast('কাস্টমারের নাম দিন।', 'error');
       if (!draft || !draft.items.length) return showToast('কমপক্ষে একটি আইটেম বাছাই বা লিখুন।', 'error');
       if (draft.items.some(item => item.qty < 1 || !Number.isFinite(item.price) || item.price < 0 || item.costPrice < 0)) {
-        return showToast('প্রতিটি আইটেমের সঠিক পরিমাণ, বিক্রয়মূল্য ও কস্ট লিখুন।', 'error');
+        return showToast('প্রতিটি আইটেমের সঠিক পরিমাণ, বিক্রয়মূল্য ও কস্ট লিখুন।', 'error');
       }
-      if (draft.costTotal > draft.total) return showToast('মোট কস্ট বিক্রয়মূল্যের বেশি হতে পারবে না।', 'error');
-      if (draft.total <= 0) return showToast('সর্বমোট বিক্রয় শূন্যের বেশি হতে হবে।', 'error');
+      if (draft.costTotal > draft.total) return showToast('মোট কস্ট বিক্রয়মূল্যের বেশি হতে পারবে না।', 'error');
+      if (draft.total <= 0) return showToast('সর্বমোট বিক্রয় শূন্যের বেশি হতে হবে।', 'error');
       const saleId = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
       const sale = {
         id: saleId,
@@ -5138,7 +2926,6 @@
       const selectedDate = (dateInput && dateInput.value) || localDateKey();
       const isToday = selectedDate === localDateKey();
 
-      // Combine owner invoices and partner sales; settled partner invoices are excluded to avoid double counting.
       const dateSales = adminPartnerSales.filter(sale => localDateKey(sale.date) === selectedDate);
       const dateInvoices = invoices.filter(invoice => !invoice.partnerUid && !invoice.sourcePartnerSaleId
         && localDateKey(invoice.date) === selectedDate);
@@ -5195,11 +2982,10 @@
           const unsettledExpenses = expenses.filter(expense => !settledExpenses.has(expense.docId));
           const allSalesAmount = sales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
           const pending = Math.max(0,
-            unsettledSales.reduce((sum, sale) => sum + safeNum(sale.total), 0)
-            - unsettledExpenses.reduce((sum, expense) => sum + safeNum(expense.amount), 0));
+            unsettledSales.reduce((sum, sale) => sum + calculatePartnerProfitShares(sale, member.sharePercent ?? 40).ownerShare, 0)
+            + unsettledExpenses.reduce((sum, expense) => sum + safeNum(expense.amount), 0));
           const itemCount = sales.reduce((sum, sale) => sum + (sale.items || []).reduce((count, item) => count + safeNum(item.qty), 0), 0);
 
-          // Selected date calculations for member
           const memberDateSales = sales.filter(sale => localDateKey(sale.date) === selectedDate);
           const memberDateTotal = memberDateSales.reduce((sum, s) => sum + safeNum(s.total), 0);
           const memberDatePartnerShare = memberDateSales.reduce((sum, sale) =>
@@ -5292,9 +3078,7 @@
       if (percent < 0 || percent > 100) return showToast('লাভের ভাগ ০ থেকে ১০০-এর মধ্যে হতে হবে।', 'error');
       try {
         await getMembersRef().doc(uid).update({
-          sharePercent: percent,
-          ownerSharePercent: 100 - percent,
-          updatedAt: new Date().toISOString()
+          sharePercent: percent, ownerSharePercent: 100 - percent, updatedAt: new Date().toISOString()
         });
         const profile = adminUserProfiles.find(item => item.uid === uid);
         if (profile) await getUserRef(uid).update({ sharePercent: percent, ownerSharePercent: 100 - percent });
@@ -5385,29 +3169,18 @@
             if (type === 'sale') {
               const invoiceId = Date.now() + offset + index;
               const ownerInvoice = {
-                ...record,
-                id: invoiceId,
-                invoiceNo: record.invoiceNo || 'PARTNER-' + record.docId,
-                partnerUid: uid,
-                sourcePartnerSaleId: record.docId,
-                settled: true,
-                settlementId,
+                ...record, id: invoiceId, invoiceNo: record.invoiceNo || 'PARTNER-' + record.docId,
+                partnerUid: uid, sourcePartnerSaleId: record.docId, settled: true, settlementId,
                 settlementAt: new Date().toISOString()
               };
               batch.set(getSalesRef().doc('partner-' + uid + '-' + record.docId), ownerInvoice, { merge: true });
             } else {
               const ownerExpense = {
                 id: Date.now() + offset + index,
-                category: 'পার্টনার খরচ',
-                desc: record.description,
+                category: 'পার্টনার খরচ', desc: record.description,
                 items: [{ category: 'পার্টনার খরচ', desc: record.description, qty: record.qty, amount: record.amount }],
-                amount: safeNum(record.amount),
-                source: 'cash',
-                sourceLabel: 'পার্টনার ক্যাশ',
-                date: record.date,
-                partnerUid: uid,
-                sourcePartnerExpenseId: record.docId,
-                settlementId
+                amount: safeNum(record.amount), source: 'cash', sourceLabel: 'পার্টনার ক্যাশ',
+                date: record.date, partnerUid: uid, sourcePartnerExpenseId: record.docId, settlementId
               };
               batch.set(getExpensesRef().doc('partner-' + uid + '-' + record.docId), ownerExpense, { merge: true });
             }
@@ -5472,7 +3245,6 @@
       }
     }
 
-    // Refresh all data from Firestore
     async function refreshFromFirebase() {
       if (!currentUserId) {
         showToast('অনুরোধ করতে অনুগ্রহ করে প্রথমে লগইন করুন', 'error');
@@ -5537,6 +3309,7 @@
 
         updateStats();
         renderInvoices();
+        renderSalesMetrics();
         renderCreditorList();
         renderExpenseList();
         renderFinanceSummary();
@@ -5562,7 +3335,6 @@
       }
     }
 
-    // Test Firebase connection
     async function testFirebaseConnection() {
       if (!currentUserId) {
         showToast('কানেকশন টেস্ট করতে প্রথমে লগইন করুন', 'error');
@@ -5585,7 +3357,6 @@
       }
     }
 
-    // Firebase CRUD Operations
     function trackFirestoreWrite(writeOperation, label) {
       if (!currentUserId) return true;
       setSyncStatus(navigator.onLine ? 'pending' : 'offline',
@@ -5606,52 +3377,31 @@
     }
 
     function saveInvoiceToFirebase(invoice) {
-      return trackFirestoreWrite(
-        () => getSalesRef().doc(String(invoice.id)).set(invoice, { merge: true }),
-        'ইনভয়েস'
-      );
+      return trackFirestoreWrite(() => getSalesRef().doc(String(invoice.id)).set(invoice, { merge: true }), 'ইনভয়েস');
     }
 
     function deleteInvoiceFromFirebase(id) {
-      return trackFirestoreWrite(
-        () => getSalesRef().doc(String(id)).delete(),
-        'ইনভয়েস মুছে ফেলা'
-      );
+      return trackFirestoreWrite(() => getSalesRef().doc(String(id)).delete(), 'ইনভয়েস মুছে ফেলা');
     }
 
     function saveCreditorToFirebase(creditor) {
-      return trackFirestoreWrite(
-        () => getCreditorsRef().doc(String(creditor.id)).set(creditor, { merge: true }),
-        'পাওনাদার'
-      );
+      return trackFirestoreWrite(() => getCreditorsRef().doc(String(creditor.id)).set(creditor, { merge: true }), 'পাওনাদার');
     }
 
     function removeCreditorFromFirebase(id) {
-      return trackFirestoreWrite(
-        () => getCreditorsRef().doc(String(id)).delete(),
-        'পাওনাদার মুছে ফেলা'
-      );
+      return trackFirestoreWrite(() => getCreditorsRef().doc(String(id)).delete(), 'পাওনাদার মুছে ফেলা');
     }
 
     function saveExpenseToFirebase(expense) {
-      return trackFirestoreWrite(
-        () => getExpensesRef().doc(String(expense.id)).set(expense, { merge: true }),
-        'খরচ'
-      );
+      return trackFirestoreWrite(() => getExpensesRef().doc(String(expense.id)).set(expense, { merge: true }), 'খরচ');
     }
 
     function removeExpenseFromFirebase(id) {
-      return trackFirestoreWrite(
-        () => getExpensesRef().doc(String(id)).delete(),
-        'খরচ মুছে ফেলা'
-      );
+      return trackFirestoreWrite(() => getExpensesRef().doc(String(id)).delete(), 'খরচ মুছে ফেলা');
     }
 
     function saveCashRegisterToFirebase(record) {
-      return trackFirestoreWrite(
-        () => getCashRegisterRef().doc(String(record.id)).set(record, { merge: true }),
-        'ক্যাশ রেজিস্টার'
-      );
+      return trackFirestoreWrite(() => getCashRegisterRef().doc(String(record.id)).set(record, { merge: true }), 'ক্যাশ রেজিস্টার');
     }
 
     function saveSettingsToFirebase() {
@@ -5725,7 +3475,6 @@
         : selectedValue;
     }
 
-    // সেটিংস মডালের সব ইনপুটে বর্তমান মান বসায়
     function populateSettingsFormFromCurrent() {
       const presetEl = document.getElementById('presetItems');
       if (presetEl) presetEl.value = settings.presetItems || '';
@@ -5735,7 +3484,6 @@
       populateExpenseCategoryOptions();
     }
 
-    // ===== Items Management =====
     function addItem(name = '', qty = 1, price, costPrice) {
       const container = document.getElementById('itemsContainer');
       const presets = (settings.presetItems || '').split('\n').map(item => item.trim()).filter(Boolean);
@@ -5883,15 +3631,7 @@
         }, 0).toFixed(2))
         : Math.max(0, safeNum(invoice.costTotal));
 
-      return {
-        ...invoice,
-        items,
-        subtotal,
-        discount,
-        total,
-        costTotal,
-        netProfit: Number((total - costTotal).toFixed(2))
-      };
+      return { ...invoice, items, subtotal, discount, total, costTotal, netProfit: Number((total - costTotal).toFixed(2)) };
     }
 
     invoices = invoices.map(normalizeInvoiceFinancials);
@@ -5918,14 +3658,7 @@
         const lineTotal = qty * price;
         const itemCost = costPrice * qty;
         costTotal += itemCost;
-        return {
-          ...item,
-          costPrice,
-          qty,
-          price,
-          total: Number(lineTotal.toFixed(2)),
-          costTotal: Number(itemCost.toFixed(2))
-        };
+        return { ...item, costPrice, qty, price, total: Number(lineTotal.toFixed(2)), costTotal: Number(itemCost.toFixed(2)) };
       });
 
       invoice.subtotal = Number(invoice.items.reduce((sum, item) => sum + safeNum(item.total), 0).toFixed(2));
@@ -5941,7 +3674,6 @@
       document.getElementById('currentInvNo').textContent = generateInvoiceNo(nextInvoiceNumber);
     }
 
-    // ===== Save (invoice form: only Save & Reset; WhatsApp/Print live in the invoice list) =====
     let editingInvoiceId = null;
 
     async function saveInvoiceOnly() {
@@ -5963,14 +3695,8 @@
       const invoice = {
         id: isEdit ? editingInvoiceId : Date.now(),
         invoiceNo: isEdit && existing && existing.invoiceNo ? existing.invoiceNo : generateInvoiceNo(nextInvoiceNumber),
-        customer: name,
-        phone: phone,
-        items: items,
-        subtotal: subtotal,
-        total: total,
-        discount: discount,
-        discountAmount: discountAmount,
-        discountType: discountType,
+        customer: name, phone: phone, items: items, subtotal: subtotal, total: total,
+        discount: discount, discountAmount: discountAmount, discountType: discountType,
         date: isEdit && existing && existing.date ? existing.date : new Date().toISOString()
       };
 
@@ -5992,6 +3718,7 @@
         resetForm();
         updateStats();
         renderInvoices();
+        renderSalesMetrics();
         updateCurrentInvoiceNo();
 
         const action = isEdit ? 'আপডেট হয়েছে: ' : 'সেভ হয়েছে: ';
@@ -6008,8 +3735,6 @@
     }
 
     function sendWhatsAppMessage(inv, whatsappWindow = null) {
-      const E = EMOJI_OK;
-      // Robust: never throw on malformed invoice data (missing items array, bad numbers, etc.)
       let msg;
       try {
         msg = generateWhatsAppMessage({ ...inv, items: Array.isArray(inv && inv.items) ? inv.items : [] });
@@ -6018,16 +3743,12 @@
         msg = `*ইনভয়েস নং: ${(inv && inv.invoiceNo) || 'N/A'}*\n\nমোট টাকার পরিমাণ = ৳${toBnNum(safeNum(inv && inv.total))} টাকা`;
       }
 
-      // Safely coerce phone to string (may arrive as number from Google Sheet); fallback to default business phone
       const DEFAULT_PHONE = '01877987587';
       let rawPhone = (inv && inv.phone != null && String(inv.phone).trim() !== '') ? String(inv.phone) : DEFAULT_PHONE;
-      // Convert Bengali digits (e.g. "০১৮৭৭৯৮৭৫৮৭") to ASCII before stripping non-digits
       const BN_DIGITS = { '\u09e6': '0', '\u09e7': '1', '\u09e8': '2', '\u09e9': '3', '\u09ea': '4', '\u09eb': '5', '\u09ec': '6', '\u09ed': '7', '\u09ee': '8', '\u09ef': '9' };
       let waPhone = rawPhone.replace(/[\u09e6-\u09ef]/g, d => BN_DIGITS[d]).replace(/\D/g, '');
-      // Normalize: add country code whether stored with leading 0 or without (numeric Sheet values drop the 0)
-      if (waPhone.startsWith('880')) { /* already has country code */ }
-      else if (waPhone.startsWith('0')) waPhone = '880' + waPhone.substring(1);
-      else if (waPhone.length === 10) waPhone = '880' + waPhone; // numeric Sheet value lost the leading 0
+      if (waPhone.startsWith('880')) { } else if (waPhone.startsWith('0')) waPhone = '880' + waPhone.substring(1);
+      else if (waPhone.length === 10) waPhone = '880' + waPhone;
       if (!waPhone) waPhone = DEFAULT_PHONE.replace(/^0/, '880');
 
       try {
@@ -6039,7 +3760,7 @@
         if (!window.open(url, '_blank')) window.location.href = url;
       } catch (err) {
         console.error('sendWhatsAppMessage error:', err);
-        showToast('WhatsApp \u0996\u09cb\u09b2\u09be \u09af\u09be\u09df\u09be\u09a8\u09bf', 'error');
+        showToast('WhatsApp খোলা যায়নি', 'error');
       }
     }
 
@@ -6091,7 +3812,6 @@
       }
     }
 
-    // ===== Reset =====
     function resetForm() {
       editingInvoiceId = null;
       document.getElementById('customerName').value = 'ABC Computer (Walk-in)';
@@ -6104,7 +3824,6 @@
       updateCurrentInvoiceNo();
     }
 
-    // ===== Print =====
     function generatePrintHTML(inv) {
       const isSmallBill = inv.items.length <= 4;
       const biz = getBusinessInfo();
@@ -6195,14 +3914,13 @@
   `;
     }
 
-    // ===== Shared robust print routine (guards missing elements & blocked print dialogs) =====
     function runPrint(buildHtml, inv, callerName) {
       try {
-        showToast('\u09aa\u09cd\u09b0\u09bf\u09a8\u09cd\u099f \u09aa\u09cd\u09b0\u09b8\u09cd\u09a4\u09c1\u09a4 \u09b9\u099a\u09cd\u099b\u09c7...', 'loading');
+        showToast('প্রিন্ট প্রস্তুত হচ্ছে...', 'loading');
         const printArea = document.getElementById('printArea');
         if (!printArea) {
           console.error(callerName + ': #printArea element not found');
-          return showToast('\u09aa\u09cd\u09b0\u09bf\u09a8\u09cd\u099f \u098f\u09b0\u09bf\u09df\u09be \u09aa\u09be\u0993\u09df\u09be \u09af\u09be\u09df\u09a8\u09bf', 'error');
+          return showToast('প্রিন্ট এরিয়া পাওয়া যায়নি', 'error');
         }
         printArea.innerHTML = buildHtml(inv);
         const hideToast = () => {
@@ -6215,13 +3933,8 @@
         const startPrint = () => {
           if (printed) return;
           printed = true;
-          try {
-            window.print();
-          } catch (err) {
-            console.error(callerName + ': window.print() failed', err);
-          } finally {
-            hideToast();
-          }
+          try { window.print(); } catch (err) { console.error(callerName + ': window.print() failed', err); }
+          finally { hideToast(); }
         };
         const qrImage = printArea.querySelector('.print-qr-img');
         const logoImage = printArea.querySelector('.print-logo-img');
@@ -6242,14 +3955,13 @@
         }
       } catch (err) {
         console.error(callerName + ' error:', err);
-        showToast('\u09aa\u09cd\u09b0\u09bf\u09a8\u09cd\u099f \u0995\u09b0\u09be \u09af\u09be\u09df\u09a8\u09bf', 'error');
+        showToast('প্রিন্ট করা যায়নি', 'error');
       }
     }
 
     function printInvoice(id) {
-      // Coerce id (may come as string or number depending on source: DOM attr vs Sheet)
       const inv = invoices.find(i => String(i.id) === String(id));
-      if (!inv) return showToast('\u0987\u09a8\u09ad\u09df\u09c7\u09b8 \u0996\u09c1\u0981\u099c\u09c7 \u09aa\u09be\u0993\u09df\u09be \u09af\u09be\u09df\u09a8\u09bf', 'error');
+      if (!inv) return showToast('ইনভয়েস খুঁজে পাওয়া যায়নি', 'error');
       runPrint(i => generatePrintHTML(i), inv, 'printInvoice');
     }
 
@@ -6263,41 +3975,30 @@
       const editing = editingInvoiceId ? invoices.find(i => i.id === editingInvoiceId) : null;
       const inv = {
         invoiceNo: editing && editing.invoiceNo ? editing.invoiceNo : generateInvoiceNo(nextInvoiceNumber),
-        customer: name,
-        phone,
-        items,
-        subtotal,
-        discount,
-        total,
+        customer: name, phone, items, subtotal, discount, total,
         date: editing && editing.date ? editing.date : new Date().toISOString()
       };
 
       runPrint(i => generatePrintHTML(i), inv, 'printCurrent');
     }
 
-    // ===== Stats =====
     function getInvoiceCostTotal(inv) {
       return normalizeInvoiceFinancials(inv).costTotal;
     }
 
-    // ===== Stats Date Period Filter =====
     function currentPeriodInfo() {
       const sel = document.getElementById('periodSelect');
       const mode = sel ? sel.value : 'today';
       const now = new Date();
-      if (mode === 'all') {
-        return { mode, label: 'সব', start: null, end: null };
-      }
-      if (mode === 'month') {
-        return { mode, label: 'এই মাসের', start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth() + 1, 1) };
-      }
+      if (mode === 'all') return { mode, label: 'সব', start: null, end: null };
+      if (mode === 'month') return { mode, label: 'এই মাসের', start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth() + 1, 1) };
       let day;
       if (mode === 'custom') {
         const v = (document.getElementById('periodDate') || {}).value;
         day = v ? new Date(v + 'T00:00:00') : now;
         if (isNaN(day.getTime())) day = now;
       } else {
-        day = now; // 'today' — recomputed on every call, so after midnight it resets automatically
+        day = now;
       }
       const start = new Date(day.getFullYear(), day.getMonth(), day.getDate());
       const end = new Date(start); end.setDate(end.getDate() + 1);
@@ -6306,7 +4007,7 @@
     }
 
     function isInPeriod(inv, p) {
-      if (!p || !p.start) return true; // 'all'
+      if (!p || !p.start) return true;
       if (p.mode === 'today' || p.mode === 'custom') {
         return localDateKey(inv.date) === localDateKey(p.start);
       }
@@ -6325,35 +4026,30 @@
       document.getElementById('todaySales').textContent = formatMoney(periodSales);
       document.getElementById('totalCount').textContent = toBnNum(periodInvoices.length);
 
-      // Dynamic card labels based on selected period
       document.getElementById('salesCardLabel').textContent = (p.mode === 'all' ? 'সব সময়ের' : p.label) + ' বিক্রি';
       document.getElementById('countCardLabel').textContent = p.mode === 'all' ? 'মোট ইনভয়েস (সব)' : p.label + ' ইনভয়েস';
 
-      // নিট মূলধন/সম্পদ (পাওনাদার বাদ দিয়ে) — রিয়েল-টাইম: ক্যাশ + MFS/ব্যাংক − পাওনাদার বকেয়া
       updateNetAssetsCard();
       updateDailyMetrics();
+      renderSalesMetrics();
     }
 
     function updateDailyMetrics() {
       const today = localDateKey();
       const todaySales = invoices.filter(inv => localDateKey(inv.date) === today);
-      const todayGrossProfit = todaySales.reduce((sum, inv) =>
-        sum + safeNum(inv.total) - getInvoiceCostTotal(inv), 0);
+      const todayGrossProfit = todaySales.reduce((sum, inv) => sum + safeNum(inv.total) - getInvoiceCostTotal(inv), 0);
       const todayExpenseTotal = expenses.filter(expense => localDateKey(expense.date) === today)
         .reduce((sum, expense) => sum + safeNum(expense.amount), 0);
       const now = new Date();
       const monthPeriod = { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth() + 1, 1) };
       const monthExpenseTotal = expenses.filter(expense => isInPeriod(expense, monthPeriod))
         .reduce((sum, expense) => sum + safeNum(expense.amount), 0);
-      const profitEl = document.getElementById('todayProfit');
       const todayExpenseEl = document.getElementById('todayExpenses');
       const monthExpenseEl = document.getElementById('monthExpenses');
-      if (profitEl) profitEl.textContent = formatMoney(todayGrossProfit - todayExpenseTotal);
       if (todayExpenseEl) todayExpenseEl.textContent = formatMoney(todayExpenseTotal);
       if (monthExpenseEl) monthExpenseEl.textContent = formatMoney(monthExpenseTotal);
     }
 
-    // নিট মূলধন কার্ড: মোট ক্যাশ + মোট ডিজিটাল (MFS/রিচার্জ/ব্যাংক) ব্যালেন্স থেকে সব পাওনাদারের বকেয়া বিয়োগ
     function computeNetAssets() {
       const cash = registerCashTotal();
       const digital = registerDigitalTotal();
@@ -6368,8 +4064,7 @@
       const na = computeNetAssets();
       el.textContent = formatMoney(na.net);
       el.style.color = na.net < 0 ? '#dc2626' : '';
-      sub.textContent = 'ক্যাশ ' + formatMoney(na.cash) + ' + ডিজিটাল ' + formatMoney(na.digital) +
-        ' − বকেয়া ' + formatMoney(na.totalDue);
+      sub.textContent = 'ক্যাশ ' + formatMoney(na.cash) + ' + ডিজিটাল ' + formatMoney(na.digital) + ' − বকেয়া ' + formatMoney(na.totalDue);
     }
 
     function onPeriodChange() {
@@ -6384,7 +4079,6 @@
       } else {
         dateInput.style.display = 'none';
       }
-      // গ্লোবাল ডেট ফিল্টার সব সেকশনে প্রয়োগ: ইনভয়েস তালিকা, খরচের তালিকা ও আর্থিক সারসংক্ষেপ
       syncSectionFiltersToPeriod();
       updateStats();
     }
@@ -6394,17 +4088,16 @@
       updateStats();
     }
 
-    // গ্লোবাল পিরিয়ড ফিল্টারের সাথে সেকশন-ভিত্তিক ফিল্টার সিঙ্ক রাখে (খালি state এড়ানোর জন্য)
     function periodMonthValue(p) {
-      if (!p || p.mode === 'all' || p.mode === 'month') return ''; // মাস-ফিল্টার প্রযোজ্য নয় → সব দেখাবে
+      if (!p || p.mode === 'all' || p.mode === 'month') return '';
       const d = p.start || new Date();
       return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
     }
 
     function syncSectionFiltersToPeriod() {
       const p = currentPeriodInfo();
-      const mf = document.getElementById('monthFilter');       // Sales / Invoice list month filter
-      const ef = document.getElementById('expenseMonthFilter'); // Expenses list month filter
+      const mf = document.getElementById('monthFilter');
+      const ef = document.getElementById('expenseMonthFilter');
       if (mf) mf.value = periodMonthValue(p);
       if (ef) ef.value = periodMonthValue(p);
       try { renderInvoices(); } catch (e) { }
@@ -6412,7 +4105,6 @@
       try { renderFinanceSummary(); } catch (e) { }
     }
 
-    // Auto-reset at midnight: when the day rolls over while in "আজকে" mode, cards reset to the new day
     (function scheduleMidnightReset() {
       const now = new Date();
       const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
@@ -6423,7 +4115,6 @@
       }, nextMidnight - now);
     })();
 
-    // ===== Render Invoices =====
     function renderInvoices() {
       const list = document.getElementById('invoiceList');
       const monthFilter = document.getElementById('monthFilter').value;
@@ -6468,7 +4159,6 @@
     </div>
   `).join('');
 
-      // Keep dashboard cards (sales / invoices / net assets) in sync with the selected date period
       updateStats();
     }
 
@@ -6477,7 +4167,6 @@
       resendWhatsApp();
     }
 
-    // ===== Edit Invoice (loads saved invoice back into the form) =====
     function editInvoice(id) {
       const inv = invoices.find(i => i.id === id);
       if (!inv) return showToast('ইনভয়েস খুঁজে পাওয়া যায়নি', 'error');
@@ -6500,7 +4189,6 @@
       document.getElementById('discountType').value = inv.discountType === 'percent' ? 'percent' : 'amount';
       calculateTotal();
 
-      // Show the invoice number being edited instead of the next-new one
       document.getElementById('currentInvNo').textContent = inv.invoiceNo || generateInvoiceNo(nextInvoiceNumber);
 
       closeInvoiceModal();
@@ -6582,6 +4270,7 @@
         localStorage.setItem('pos_invoices', JSON.stringify(invoices));
         updateStats();
         renderInvoices();
+        renderSalesMetrics();
 
         if (currentUserId) {
           showToast('✓ ইনভয়েস লোকালি মুছে ফেলা হয়েছে — ক্লাউডে সিঙ্ক হচ্ছে');
@@ -6595,7 +4284,6 @@
       }
     }
 
-    // ===== Settings =====
     function openSettings() {
       if (currentAccess.role === 'Partner/Staff') {
         return showToast('পার্টনার অ্যাকাউন্ট থেকে ব্যবসার সেটিংস খোলা যাবে না।', 'error');
@@ -6609,14 +4297,8 @@
       settings.sellingPrices = settings.sellingPrices || {};
       document.querySelectorAll('.preset-cost-input, .preset-selling-input').forEach(input => {
         const name = input.dataset.itemName;
-        const prices = input.classList.contains('preset-cost-input')
-          ? settings.costPrices
-          : settings.sellingPrices;
-        if (input.value === '') {
-          delete prices[name];
-        } else {
-          prices[name] = input.value;
-        }
+        const prices = input.classList.contains('preset-cost-input') ? settings.costPrices : settings.sellingPrices;
+        if (input.value === '') { delete prices[name]; } else { prices[name] = input.value; }
       });
     }
 
@@ -6676,17 +4358,13 @@
           invalidPrice = true;
           return;
         }
-        if (input.classList.contains('preset-cost-input')) {
-          costPrices[input.dataset.itemName] = price;
-        } else {
-          sellingPrices[input.dataset.itemName] = price;
-        }
+        if (input.classList.contains('preset-cost-input')) costPrices[input.dataset.itemName] = price;
+        else sellingPrices[input.dataset.itemName] = price;
       });
       if (invalidPrice) {
         return showToast('কস্ট ও বিক্রয়মূল্য শূন্য বা তার বেশি সংখ্যা হতে হবে', 'error');
       }
 
-      // Save business branding settings
       const bName = (document.getElementById('settingBizName')?.value || '').trim();
       const bTag = (document.getElementById('settingBizTagline')?.value || '').trim();
       const bPhone = (document.getElementById('settingBizPhone')?.value || '').trim();
@@ -6731,39 +4409,6 @@
       showToast('✓ ব্যাকআপ ডাউনলোড হয়েছে');
     }
 
-    // ===== Initialize =====
-    window.addEventListener('storage', event => {
-      if (event.key !== 'pos_settings' || !event.newValue) return;
-      try {
-        const updatedSettings = JSON.parse(event.newValue);
-        if (!updatedSettings || typeof updatedSettings !== 'object' || Array.isArray(updatedSettings)) {
-          throw new Error('Settings data must be an object');
-        }
-        settings = { ...settings, ...updatedSettings };
-        refreshPresetOptions();
-        populateExpenseCategoryOptions();
-        updateStats();
-        renderInvoices();
-        renderFinanceSummary();
-      } catch (error) {
-        console.error('Cross-tab settings sync failed:', error);
-        showToast('অন্য ট্যাবের সেটিংস সিঙ্ক করা যায়নি।', 'error');
-      }
-    });
-    document.getElementById('itemsContainer').innerHTML = '';
-    addItem();
-    updateStats();
-    renderInvoices();
-    updateCurrentInvoiceNo();
-    const now = new Date();
-    document.getElementById('monthFilter').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-
-    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-      navigator.serviceWorker.register('./service-worker.js')
-        .catch(error => console.error('Service worker registration failed:', error));
-    }
-
-    // ===== দৈনিক ক্যাশ ও ব্যালেন্স রেজিস্টার =====
     function buildRegisterUI() {
       const denomGrid = document.getElementById('cashDenomGrid');
       const balGrid = document.getElementById('balanceInputGrid');
@@ -6832,21 +4477,14 @@
           data.balances[a.key] = Math.max(0, safeNum(el ? el.value : 0));
         });
         data.id = 'cash-' + data.date;
-        data.cashTotal = CASH_DENOMS.reduce((sum, denomination) =>
-          sum + denomination * data.denominations[denomination], 0);
-        data.digitalTotal = BALANCE_ACCOUNTS.reduce((sum, account) =>
-          sum + data.balances[account.key], 0);
+        data.cashTotal = CASH_DENOMS.reduce((sum, denomination) => sum + denomination * data.denominations[denomination], 0);
+        data.digitalTotal = BALANCE_ACCOUNTS.reduce((sum, account) => sum + data.balances[account.key], 0);
         data.grandTotal = data.cashTotal + data.digitalTotal;
         const record = {
-          id: data.id,
-          date: data.date,
-          cashTotal: data.cashTotal,
-          digitalTotal: data.digitalTotal,
+          id: data.id, date: data.date, cashTotal: data.cashTotal, digitalTotal: data.digitalTotal,
           grandTotal: data.grandTotal,
-          denominations: Object.fromEntries(CASH_DENOMS.map(denomination =>
-            [denomination, data.denominations[denomination]])),
-          balances: Object.fromEntries(BALANCE_ACCOUNTS.map(account =>
-            [account.key, data.balances[account.key]]))
+          denominations: Object.fromEntries(CASH_DENOMS.map(denomination => [denomination, data.denominations[denomination]])),
+          balances: Object.fromEntries(BALANCE_ACCOUNTS.map(account => [account.key, data.balances[account.key]]))
         };
         localStorage.setItem('pos_cash_register', JSON.stringify(record));
         cashHistoryRecords = [record].concat(cashHistoryRecords.filter(item => item.id !== record.id));
@@ -6860,20 +4498,15 @@
         }
       } catch (error) {
         console.error('ক্যাশ রেজিস্টার সেভ ত্রুটি:', error);
-        showToast((localSaved
-          ? 'লোকালি সেভ হয়েছে, কিন্তু ক্লাউডে সিঙ্ক হয়নি: '
-          : 'সেভ করা যায়নি: ') + error.message, 'error');
+        showToast((localSaved ? 'লোকালি সেভ হয়েছে, কিন্তু ক্লাউডে সিঙ্ক হয়নি: ' : 'সেভ করা যায়নি: ') + error.message, 'error');
       }
     }
 
     function parseRegisterMap(value, label) {
       let parsed = value;
       if (typeof parsed === 'string') {
-        try {
-          parsed = JSON.parse(parsed);
-        } catch (error) {
-          throw new Error(label + ' JSON ত্রুটিপূর্ণ: ' + error.message);
-        }
+        try { parsed = JSON.parse(parsed); }
+        catch (error) { throw new Error(label + ' JSON ত্রুটিপূর্ণ: ' + error.message); }
       }
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
         throw new Error(label + ' একটি অবজেক্ট হতে হবে');
@@ -6900,17 +4533,11 @@
         }
         CASH_DENOMS.forEach(d => {
           const el = document.getElementById('denom_' + d);
-          if (el) {
-            const v = safeNum(denominations[d]);
-            el.value = v > 0 ? String(v) : '';
-          }
+          if (el) { const v = safeNum(denominations[d]); el.value = v > 0 ? String(v) : ''; }
         });
         BALANCE_ACCOUNTS.forEach(a => {
           const el = document.getElementById('bal_' + a.key);
-          if (el) {
-            const v = safeNum(balances[a.key]);
-            el.value = v > 0 ? String(v) : '';
-          }
+          if (el) { const v = safeNum(balances[a.key]); el.value = v > 0 ? String(v) : ''; }
         });
         return true;
       } catch (error) {
@@ -6942,30 +4569,15 @@
     </div>`).join('');
     }
 
-    buildRegisterUI();
-    loadRegister();
-    updateRegisterTotals();
-
-    // ===== পাওনাদার / খরচ / আর্থিক সারসংক্ষেপ (Creditors, Expenses & Summary) =====
     const DEFAULT_EXPENSE_CATEGORIES = ['বাজার খরচ', 'দোকান ভাড়া', 'বিদ্যুৎ বিল', 'ইন্টারনেট বিল', 'কর্মচারীর বেতন', 'পরিবহন খরচ'];
 
     function saveCreditors() { try { localStorage.setItem('pos_creditors', JSON.stringify(creditors)); } catch (e) { } }
     function saveExpenses() { try { localStorage.setItem('pos_expenses', JSON.stringify(expenses)); } catch (e) { } }
 
-    // --- Google Sheet ব্যাকআপ (ব্যাকএন্ড কনফিগার থাকলে; লোকাল ডাটার মূল উৎস localStorage-ই থাকে) ---
-    // --- Firebase Firestore সিঙ্ক ---
-    async function backupCreditorToSheet(c) {
-      await saveCreditorToFirebase(c);
-    }
-    async function removeCreditorFromSheet(id) {
-      await removeCreditorFromFirebase(id);
-    }
-    async function backupExpenseToSheet(e) {
-      await saveExpenseToFirebase(e);
-    }
-    async function removeExpenseFromSheet(id) {
-      await removeExpenseFromFirebase(id);
-    }
+    async function backupCreditorToSheet(c) { await saveCreditorToFirebase(c); }
+    async function removeCreditorFromSheet(id) { await removeCreditorFromFirebase(id); }
+    async function backupExpenseToSheet(e) { await saveExpenseToFirebase(e); }
+    async function removeExpenseFromSheet(id) { await removeExpenseFromFirebase(id); }
 
     function escapeHtml(s) {
       return String(s === undefined || s === null ? '' : s)
@@ -6981,7 +4593,6 @@
       return [...new Set(cats)];
     }
 
-    // উৎস তালিকা: ক্যাশ নোট + MFS/রিচার্জ/ব্যাংক অ্যাকাউন্ট (রেজিস্টারের সাথে হুবহু মিলে যায়)
     function expenseSourceOptions() {
       const opts = [{ key: 'cash', label: '💵 ক্যাশ (নোট গণনা থেকে)' }];
       BALANCE_ACCOUNTS.forEach(a => opts.push({ key: a.key, label: '📱 ' + a.label }));
@@ -7021,7 +4632,6 @@
     }
 
     function populateExpenseCategoryOptions() {
-      // প্রতিটি সারির ড্রপডাউন রিফ্রেশ (ক্যাটাগরি + পাওনাদারের নাম সহ)
       document.querySelectorAll('#expenseItemsContainer .exp-item-row').forEach(row => {
         const sel = row.querySelector('.expCatSelect');
         if (!sel) return;
@@ -7218,7 +4828,7 @@
         const unitCost = Math.max(0, safeNum(row.querySelector('.expCost').value));
         const amount = Math.round(qty * unitCost * 100) / 100;
         const desc = (row.querySelector('.expDesc').value || '').trim();
-        if (!category && !(qty > 0 && unitCost > 0)) return; // সম্পূর্ণ ফাঁকা সারি উপেক্ষা
+        if (!category && !(qty > 0 && unitCost > 0)) return;
         if (!category) { throw new Error('প্রতিটি খরচের সারিতে ক্যাটাগরি / পাওনাদার বাছাই করুন'); }
         if (!(amount > 0)) { throw new Error('"' + category + '" সারির পরিমাণ ও একক খরচ দিন'); }
         rows.push({ category, qty: qty || 1, unitCost, amount, desc });
@@ -7260,12 +4870,9 @@
           const e = expenses.find(x => safeNum(x.id) === safeNum(editingExpenseId));
           if (!e) { resetExpenseForm(); return showToast('মূল খরচের রেকর্ড পাওয়া যায়নি', 'error'); }
           const oldSource = e.source || 'cash';
-          // ১) পুরোনো ইফেক্ট ফেরত (উৎস ব্যালেন্স + পাওনাদার বকেয়া)
           applyExpenseEffects(e.items && e.items.length ? e.items : [{ category: e.category, amount: safeNum(e.amount) }], oldSource, -1);
-          // 2) নতুন ইফেক্ট প্রয়োগ (পর্যাপ্ত ব্যালেন্স চেক সহ)
           const available = getRegisterBalanceValue(source);
           if (available < totalAmount) {
-            // পুরোনো ইফেক্ট আগের অবস্থায় ফিরিয়ে নিন
             applyExpenseEffects(e.items && e.items.length ? e.items : [{ category: e.category, amount: safeNum(e.amount) }], oldSource, 1);
             return showToast('⚠️ "' + srcLabelOf(source) + '" এ মাত্র ' + formatMoney(available) + ' আছে — ' + formatMoney(totalAmount) + ' কাটা যাবে না।', 'error');
           }
@@ -7457,19 +5064,174 @@
       if (container && !container.children.length) addExpenseItem();
     }
 
-    buildExpensesUI();
-    renderCreditorList();
-    renderExpenseList();
-    renderFinanceSummary();
+    // ===== INIT =====
+    document.addEventListener('DOMContentLoaded', () => {
+      const itemsContainer = document.getElementById('itemsContainer');
+      if (itemsContainer) itemsContainer.innerHTML = '';
+      addItem();
+      updateStats();
+      renderInvoices();
+      renderSalesMetrics();
+      updateCurrentInvoiceNo();
+      const now = new Date();
+      const monthFilter = document.getElementById('monthFilter');
+      if (monthFilter && !monthFilter.value) {
+        monthFilter.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+      }
 
-    // রেজিস্টার ইনপুট বদলালে সামারির উৎস-ব্যালেন্স ও সামগ্রিক হিসাব সিঙ্ক থাকে
-    const _origUpdateRegisterTotals = updateRegisterTotals;
-    updateRegisterTotals = function () {
-      _origUpdateRegisterTotals();
-      try { renderFinanceSummary(); } catch (e) { console.error('সামারি রেন্ডার ত্রুটি:', e); }
-    };
-    document.querySelectorAll('#cashDenomGrid input, #balanceInputGrid input').forEach(inp => {
-      inp.addEventListener('input', () => { try { renderFinanceSummary(); } catch (e) { } });
+      buildRegisterUI();
+      loadRegister();
+      updateRegisterTotals();
+
+      buildExpensesUI();
+      renderCreditorList();
+      renderExpenseList();
+      renderFinanceSummary();
+
+      const _origUpdateRegisterTotals = updateRegisterTotals;
+      updateRegisterTotals = function () {
+        _origUpdateRegisterTotals();
+        try { renderFinanceSummary(); } catch (e) { console.error('সামারি রেন্ডার ত্রুটি:', e); }
+      };
+      document.querySelectorAll('#cashDenomGrid input, #balanceInputGrid input').forEach(inp => {
+        inp.addEventListener('input', () => { try { renderFinanceSummary(); } catch (e) { } });
+      });
+
+      if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+        navigator.serviceWorker.register('./service-worker.js')
+          .catch(error => console.error('Service worker registration failed:', error));
+      }
+
+      // Wire up modal close handlers
+      document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', event => {
+          if (event.target !== modal) return;
+          if (modal.id === 'authLoginModal') closeAuthModal();
+          else if (modal.id === 'settingsModal') closeSettings();
+          else if (modal.id === 'invoiceModal') closeInvoiceModal();
+          else if (modal.id === 'accountPasswordModal') closeAccountPasswordModal();
+        });
+      });
+      document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape') return;
+        const activeModals = [...document.querySelectorAll('.modal.active')];
+        const activeModal = activeModals[activeModals.length - 1];
+        if (!activeModal) return;
+        if (activeModal.id === 'authLoginModal') closeAuthModal();
+        else if (activeModal.id === 'settingsModal') closeSettings();
+        else if (activeModal.id === 'invoiceModal') closeInvoiceModal();
+        else if (activeModal.id === 'accountPasswordModal') closeAccountPasswordModal();
+      });
+
+      // Wire up tab navigation
+      document.querySelectorAll('.app-nav [data-tab]').forEach(btn => {
+        btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+      });
+
+      // Wire up cross-tab settings sync
+      window.addEventListener('storage', event => {
+        if (event.key !== 'pos_settings' || !event.newValue) return;
+        try {
+          const updatedSettings = JSON.parse(event.newValue);
+          if (!updatedSettings || typeof updatedSettings !== 'object' || Array.isArray(updatedSettings)) {
+            throw new Error('Settings data must be an object');
+          }
+          settings = { ...settings, ...updatedSettings };
+          refreshPresetOptions();
+          populateExpenseCategoryOptions();
+          updateStats();
+          renderInvoices();
+          renderFinanceSummary();
+        } catch (error) {
+          console.error('Cross-tab settings sync failed:', error);
+          showToast('অন্য ট্যাবের সেটিংস সিঙ্ক করা যায়নি।', 'error');
+        }
+      });
+
+      // Network status listeners
+      window.addEventListener('online', () => {
+        firestoreReconnectAttempts = 0;
+        void reconnectFirestore();
+      });
+      window.addEventListener('offline', () => {
+        setSyncStatus('offline', 'ইন্টারনেট নেই · ডেটা লোকালি সংরক্ষিত');
+      });
+
+      // Process redirect login if applicable
+      auth.getRedirectResult().then(result => {
+        if (result && result.user) {
+          console.log('Redirect sign-in successful for:', result.user.email);
+        }
+      }).catch(error => {
+        console.error('Google redirect sign-in failed:', error);
+        showToast(getGoogleAuthErrorMessage(error), 'error');
+      });
+
+      // Auth state listener
+      let authBootstrapped = false;
+      auth.onAuthStateChanged(async user => {
+        if (isMasterAdmin(user)) {
+          const alreadyRendered = authBootstrapped && currentUserId === user.uid;
+          currentUser = user;
+          currentUserId = user.uid;
+          currentAccess = {
+            role: 'Admin', accountStatus: 'approved', status: 'approved', email: user.email
+          };
+          renderAuthUI(user);
+          applyBusinessBranding();
+          startRoleSession(user, currentAccess);
+          if (!alreadyRendered) void correctMasterAdminProfile(user);
+          authBootstrapped = true;
+          sessionStorage.removeItem('pos_auth_modal_dismissed');
+          closeAuthModal();
+          return;
+        }
+
+        if (user) {
+          const alreadyRendered = authBootstrapped && currentUserId === user.uid;
+          currentUser = user;
+          currentUserId = user.uid;
+          updateAccessGate('অ্যাকাউন্টের অনুমতি যাচাই হচ্ছে...', 'অ্যাকাউন্ট যাচাই');
+          renderAuthUI(user);
+          if (!alreadyRendered) {
+            applyBusinessBranding();
+            const access = await resolveUserAccess(user);
+            if (auth.currentUser && auth.currentUser.uid === user.uid) {
+              startRoleSession(user, access);
+              if (!alreadyRendered && access.role !== 'Pending') {
+                showToast('স্বাগতম, ' + (user.displayName || user.email) + '!');
+              }
+              watchAccountProfile(user);
+            }
+          }
+          authBootstrapped = true;
+          sessionStorage.removeItem('pos_auth_modal_dismissed');
+          closeAuthModal();
+        } else {
+          currentUser = null;
+          currentUserId = null;
+          currentAccess = { role: 'Pending', status: 'pending' };
+          if (accountProfileUnsubscribe) {
+            accountProfileUnsubscribe();
+            accountProfileUnsubscribe = null;
+          }
+          authBootstrapped = false;
+          firestoreSnapshotStates = Object.create(null);
+          if (firestoreReconnectTimer) {
+            clearTimeout(firestoreReconnectTimer);
+            firestoreReconnectTimer = null;
+          }
+          stopUserDataListeners();
+          renderAuthUI(null);
+          applyBusinessBranding();
+          const appContent = document.querySelector('.no-print');
+          if (appContent) appContent.inert = false;
+          updateAccessGate('');
+          if (!sessionStorage.getItem('pos_auth_modal_dismissed')) {
+            setTimeout(() => openAuthModal(), 400);
+          }
+        }
+      });
     });
   </script>
 </body>
