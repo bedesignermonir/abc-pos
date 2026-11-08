@@ -4919,11 +4919,14 @@
     function savePartnerExpense(event) {
       event.preventDefault();
       if (currentAccess.role !== 'Partner/Staff' || !currentUserId) return showToast(PENDING_APPROVAL_MESSAGE, 'error');
+
       const description = document.getElementById('partnerExpenseDescription').value.trim();
       const qty = Math.floor(safeNum(document.getElementById('partnerExpenseQty').value));
       const amount = Number(safeNum(document.getElementById('partnerExpenseAmount').value).toFixed(2));
+
       if (!description || qty < 1 || amount <= 0) return showToast('খরচের বিবরণ, পরিমাণ ও সঠিক অঙ্ক লিখুন।', 'error');
       if (amount > businessCashBalance) return showToast('অপারেশনাল ক্যাশে পর্যাপ্ত ব্যালেন্স নেই।', 'error');
+
       const expenseId = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
       const expense = {
         id: expenseId,
@@ -4936,6 +4939,7 @@
         settled: false,
         createdAt: new Date().toISOString()
       };
+
       try {
         const batch = db.batch();
         batch.set(getPartnerExpensesRef().doc(expenseId), expense);
@@ -4945,9 +4949,19 @@
           lastLedgerType: 'partner_expense',
           updatedAt: new Date().toISOString()
         });
+
         trackFirestoreWrite(() => batch.commit(), 'পার্টনার খরচ');
+
+        // লোকাল ডেটা আপডেট করা হচ্ছে যাতে ফায়ারবেসের রেসপন্স আসার আগেই স্ক্রিনে পরিবর্তন দেখা যায়
+        partnerExpenses.unshift({ ...expense, docId: expenseId });
+        businessCashBalance = Math.max(0, businessCashBalance - amount);
+
         document.getElementById('partnerExpenseForm').reset();
         document.getElementById('partnerExpenseQty').value = '1';
+
+        // স্ক্রিনে কার্ড এবং লিস্ট রিফ্রেশ করা হচ্ছে
+        renderPartnerDashboard();
+
         showToast('খরচ সংরক্ষিত হয়েছে · অপারেশনাল ক্যাশ থেকে কাটা হচ্ছে');
       } catch (error) {
         showFirestoreOperationError(error, 'খরচ সংরক্ষণ হয়নি');
