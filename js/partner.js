@@ -239,11 +239,7 @@ async function attachPartnerListeners(uid) {
 }
 
 /**
- * Partner Dashboard Rendering with Updated Handover Balance Calculation:
- * - "আমার লাভের অংশ" (Partner's Net Profit Share separately)
- * - "মালিকের অংশ" (Owner's Share separately)
- * - "হস্তান্তর বাকি" = (Owner's Share + Total Expenses incurred by partner for that date)
- *   so that subtracting the owner's share easily reveals the expenses.
+ * Partner dashboard metrics and the unsettled cash amount due for handover.
  */
 function renderPartnerDashboard() {
   const metricsDateInput = document.getElementById('partnerMetricsDate');
@@ -262,15 +258,18 @@ function renderPartnerDashboard() {
     return shares;
   }, { partner: 0, owner: 0 });
 
-  // Total partner expenses for selected date
-  const dateExpenses = partnerExpenses.filter(expense => localDateKey(expense.date) === selectedDate);
-  const totalExpenses = dateExpenses.reduce((sum, expense) => sum + safeNum(expense.amount), 0);
-
   const settledSales = new Set(partnerSettlements.flatMap(settlement => settlement.salesIds || []));
   const settledExpenses = new Set(partnerSettlements.flatMap(settlement => settlement.expenseIds || []));
 
-  // Handover balance calculation: Owner's Share + Partner's Expenses incurred for that date
-  const handoverDue = Number((dateShares.owner + totalExpenses).toFixed(2));
+  const handoverEligibleSales = dateSales.filter(sale => !settledSales.has(sale.docId)
+    && sale.paymentType !== 'due' && safeNum(sale.dueAmount) <= 0);
+  const pendingSalesTotal = handoverEligibleSales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
+  const pendingPartnerProfit = handoverEligibleSales.reduce((sum, sale) =>
+    sum + calculatePartnerProfitShares(sale, partnerPercent).partnerShare, 0);
+  const dateExpenses = partnerExpenses.filter(expense => localDateKey(expense.date) === selectedDate);
+  const pendingPartnerExpenses = dateExpenses.filter(expense => !settledExpenses.has(expense.docId))
+    .reduce((sum, expense) => sum + safeNum(expense.amount), 0);
+  const handoverDue = Number(Math.max(0, pendingSalesTotal - pendingPartnerProfit - pendingPartnerExpenses).toFixed(2));
 
   // Determine settlement status
   const unsettledSales = dateSales.filter(sale => !settledSales.has(sale.docId));
@@ -292,9 +291,9 @@ function renderPartnerDashboard() {
   const pendingSublabel = document.getElementById('partnerPendingCashSublabel');
   if (pendingSublabel) {
     if (isFullySettled) {
-      pendingSublabel.textContent = `মালিকের অংশ ${formatMoney(dateShares.owner)} + খরচ ${formatMoney(totalExpenses)} · হস্তান্তরিত`;
+      pendingSublabel.textContent = `বিক্রি ${formatMoney(pendingSalesTotal)} − আমার অংশ ${formatMoney(pendingPartnerProfit)} − খরচ ${formatMoney(pendingPartnerExpenses)} · হস্তান্তরিত`;
     } else {
-      pendingSublabel.textContent = `মালিকের অংশ ${formatMoney(dateShares.owner)} + খরচ ${formatMoney(totalExpenses)}`;
+      pendingSublabel.textContent = `বিক্রি ${formatMoney(pendingSalesTotal)} − আমার অংশ ${formatMoney(pendingPartnerProfit)} − খরচ ${formatMoney(pendingPartnerExpenses)}`;
     }
   }
 
@@ -383,7 +382,7 @@ function savePartnerSale(event) {
     batch.set(getPartnerSalesRef().doc(saleId), sale);
     batch.update(getBusinessRef(), {
       operationalCashBalance: paymentType === 'cash'
-        ? firebase.firestore.FieldValue.increment(draft.total)
+        ? firebase.firestore.FieldValue.increment(Number((draft.total - draft.partnerShare).toFixed(2)))
         : firebase.firestore.FieldValue.increment(0),
       lastLedgerId: saleId,
       lastLedgerType: 'partner_sale',
@@ -501,6 +500,11 @@ function renderAdminManagement() {
     return sum + Math.max(0, safeNum(saleCost));
   }, 0);
   const netProfit = totalSales - totalCost;
+  const totalPartnerShare = Number(dateSales.reduce((sum, sale) => {
+    const member = adminMembers.find(item => item.uid === sale.partnerUid);
+    return sum + calculatePartnerProfitShares(sale, member ? (member.sharePercent ?? 40) : 40).partnerShare;
+  }, 0).toFixed(2));
+  const ownerNetShare = Number((netProfit - totalPartnerShare).toFixed(2));
 
   const salesCardLabel = document.getElementById('adminSalesCardLabel');
   if (salesCardLabel) {
@@ -512,6 +516,8 @@ function renderAdminManagement() {
   if (costEl) costEl.textContent = formatMoney(totalCost);
   const profitEl = document.getElementById('adminTodayNetProfit');
   if (profitEl) profitEl.textContent = formatMoney(netProfit);
+  const ownerShareEl = document.getElementById('adminTodayOwnerShare');
+  if (ownerShareEl) ownerShareEl.textContent = formatMoney(ownerNetShare);
 
   const pendingUsers = adminUserProfiles.filter(profile => profile.uid !== currentUserId
     && String(profile.accountStatus || profile.status || '').trim().toLowerCase() !== 'approved');
@@ -543,7 +549,8 @@ function renderAdminManagement() {
       const unsettledExpenses = expenses.filter(expense => !settledExpenses.has(expense.docId));
       const allSalesAmount = sales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
       const pending = Math.max(0,
-        unsettledSales.reduce((sum, sale) => sum + safeNum(sale.total), 0)
+        unsettledSales.reduce((sum, sale) =>
+          sum + safeNum(sale.total) - calculatePartnerProfitShares(sale, member.sharePercent ?? 40).partnerShare, 0)
         - unsettledExpenses.reduce((sum, expense) => sum + safeNum(expense.amount), 0));
       const itemCount = sales.reduce((sum, sale) => sum + (sale.items || []).reduce((count, item) => count + safeNum(item.qty), 0), 0);
 
@@ -558,7 +565,13 @@ function renderAdminManagement() {
       const memberDateExpenseTotal = memberDateExpenses.reduce((sum, exp) => sum + safeNum(exp.amount), 0);
       const memberDateCustomerDue = memberDateSales.reduce((sum, sale) => sum + Math.max(0,
         safeNum(sale.dueAmount !== undefined ? sale.dueAmount : sale.paymentType === 'due' ? sale.total : 0)), 0);
-      const memberDateHandoverDue = Number((memberDateOwnerShare + memberDateExpenseTotal).toFixed(2));
+      const memberDateUnsettledSales = memberDateSales.filter(sale => !settledSales.has(sale.docId)
+        && sale.paymentType !== 'due' && safeNum(sale.dueAmount) <= 0);
+      const memberDateUnsettledExpenses = memberDateExpenses.filter(expense => !settledExpenses.has(expense.docId));
+      const memberDateHandoverDue = Number(Math.max(0,
+        memberDateUnsettledSales.reduce((sum, sale) =>
+          sum + safeNum(sale.total) - calculatePartnerProfitShares(sale, member.sharePercent ?? 40).partnerShare, 0)
+        - memberDateUnsettledExpenses.reduce((sum, expense) => sum + safeNum(expense.amount), 0)).toFixed(2));
 
       const saleDetails = sales.map(sale => `${escapeHtml(sale.customer || '')} (${escapeHtml(sale.phone || '')}): ${(sale.items || []).map(item => `${escapeHtml(item.name)} × ${toBnNum(item.qty)}`).join(', ')} · ${formatMoney(sale.total)} · ${sale.paymentType === 'due' ? 'বাকি ' + formatMoney(sale.dueAmount !== undefined ? sale.dueAmount : sale.total) : 'নগদ'}${settledSales.has(sale.docId) ? ' · হস্তান্তরিত' : ''}`);
       const expenseDetails = expenses.map(expense => `খরচ: ${escapeHtml(expense.description)} (${toBnNum(expense.qty)}টি) · ${formatMoney(expense.amount)}${settledExpenses.has(expense.docId) ? ' · হিসাবে যুক্ত' : ' · হস্তান্তর বাকি'}`);
@@ -724,6 +737,12 @@ async function markPartnerPaid(uid) {
   const settlementId = uid + '-' + (sales[0] ? sales[0].docId : expensesForSettlement[0].docId);
   const totalSales = sales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
   const totalExpenses = expensesForSettlement.reduce((sum, expense) => sum + safeNum(expense.amount), 0);
+  const collectedSales = sales.filter(sale => sale.paymentType !== 'due' && safeNum(sale.dueAmount) <= 0);
+  const member = adminMembers.find(item => item.uid === uid);
+  const partnerShare = Number(collectedSales.reduce((sum, sale) =>
+    sum + calculatePartnerProfitShares(sale, member ? (member.sharePercent ?? 40) : 40).partnerShare, 0).toFixed(2));
+  const cashCollected = Number(Math.max(0,
+    collectedSales.reduce((sum, sale) => sum + safeNum(sale.total), 0) - partnerShare - totalExpenses).toFixed(2));
   const entries = [
     ...sales.map(sale => ({ type: 'sale', record: sale })),
     ...expensesForSettlement.map(expense => ({ type: 'expense', record: expense }))
@@ -767,10 +786,10 @@ async function markPartnerPaid(uid) {
     await getBusinessRef().collection('settlements').doc(settlementId).set({
       partnerUid: uid, saleCount: sales.length, expenseCount: expensesForSettlement.length,
       salesIds: sales.map(sale => sale.docId), expenseIds: expensesForSettlement.map(expense => expense.docId),
-      totalSales, totalExpenses, cashCollected: Math.max(0, totalSales - totalExpenses),
+      totalSales, totalExpenses, partnerShare, cashCollected,
       settledBy: currentUser.email, createdAt: new Date().toISOString()
     });
-    showToast('সেটেলমেন্ট সম্পন্ন · ' + formatMoney(Math.max(0, totalSales - totalExpenses)) + ' বুঝে নেওয়া হয়েছে ✓');
+    showToast('সেটেলমেন্ট সম্পন্ন · ' + formatMoney(cashCollected) + ' বুঝে নেওয়া হয়েছে ✓');
   } catch (error) {
     showFirestoreOperationError(error, 'সেটেলমেন্ট সম্পূর্ণ হয়নি · বাকি রেকর্ড আবার চেষ্টা করুন');
   } finally {
