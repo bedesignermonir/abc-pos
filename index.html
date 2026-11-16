@@ -1810,6 +1810,143 @@
       font-size: 15px;
     }
 
+    .cash-expected-card {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px;
+      align-items: center;
+      background: var(--gray-50);
+      border: 1.5px solid var(--gray-200);
+      border-radius: 14px;
+      padding: 12px 14px;
+      margin: 0 0 16px;
+    }
+
+    .cash-expected-card .ce-label {
+      color: var(--gray-500);
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 3px;
+    }
+
+    .cash-expected-card .ce-value {
+      color: var(--dark);
+      font-size: 17px;
+      font-weight: 800;
+    }
+
+    .cash-variance-badge {
+      justify-self: end;
+      text-align: center;
+      padding: 7px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      background: rgba(16, 185, 129, 0.12);
+      color: var(--success);
+    }
+
+    .cash-variance-badge.surplus {
+      background: rgba(37, 99, 235, 0.12);
+      color: #2563eb;
+    }
+
+    .cash-variance-badge.shortage {
+      background: rgba(239, 68, 68, 0.12);
+      color: #dc2626;
+    }
+
+    .reconcile-message {
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.7;
+      padding: 12px 14px;
+      border-radius: 12px;
+      margin: 12px 0 0;
+      background: rgba(37, 99, 235, 0.08);
+      color: #1d4ed8;
+    }
+
+    .reconcile-message.shortage {
+      background: rgba(239, 68, 68, 0.08);
+      color: #b91c1c;
+    }
+
+    .reconcile-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: 10px;
+      margin: 14px 0;
+    }
+
+    .reconcile-summary > div {
+      background: var(--gray-50);
+      border: 1.5px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+
+    .reconcile-summary .rs-label {
+      color: var(--gray-500);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .reconcile-summary .rs-value {
+      color: var(--dark);
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .reconcile-options {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .reconcile-option {
+      text-align: left;
+      border: 1.5px solid var(--gray-200);
+      background: #fff;
+      border-radius: 14px;
+      padding: 13px 14px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .reconcile-option:hover,
+    .reconcile-option:focus-visible {
+      border-color: var(--primary);
+      background: rgba(37, 211, 102, 0.07);
+      outline: none;
+    }
+
+    .reconcile-option .ro-title {
+      display: block;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--dark);
+    }
+
+    .reconcile-option .ro-sub {
+      display: block;
+      font-size: 12px;
+      color: var(--gray-500);
+      margin-top: 3px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 600px) {
+      .cash-variance-badge {
+        justify-self: stretch;
+      }
+
+      .reconcile-summary {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
     .reg-divider {
       border: none;
       border-top: 2px dashed var(--gray-200);
@@ -2823,6 +2960,18 @@
           <div class="cash-subtotal-row">মোট ক্যাশ: <span id="cashTotalDisplay" style="color:var(--success);">৳০</span>
           </div>
 
+          <div class="cash-expected-card">
+            <div>
+              <div class="ce-label">🧮 সিস্টেমে প্রত্যাশিত ক্যাশ</div>
+              <div class="ce-value" id="expectedCashDisplay">৳০</div>
+            </div>
+            <div>
+              <div class="ce-label">✋ গণনা করা ক্যাশ</div>
+              <div class="ce-value" id="countedCashDisplay">৳০</div>
+            </div>
+            <div class="cash-variance-badge" id="cashVarianceBadge">✓ হিসাব মিলে গেছে</div>
+          </div>
+
           <hr class="reg-divider">
 
           <label style="color:var(--gray-500);font-size:12px;font-weight:700;display:block;margin-bottom:8px;">📱 MFS /
@@ -3216,6 +3365,19 @@
         onkeydown="if(event.key==='Enter'){event.preventDefault();saveAccountPassword('accountPasswordInput');}">
       <button type="button" class="btn btn-primary" style="width:100%;margin-top:12px;"
         onclick="saveAccountPassword('accountPasswordInput')">পাসওয়ার্ড সংরক্ষণ</button>
+    </div>
+  </div>
+
+  <div class="modal" id="cashReconcileModal" role="dialog" aria-modal="true" aria-labelledby="cashReconcileTitle">
+    <div class="modal-content" style="max-width:480px;">
+      <button type="button" class="modal-close-button" onclick="cancelCashReconciliation()" aria-label="বন্ধ করুন"
+        title="বন্ধ করুন">×</button>
+      <h2 id="cashReconcileTitle">💰 ক্যাশ রিকনসিলিয়েশন</h2>
+      <p id="cashReconcileMessage" class="reconcile-message"></p>
+      <div class="reconcile-summary" id="cashReconcileSummary"></div>
+      <div class="reconcile-options" id="cashReconcileOptions"></div>
+      <button type="button" class="btn btn-reset" style="width:100%;" onclick="cancelCashReconciliation()">বাতিল
+        করুন</button>
     </div>
   </div>
 
@@ -5796,12 +5958,18 @@
 
       const isEdit = Boolean(editingInvoiceId);
       const existing = isEdit ? invoices.find(i => i.id === editingInvoiceId) : null;
+      const paymentTypeEl = document.querySelector('input[name="invoicePaymentType"]:checked');
+      const paymentType = paymentTypeEl ? paymentTypeEl.value : 'cash';
 
       const invoice = {
         id: isEdit ? editingInvoiceId : Date.now(),
         invoiceNo: isEdit && existing && existing.invoiceNo ? existing.invoiceNo : generateInvoiceNo(nextInvoiceNumber),
         customer: name, phone: phone, items: items, subtotal: subtotal, total: total,
         discount: discount, discountAmount: discountAmount, discountType: discountType,
+        paymentType: paymentType,
+        paymentStatus: paymentType === 'due' ? 'due' : 'paid',
+        dueAmount: paymentType === 'due' ? total : 0,
+        cashBalanceApplied: paymentType === 'cash',
         date: isEdit && existing && existing.date ? existing.date : new Date().toISOString()
       };
 
@@ -5826,12 +5994,22 @@
         renderSalesMetrics();
         updateCurrentInvoiceNo();
 
+        // নগদ বিক্রয়ের অঙ্ক স্বয়ংক্রিয়ভাবে অপারেশনাল ক্যাশ ব্যালেন্সে যোগ/সমন্বয় হয়
+        // পুরোনো (ক্যাশ-ট্র্যাকিংয়ের আগের) ইনভয়েস এডিট করলে ব্যালেন্স দ্বিগুণ হয় না
+        const cashTracked = !isEdit || (existing && existing.cashBalanceApplied === true);
+        const cashAppliedNow = paymentType === 'cash' && cashTracked ? roundMoney(total) : 0;
+        const cashAppliedBefore = isEdit && existing && existing.cashBalanceApplied === true
+          ? roundMoney(existing.total) : 0;
+        const cashDelta = roundMoney(cashAppliedNow - cashAppliedBefore);
+        if (cashDelta) applyOperationalCashDelta(cashDelta, 'sale');
+
         const action = isEdit ? 'আপডেট হয়েছে: ' : 'সেভ হয়েছে: ';
+        const cashNote = paymentType === 'cash' ? ' · ক্যাশ ব্যালেন্সে যোগ হয়েছে' : ' · বাকি হিসেবে রেকর্ড হয়েছে';
         if (currentUserId) {
-          showToast('✓ ইনভয়েস লোকালি ' + action + invoice.invoiceNo + ' — ক্লাউডে সিঙ্ক হচ্ছে');
+          showToast('✓ ইনভয়েস লোকালি ' + action + invoice.invoiceNo + cashNote + ' — ক্লাউডে সিঙ্ক হচ্ছে');
           saveInvoiceToFirebase(invoice);
         } else {
-          showToast('✓ ইনভয়েস লোকাল স্টোরেজে ' + action + invoice.invoiceNo);
+          showToast('✓ ইনভয়েস লোকাল স্টোরেজে ' + action + invoice.invoiceNo + cashNote);
         }
       } catch (error) {
         console.error('Invoice save error:', error);
@@ -5924,6 +6102,8 @@
       document.getElementById('itemsContainer').innerHTML = '';
       document.getElementById('discountAmount').value = '0';
       document.getElementById('discountType').value = 'amount';
+      const cashRadio = document.querySelector('input[name="invoicePaymentType"][value="cash"]');
+      if (cashRadio) cashRadio.checked = true;
       addItem();
       calculateTotal();
       updateCurrentInvoiceNo();
@@ -6371,11 +6551,15 @@
       if (!confirm('এই ইনভয়েসটি মুছে ফেলবেন?')) return;
 
       try {
+        const removedInvoice = invoices.find(i => i.id === id);
         invoices = invoices.filter(i => i.id !== id);
         localStorage.setItem('pos_invoices', JSON.stringify(invoices));
         updateStats();
         renderInvoices();
         renderSalesMetrics();
+        if (removedInvoice && removedInvoice.cashBalanceApplied === true) {
+          applyOperationalCashDelta(-roundMoney(removedInvoice.total), 'sale_delete');
+        }
 
         if (currentUserId) {
           showToast('✓ ইনভয়েস লোকালি মুছে ফেলা হয়েছে — ক্লাউডে সিঙ্ক হচ্ছে');
@@ -6514,6 +6698,329 @@
       showToast('✓ ব্যাকআপ ডাউনলোড হয়েছে');
     }
 
+    // ===== অটোমেটিক ক্যাশ সিঙ্ক, প্রত্যাশিত ব্যালেন্স ও স্মার্ট ক্যাশ রিকনসিলিয়েশন =====
+    const EXPECTED_CASH_STORAGE_KEY = 'pos_expected_cash';
+    const CASH_ADJUSTMENT_STORAGE_KEY = 'pos_cash_adjustments';
+    const CASH_RECONCILIATION_LABELS = {
+      other_income: 'অন্যান্য আয় / ক্যাশব্যাক',
+      sales_adjustment: 'বেচাকিনা / অতিরিক্ত বিক্রি',
+      expense: 'দৈনন্দিন খরচ / বাজার খরচ',
+      loan_given: 'ধার দেওয়া / দেনা'
+    };
+
+    let expectedCashBalance = 0;
+    let pendingCashReconciliation = null;
+    let cashAdjustmentLog = (function () {
+      try {
+        const raw = JSON.parse(localStorage.getItem(CASH_ADJUSTMENT_STORAGE_KEY) || '[]');
+        return Array.isArray(raw) ? raw : [];
+      } catch (error) { return []; }
+    })();
+
+    function roundMoney(value) { return Math.round(safeNum(value) * 100) / 100; }
+
+    function logCashAdjustment(entry) {
+      cashAdjustmentLog.unshift(entry);
+      cashAdjustmentLog = cashAdjustmentLog.slice(0, 50);
+      try { localStorage.setItem(CASH_ADJUSTMENT_STORAGE_KEY, JSON.stringify(cashAdjustmentLog)); } catch (error) { }
+    }
+
+    // প্রত্যাশিত ক্যাশের সমান নোটে রেজিস্টার ইনপুট পুনরায় ভাগ করা হয়
+    function mirrorExpectedCashToDenominations() {
+      CASH_DENOMS.forEach(d => {
+        const el = document.getElementById('denom_' + d);
+        if (el) el.value = '';
+      });
+      let remaining = Math.max(0, roundMoney(expectedCashBalance));
+      for (let i = CASH_DENOMS.length - 1; i >= 0; i--) {
+        const d = CASH_DENOMS[i];
+        const count = Math.floor(remaining / d);
+        remaining = roundMoney(remaining - count * d);
+        const el = document.getElementById('denom_' + d);
+        if (el && count > 0) el.value = String(count);
+      }
+    }
+
+    function updateExpectedCashPanel() {
+      const expectedEl = document.getElementById('expectedCashDisplay');
+      const countedEl = document.getElementById('countedCashDisplay');
+      const badge = document.getElementById('cashVarianceBadge');
+      const counted = roundMoney(registerCashTotal());
+      if (expectedEl) expectedEl.textContent = formatMoney(expectedCashBalance);
+      if (countedEl) countedEl.textContent = formatMoney(counted);
+      if (!badge) return;
+      const diff = roundMoney(counted - expectedCashBalance);
+      if (Math.abs(diff) < 0.01) {
+        badge.className = 'cash-variance-badge';
+        badge.textContent = '✓ হিসাব মিলে গেছে';
+      } else if (diff > 0) {
+        badge.className = 'cash-variance-badge surplus';
+        badge.textContent = '⬆ ' + formatMoney(diff) + ' বেশি';
+      } else {
+        badge.className = 'cash-variance-badge shortage';
+        badge.textContent = '⬇ ' + formatMoney(Math.abs(diff)) + ' ঘাটতি';
+      }
+    }
+
+    function setExpectedCashBalance(value, options) {
+      const opts = options || {};
+      expectedCashBalance = Math.max(0, roundMoney(value));
+      try { localStorage.setItem(EXPECTED_CASH_STORAGE_KEY, String(expectedCashBalance)); } catch (error) { }
+      if (opts.mirror !== false) mirrorExpectedCashToDenominations();
+      updateRegisterTotals();
+    }
+
+    function initializeExpectedCashBalance() {
+      let stored = null;
+      try { stored = localStorage.getItem(EXPECTED_CASH_STORAGE_KEY); } catch (error) { }
+      if (!cashHistoryRecords.length && stored !== null && stored !== '') {
+        expectedCashBalance = Math.max(0, roundMoney(stored));
+      }
+      setExpectedCashBalance(expectedCashBalance, { mirror: true });
+    }
+
+    function buildCashRegisterRecord(extra) {
+      const date = localDateKey();
+      const denominations = {};
+      const balances = {};
+      CASH_DENOMS.forEach(d => {
+        const el = document.getElementById('denom_' + d);
+        denominations[d] = Math.max(0, safeNum(el ? el.value : 0));
+      });
+      BALANCE_ACCOUNTS.forEach(a => {
+        const el = document.getElementById('bal_' + a.key);
+        balances[a.key] = Math.max(0, safeNum(el ? el.value : 0));
+      });
+      const cashTotal = roundMoney(CASH_DENOMS.reduce((sum, d) => sum + d * denominations[d], 0));
+      const digitalTotal = roundMoney(BALANCE_ACCOUNTS.reduce((sum, a) => sum + balances[a.key], 0));
+      return Object.assign({
+        id: 'cash-' + date,
+        date: date,
+        cashTotal: cashTotal,
+        digitalTotal: digitalTotal,
+        grandTotal: roundMoney(cashTotal + digitalTotal),
+        expectedCash: roundMoney(expectedCashBalance),
+        denominations: denominations,
+        balances: balances,
+        adjustments: cashAdjustmentLog.slice(0, 20),
+        updatedAt: new Date().toISOString()
+      }, extra || {});
+    }
+
+    function persistCashRegisterSnapshot(reason, extra) {
+      const record = buildCashRegisterRecord(Object.assign({ autoSync: reason || 'manual' }, extra || {}));
+      record.expectedCash = roundMoney(expectedCashBalance);
+      try { localStorage.setItem('pos_cash_register', JSON.stringify(record)); } catch (error) { }
+      cashHistoryRecords = [record].concat(cashHistoryRecords.filter(item => item.id !== record.id));
+      renderCashHistory();
+      if (currentUserId) saveCashRegisterToFirebase(record);
+      return record;
+    }
+
+    // বিক্রয় / খরচের প্রভাব তাৎক্ষণিকভাবে অপারেশনাল ক্যাশে প্রয়োগ ও সিঙ্ক
+    function applyOperationalCashDelta(delta, reason) {
+      const amount = roundMoney(delta);
+      if (!amount) return;
+      setExpectedCashBalance(expectedCashBalance + amount);
+      persistCashRegisterSnapshot(reason || 'auto');
+    }
+
+    function closeCashReconciliation() {
+      const modal = document.getElementById('cashReconcileModal');
+      if (modal) modal.classList.remove('active');
+    }
+
+    function cancelCashReconciliation() {
+      pendingCashReconciliation = null;
+      closeCashReconciliation();
+      showToast('ক্যাশ গণনা সেভ হয়নি — হিসাব মিলিয়ে আবার সেভ করুন', 'loading');
+    }
+
+    function showCashReconciliationPrompt(difference, countedCash) {
+      const surplus = difference > 0;
+      const amount = Math.abs(roundMoney(difference));
+      pendingCashReconciliation = {
+        surplus: surplus,
+        amount: amount,
+        countedCash: roundMoney(countedCash),
+        expectedBefore: roundMoney(expectedCashBalance)
+      };
+      const modal = document.getElementById('cashReconcileModal');
+      const title = document.getElementById('cashReconcileTitle');
+      const message = document.getElementById('cashReconcileMessage');
+      const summary = document.getElementById('cashReconcileSummary');
+      const options = document.getElementById('cashReconcileOptions');
+      if (title) title.textContent = surplus ? '💰 ক্যাশে বেশি টাকা পাওয়া গেছে' : '⚠️ ক্যাশে ঘাটতি পাওয়া গেছে';
+      if (message) {
+        message.className = 'reconcile-message' + (surplus ? '' : ' shortage');
+        message.textContent = surplus
+          ? 'আপনার সিস্টেমে থাকা হিসাবের চেয়ে ক্যাশে ' + formatMoney(amount) + ' টাকা বেশি রয়েছে।'
+          : 'আপনার সিস্টেমে থাকা হিসাবের চেয়ে ক্যাশে ' + formatMoney(amount) + ' টাকা কম রয়েছে (ঘাটতি)।';
+      }
+      if (summary) {
+        summary.innerHTML = `
+          <div><div class="rs-label">প্রত্যাশিত ক্যাশ</div><div class="rs-value">${formatMoney(expectedCashBalance)}</div></div>
+          <div><div class="rs-label">গণনা করা ক্যাশ</div><div class="rs-value">${formatMoney(countedCash)}</div></div>
+          <div><div class="rs-label">${surplus ? 'বেশি' : 'ঘাটতি'}</div><div class="rs-value" style="color:${surplus ? '#2563eb' : '#dc2626'};">${formatMoney(amount)}</div></div>`;
+      }
+      if (options) {
+        const choices = surplus ? [
+          { key: 'other_income', title: 'অন্যান্য আয় / ক্যাশব্যাক', sub: 'বিকাশ/নগদ ক্যাশব্যাক বা বিবিধ আয় হিসেবে এই টাকা হিসাবে যোগ হবে' },
+          { key: 'sales_adjustment', title: 'বেচাকিনা / অতিরিক্ত বিক্রি', sub: 'সাধারণ বিক্রয়ের তালিকায় অতিরিক্ত বিক্রি হিসেবে যোগ হবে' }
+        ] : [
+          { key: 'expense', title: 'দৈনন্দিন খরচ / বাজার খরচ', sub: 'ঘাটতি টাকাটি স্বয়ংক্রিয়ভাবে খরচ হিসেবে রেকর্ড হবে' },
+          { key: 'loan_given', title: 'ধার দেওয়া / দেনা', sub: 'পাওনাদার তালিকায় ধার দেওয়া হিসেবে যোগ হবে' }
+        ];
+        options.innerHTML = choices.map(choice => `
+          <button type="button" class="reconcile-option" onclick="confirmCashReconciliation('${choice.key}')">
+            <span class="ro-title">${choice.title}</span>
+            <span class="ro-sub">${choice.sub} · ${formatMoney(amount)}</span>
+          </button>`).join('');
+      }
+      if (modal) modal.classList.add('active');
+    }
+
+    function recordCashReconciliationIncome(amount) {
+      logCashAdjustment({
+        id: 'inc-' + Date.now(),
+        type: 'other_income',
+        label: CASH_RECONCILIATION_LABELS.other_income,
+        amount: amount,
+        note: 'অতিরিক্ত ক্যাশ আয়',
+        date: new Date().toISOString()
+      });
+    }
+
+    function recordCashReconciliationSale(amount) {
+      const invoice = {
+        id: Date.now(),
+        invoiceNo: generateInvoiceNo(nextInvoiceNumber),
+        customer: 'অতিরিক্ত বিক্রি (ক্যাশ মিলকরণ)',
+        phone: '',
+        items: [{ name: 'অতিরিক্ত বিক্রি / ক্যাশ সমন্বয়', qty: 1, price: amount, costPrice: 0, total: amount }],
+        subtotal: amount,
+        total: amount,
+        discount: 0,
+        discountAmount: 0,
+        discountType: 'amount',
+        paymentType: 'cash',
+        paymentStatus: 'paid',
+        dueAmount: 0,
+        cashBalanceApplied: true,
+        source: 'cash_reconciliation',
+        date: new Date().toISOString()
+      };
+      invoices.unshift(invoice);
+      nextInvoiceNumber++;
+      localStorage.setItem('pos_next_inv_no', nextInvoiceNumber.toString());
+      localStorage.setItem('pos_invoices', JSON.stringify(invoices));
+      updateStats();
+      renderInvoices();
+      renderSalesMetrics();
+      updateCurrentInvoiceNo();
+      if (currentUserId) saveInvoiceToFirebase(invoice);
+      logCashAdjustment({
+        id: 'adj-' + invoice.id,
+        type: 'sales_adjustment',
+        label: CASH_RECONCILIATION_LABELS.sales_adjustment,
+        amount: amount,
+        note: 'ইনভয়েস ' + invoice.invoiceNo,
+        date: invoice.date
+      });
+    }
+
+    function recordCashReconciliationExpense(amount) {
+      const category = 'দৈনন্দিন খরচ / বাজার খরচ';
+      const expense = {
+        id: Date.now(),
+        category: category,
+        items: [{ category: category, qty: 1, unitCost: amount, amount: amount, desc: 'ক্যাশ ঘাটতি সমন্বয়' }],
+        amount: amount,
+        source: 'cash',
+        sourceLabel: srcLabelOf('cash'),
+        desc: 'ক্যাশ ঘাটতি সমন্বয় (রিকনসিলিয়েশন)',
+        date: new Date().toISOString(),
+        reconciliation: true
+      };
+      expenses.unshift(expense);
+      saveExpenses();
+      renderExpenseList();
+      renderFinanceSummary();
+      if (currentUserId) saveExpenseToFirebase(expense);
+      logCashAdjustment({
+        id: 'adj-' + expense.id,
+        type: 'expense',
+        label: CASH_RECONCILIATION_LABELS.expense,
+        amount: -amount,
+        note: 'ঘাটতি খরচ হিসেবে রেকর্ড',
+        date: expense.date
+      });
+    }
+
+    function recordCashReconciliationLoan(amount) {
+      const creditor = {
+        id: Date.now(),
+        name: 'ক্যাশ ঘাটতি থেকে ধার',
+        taken: amount,
+        paid: 0,
+        due: amount,
+        date: new Date().toISOString(),
+        note: 'ক্যাশ রিকনসিলিয়েশন — ধার দেওয়া'
+      };
+      creditors.unshift(creditor);
+      saveCreditors();
+      renderCreditorList();
+      populateExpenseCategoryOptions();
+      renderFinanceSummary();
+      if (currentUserId) saveCreditorToFirebase(creditor);
+      logCashAdjustment({
+        id: 'adj-' + creditor.id,
+        type: 'loan_given',
+        label: CASH_RECONCILIATION_LABELS.loan_given,
+        amount: -amount,
+        note: creditor.name,
+        date: creditor.date
+      });
+    }
+
+    function confirmCashReconciliation(choice) {
+      const pending = pendingCashReconciliation;
+      if (!pending || !CASH_RECONCILIATION_LABELS[choice]) return;
+      // বেশি টাকার জন্য আয়/বিক্রয় এবং কম টাকার জন্য খরচ/ধার — শুধু সঠিক অপশন গ্রহণযোগ্য
+      if (pending.surplus ? (choice === 'expense' || choice === 'loan_given')
+        : (choice === 'other_income' || choice === 'sales_adjustment')) return;
+      const amount = roundMoney(pending.amount);
+      try {
+        if (choice === 'other_income') recordCashReconciliationIncome(amount);
+        else if (choice === 'sales_adjustment') recordCashReconciliationSale(amount);
+        else if (choice === 'expense') recordCashReconciliationExpense(amount);
+        else if (choice === 'loan_given') recordCashReconciliationLoan(amount);
+
+        // শারীরিক গণনাই এখন থেকে সিস্টেমের প্রত্যাশিত ক্যাশ
+        setExpectedCashBalance(pending.countedCash, { mirror: true });
+        persistCashRegisterSnapshot('reconciliation', {
+          reconciliation: {
+            id: 'rec-' + Date.now(),
+            type: choice,
+            label: CASH_RECONCILIATION_LABELS[choice],
+            amount: pending.surplus ? amount : -amount,
+            expectedBefore: pending.expectedBefore,
+            countedCash: pending.countedCash,
+            at: new Date().toISOString()
+          }
+        });
+        const wasSurplus = pending.surplus;
+        pendingCashReconciliation = null;
+        closeCashReconciliation();
+        renderFinanceSummary();
+        showToast('✅ ক্যাশ রিকনসিলিয়েশন সম্পন্ন · ' + CASH_RECONCILIATION_LABELS[choice] + ' '
+          + formatMoney(amount) + (wasSurplus ? ' যোগ হয়েছে' : ' রেকর্ড হয়েছে'));
+      } catch (error) {
+        console.error('ক্যাশ রিকনসিলিয়েশন ত্রুটি:', error);
+        showToast('ক্যাশ রিকনসিলিয়েশন সম্পন্ন হয়নি: ' + (error.message || error), 'error');
+      }
+    }
+
     function buildRegisterUI() {
       const denomGrid = document.getElementById('cashDenomGrid');
       const balGrid = document.getElementById('balanceInputGrid');
@@ -6559,6 +7066,7 @@
         if (cashEl) cashEl.textContent = formatMoney(cash);
         if (grandEl) grandEl.textContent = formatMoney(grand);
         if (breakEl) breakEl.textContent = 'ক্যাশ ' + formatMoney(cash) + ' + ডিজিটাল ' + formatMoney(digital);
+        updateExpectedCashPanel();
         updateNetAssetsCard();
       } catch (error) {
         console.error('রেজিস্টার হিসাব ত্রুটি:', error);
@@ -6568,39 +7076,20 @@
     async function saveRegister() {
       let localSaved = false;
       try {
-        const data = {
-          date: new Date().toISOString().slice(0, 10),
-          denominations: {},
-          balances: {}
-        };
-        CASH_DENOMS.forEach(d => {
-          const el = document.getElementById('denom_' + d);
-          data.denominations[d] = Math.max(0, safeNum(el ? el.value : 0));
-        });
-        BALANCE_ACCOUNTS.forEach(a => {
-          const el = document.getElementById('bal_' + a.key);
-          data.balances[a.key] = Math.max(0, safeNum(el ? el.value : 0));
-        });
-        data.id = 'cash-' + data.date;
-        data.cashTotal = CASH_DENOMS.reduce((sum, denomination) => sum + denomination * data.denominations[denomination], 0);
-        data.digitalTotal = BALANCE_ACCOUNTS.reduce((sum, account) => sum + data.balances[account.key], 0);
-        data.grandTotal = data.cashTotal + data.digitalTotal;
-        const record = {
-          id: data.id, date: data.date, cashTotal: data.cashTotal, digitalTotal: data.digitalTotal,
-          grandTotal: data.grandTotal,
-          denominations: Object.fromEntries(CASH_DENOMS.map(denomination => [denomination, data.denominations[denomination]])),
-          balances: Object.fromEntries(BALANCE_ACCOUNTS.map(account => [account.key, data.balances[account.key]]))
-        };
-        localStorage.setItem('pos_cash_register', JSON.stringify(record));
-        cashHistoryRecords = [record].concat(cashHistoryRecords.filter(item => item.id !== record.id));
-        renderCashHistory();
-        localSaved = true;
-        if (currentUserId) {
-          showToast('✅ ক্যাশ ও ব্যালেন্স লোকালি সেভ হয়েছে — Firebase ক্লাউডে সিঙ্ক হচ্ছে');
-          saveCashRegisterToFirebase(record);
-        } else {
-          showToast('✅ ক্যাশ ও ব্যালেন্স লোকালি সেভ হয়েছে');
+        const countedCash = roundMoney(registerCashTotal());
+        const difference = roundMoney(countedCash - expectedCashBalance);
+        if (Math.abs(difference) >= 0.01) {
+          showCashReconciliationPrompt(difference, countedCash);
+          return;
         }
+        expectedCashBalance = countedCash;
+        try { localStorage.setItem(EXPECTED_CASH_STORAGE_KEY, String(expectedCashBalance)); } catch (error) { }
+        persistCashRegisterSnapshot('manual', { expectedCash: countedCash });
+        localSaved = true;
+        updateRegisterTotals();
+        showToast(currentUserId
+          ? '✅ ক্যাশ ও ব্যালেন্স সেভ হয়েছে — Firebase-এ সিঙ্ক হচ্ছে'
+          : '✅ ক্যাশ ও ব্যালেন্স লোকালি সেভ হয়েছে');
       } catch (error) {
         console.error('ক্যাশ রেজিস্টার সেভ ত্রুটি:', error);
         showToast((localSaved ? 'লোকালি সেভ হয়েছে, কিন্তু ক্লাউডে সিঙ্ক হয়নি: ' : 'সেভ করা যায়নি: ') + error.message, 'error');
@@ -6632,6 +7121,10 @@
         }
         const denominations = parseRegisterMap(data.denominations, 'Denominations');
         const balances = parseRegisterMap(data.balances, 'Balances');
+        const recordExpected = data.expectedCash === undefined || data.expectedCash === null
+          ? safeNum(data.cashTotal) : safeNum(data.expectedCash);
+        expectedCashBalance = Math.max(0, roundMoney(recordExpected));
+        try { localStorage.setItem(EXPECTED_CASH_STORAGE_KEY, String(expectedCashBalance)); } catch (error) { }
         if (!sourceData) {
           cashHistoryRecords = [data];
           renderCashHistory();
@@ -6663,15 +7156,22 @@
       if (!list) return;
       const records = cashHistoryRecords.slice().sort((a, b) =>
         String(b.date || '').localeCompare(String(a.date || '')));
+      const adjustmentHtml = cashAdjustmentLog.length ? `
+    <div class="cash-history-row" style="background:var(--gray-50);font-weight:800;">সাম্প্রতিক ক্যাশ সমন্বয়</div>` +
+        cashAdjustmentLog.slice(0, 8).map(entry => `
+    <div class="cash-history-row">
+      <div><strong>${escapeHtml(entry.label || 'সমন্বয়')}</strong><br><span>${formatDate(entry.date)}${entry.note ? ' · ' + escapeHtml(entry.note) : ''}</span></div>
+      <strong style="color:${safeNum(entry.amount) >= 0 ? 'var(--success)' : '#dc2626'};">${safeNum(entry.amount) >= 0 ? '+' : '−'}${formatMoney(Math.abs(safeNum(entry.amount)))}</strong>
+    </div>`).join('') : '';
       if (!records.length) {
-        list.innerHTML = '<div class="empty">কোনো ক্যাশ রেকর্ড নেই</div>';
+        list.innerHTML = adjustmentHtml || '<div class="empty">কোনো ক্যাশ রেকর্ড নেই</div>';
         return;
       }
       list.innerHTML = records.map(record => `
     <div class="cash-history-row">
       <div><strong>${escapeHtml(record.date || 'তারিখ নেই')}</strong><br><span>ক্যাশ ${formatMoney(record.cashTotal)} · ডিজিটাল ${formatMoney(record.digitalTotal)}</span></div>
       <strong>${formatMoney(record.grandTotal)}</strong>
-    </div>`).join('');
+    </div>`).join('') + adjustmentHtml;
     }
 
     const DEFAULT_EXPENSE_CATEGORIES = ['বাজার খরচ', 'দোকান ভাড়া', 'বিদ্যুৎ বিল', 'ইন্টারনেট বিল', 'কর্মচারীর বেতন', 'পরিবহন খরচ'];
@@ -6699,7 +7199,7 @@
     }
 
     function expenseSourceOptions() {
-      const opts = [{ key: 'cash', label: '💵 ক্যাশ (নোট গণনা থেকে)' }];
+      const opts = [{ key: 'cash', label: '💵 ক্যাশ (অপারেশনাল ব্যালেন্স)' }];
       BALANCE_ACCOUNTS.forEach(a => opts.push({ key: a.key, label: '📱 ' + a.label }));
       return opts;
     }
@@ -6710,29 +7210,20 @@
     }
 
     function getRegisterBalanceValue(sourceKey) {
-      if (sourceKey === 'cash') return registerCashTotal();
+      // ক্যাশের ক্ষেত্রে সিস্টেমের প্রত্যাশিত অপারেশনাল ব্যালেন্সই মূল হিসাব
+      if (sourceKey === 'cash') return roundMoney(expectedCashBalance);
       const el = document.getElementById('bal_' + sourceKey);
       return Math.max(0, safeNum(el ? el.value : 0));
     }
 
     function setRegisterBalanceValue(sourceKey, value) {
-      const v = Math.max(0, safeNum(value));
+      const v = Math.max(0, roundMoney(value));
       if (sourceKey === 'cash') {
-        CASH_DENOMS.forEach(d => { const el = document.getElementById('denom_' + d); if (el) el.value = ''; });
-        if (v > 0) {
-          let remaining = v;
-          for (let i = CASH_DENOMS.length - 1; i >= 0; i--) {
-            const d = CASH_DENOMS[i];
-            const count = Math.floor(remaining / d);
-            remaining -= count * d;
-            const el = document.getElementById('denom_' + d);
-            if (el && count > 0) el.value = String(count);
-          }
-        }
-      } else {
-        const el = document.getElementById('bal_' + sourceKey);
-        if (el) el.value = v > 0 ? String(v) : '';
+        setExpectedCashBalance(v);
+        return;
       }
+      const el = document.getElementById('bal_' + sourceKey);
+      if (el) el.value = v > 0 ? String(v) : '';
       updateRegisterTotals();
     }
 
@@ -6995,6 +7486,7 @@
           renderCreditorList();
           populateExpenseCategoryOptions();
           renderFinanceSummary();
+          persistCashRegisterSnapshot('expense_update');
           showToast('✓ খরচ আপডেট হয়েছে: ' + formatMoney(totalAmount) + ' (' + srcLabelOf(source) + ')');
           return;
         }
@@ -7022,6 +7514,7 @@
         renderCreditorList();
         populateExpenseCategoryOptions();
         renderFinanceSummary();
+        persistCashRegisterSnapshot('expense');
         showToast('✓ খরচ সেভ হয়েছে: ' + formatMoney(totalAmount) + ' (' + srcLabelOf(source) + ')' + (resolveCreditor(rows[0].category) ? ' — বকেয়া কমেছে' : ''));
       } catch (error) {
         console.error('saveExpenseForm ত্রুটি:', error);
@@ -7108,6 +7601,7 @@
       renderExpenseList();
       renderCreditorList();
       renderFinanceSummary();
+      persistCashRegisterSnapshot('expense_delete');
       showToast('🗑️ খরচের রেকর্ড মুছে ' + formatMoney(e.amount) + ' "' + srcLabelOf(e.source) + '" ব্যালেন্সে ফেরত দেওয়া হয়েছে');
     }
 
@@ -7186,6 +7680,7 @@
 
       buildRegisterUI();
       loadRegister();
+      initializeExpectedCashBalance();
       updateRegisterTotals();
 
       buildExpensesUI();
@@ -7215,6 +7710,7 @@
           else if (modal.id === 'settingsModal') closeSettings();
           else if (modal.id === 'invoiceModal') closeInvoiceModal();
           else if (modal.id === 'accountPasswordModal') closeAccountPasswordModal();
+          else if (modal.id === 'cashReconcileModal') cancelCashReconciliation();
         });
       });
       document.addEventListener('keydown', event => {
@@ -7226,6 +7722,7 @@
         else if (activeModal.id === 'settingsModal') closeSettings();
         else if (activeModal.id === 'invoiceModal') closeInvoiceModal();
         else if (activeModal.id === 'accountPasswordModal') closeAccountPasswordModal();
+        else if (activeModal.id === 'cashReconcileModal') cancelCashReconciliation();
       });
 
       // Wire up tab navigation
