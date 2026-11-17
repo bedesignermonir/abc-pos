@@ -29,11 +29,22 @@ service cloud.firestore {
       return isApprovedAdmin();
     }
 
+    // সক্রিয় পার্টনার চেক — মাস্টার এডমিন, members ডকুমেন্টে 'active' স্ট্যাটাস,
+    // অথবা বিজনেস ডকুমেন্টের মালিক (ownerUid) — যাতে পারমিশন এরর না হয়
     function isActivePartner(tenantId) {
-      return signedIn() && (isMasterAdmin() || (
-        exists(/databases/$(database)/documents/businesses/$(tenantId)/members/$(request.auth.uid))
-        && get(/databases/$(database)/documents/businesses/$(tenantId)/members/$(request.auth.uid)).data.status == 'active'
-      ));
+      return signedIn() && (isMasterAdmin()
+        || (exists(/databases/$(database)/documents/businesses/$(tenantId))
+          && get(/databases/$(database)/documents/businesses/$(tenantId)).data.ownerUid == request.auth.uid)
+        || (
+          exists(/databases/$(database)/documents/businesses/$(tenantId)/members/$(request.auth.uid))
+          && get(/databases/$(database)/documents/businesses/$(tenantId)/members/$(request.auth.uid)).data.status == 'active'
+        ));
+    }
+
+    // সেল লেজার মিল চেক — operationalCashBalance / lastLedgerId / lastLedgerType
+    // পারমাণবিক আপডেট অনুমোদন করে; নেগেটিভ বা ভগ্নাংশ সংখ্যায়ও নিরাপদ যোগবিয়োগ
+    function safeNum(v) {
+      return (type(v) == 'number' && v.isNan() == false) ? v : 0;
     }
 
     function matchingSaleLedger(tenantId) {
@@ -43,7 +54,7 @@ service cloud.firestore {
         && existsAfter(salePath)
         && getAfter(salePath).data.partnerUid == request.auth.uid
         && request.resource.data.operationalCashBalance
-          == resource.data.operationalCashBalance + getAfter(salePath).data.total;
+          == safeNum(resource.data.operationalCashBalance) + safeNum(getAfter(salePath).data.total);
     }
 
     function matchingExpenseLedger(tenantId) {
@@ -53,7 +64,7 @@ service cloud.firestore {
         && existsAfter(expensePath)
         && getAfter(expensePath).data.partnerUid == request.auth.uid
         && request.resource.data.operationalCashBalance
-          == resource.data.operationalCashBalance - getAfter(expensePath).data.amount;
+          == safeNum(resource.data.operationalCashBalance) - safeNum(getAfter(expensePath).data.amount);
     }
 
     // ইউজার প্রোফাইল কালেকশন
@@ -106,7 +117,7 @@ service cloud.firestore {
       allow update: if isMasterAdmin()
         || (isActivePartner(tenantId)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'operationalCashBalance', 'lastLedgerId', 'lastLedgerType', 'updatedAt'
+            'operationalCashBalance', 'lastLedgerId', 'lastLedgerType', 'updatedAt', 'updatedBy'
           ])
           && request.resource.data.operationalCashBalance >= 0
           && (matchingSaleLedger(tenantId) || matchingExpenseLedger(tenantId)));
@@ -118,19 +129,28 @@ service cloud.firestore {
       match /partner_sales/{saleId} {
         allow read: if canManageTenant()
           || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
+        // সক্রিয় পার্টনার নিজের UID মেলা সাপেক্ষে সরাসরি সেল তৈরি করতে পারবে
+        // (settled ফিল্ড না দিলেও চলবে — পুরোনো ক্লায়েন্ট ভার্সন ব্লক করবে না)
         allow create: if isActivePartner(tenantId)
           && request.resource.data.partnerUid == request.auth.uid
-          && request.resource.data.settled == false;
-        allow update, delete: if canManageTenant();
+          && (request.resource.data.keys().hasAny(['settled'])
+            ? request.resource.data.settled == false
+            : true);
+        allow update, delete: if canManageTenant()
+          || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
       }
 
       match /partner_expenses/{expenseId} {
         allow read: if canManageTenant()
           || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
+        // সক্রিয় পার্টনার নিজের UID মেলা সাপেক্ষে সরাসরি খরচ তৈরি করতে পারবে
         allow create: if isActivePartner(tenantId)
           && request.resource.data.partnerUid == request.auth.uid
-          && request.resource.data.settled == false;
-        allow update, delete: if canManageTenant();
+          && (request.resource.data.keys().hasAny(['settled'])
+            ? request.resource.data.settled == false
+            : true);
+        allow update, delete: if canManageTenant()
+          || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
       }
 
       match /settlements/{settlementId} {

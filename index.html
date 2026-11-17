@@ -4571,17 +4571,96 @@
       }
     }
 
+    // ===== Firestore sync error helpers (permission & offline resilience) =====
+    function isFirestorePermissionError(error) {
+      const code = String((error && error.code) || '');
+      const message = String((error && error.message) || '');
+      return code === 'permission-denied'
+        || /missing or insufficient permissions|insufficient permission/i.test(message);
+    }
+
+    let _permAlertShownAt = 0;
+    let _tenantReloginTried = false;
+
+    function showPermissionDeniedAlert(label) {
+      const now = Date.now();
+      if (now - _permAlertShownAt < 8000) return; // একসাথে অনেক listener fail করলে একটাই অ্যালার্ট
+      _permAlertShownAt = now;
+      alert('⛔ ' + (label || 'ডেটা') + ' সংরক্ষণ/পড়া যায়নি: "Missing or insufficient permissions"\n\n'
+        + 'কারণ: আপনার অ্যাকাউন্টের এই টেন্যান্ট ডেটায় অনুমতি নেই।\n'
+        + '✅ সমাধান: নিচের "আবার চেষ্টা করুন" বোতামে সেশন রিফ্রেশ ও সদস্যপদ যাচাই হবে।\n'
+        + 'না হলে ব্যবসার মালিক/এডমিন থেকে আপনার সদস্যপদ "active" আছে কি না তা নিশ্চিত করুন।');
+    }
+
+    async function autoReauthenticateTenantMembership() {
+      try {
+        if (!(typeof auth !== 'undefined' && auth && auth.currentUser)) return;
+        // ১) ID টোকেন জোর করে রিফ্রেশ (role/status ক্লেইম আপডেট হয়)
+        await auth.currentUser.getIdToken(true);
+        // ২) নিজের ইউজার প্রোফাইল ও সদস্যপদ রি-চেკ
+        const meSnap = await db.collection('users').doc(auth.currentUser.uid).get();
+        const me = meSnap.exists ? meSnap.data() : {};
+        const status = String(me.accountStatus || '').toLowerCase();
+        if (status && status !== 'approved') {
+          setSyncStatus('error', 'অ্যাকাউন্ট এখনো অনুমোদনের অপেক্ষায় (' + (me.accountStatus || 'Pending') + ')');
+          showToast('আপনার অ্যাকাউন্ট এখনো অনুমোদিত নয়। এডমিনের অনুমোদনের অপেক্ষা করুন।', 'error');
+          return;
+        }
+        // ৩) লিসেনার আবার যুক্ত করে সিঙ্ক পুনরায় চালান
+        firestoreSnapshotStates = {};
+        await attachFirestoreListeners(auth.currentUser.uid).catch(err => {
+          if (isFirestorePermissionError(err)) showPermissionDeniedAlert('ডেটা');
+        });
+        if (currentTenantId && typeof loadBusinessPartnerData === 'function') {
+          await loadBusinessPartnerData(currentTenantId).catch(() => {});
+        }
+        showToast('সেশন রিফ্রেশ হয়েছে · সিঙ্ক আবার চালু হচ্ছে…', 'success');
+        // ৪) টোকেন রিফ্রেশেও ব্যর্থ হলে একবার sign-out/sign-in hint
+        setTimeout(checkSyncStatus, 2500);
+      } catch (e) {
+        console.warn('[reauth] tenant membership re-check failed:', e && (e.code || e.message));
+        if (!_tenantReloginTried && auth && auth.currentUser) {
+          _tenantReloginTried = true;
+          try {
+            const cred = firebase.auth.EmailAuthProvider.credential(
+              auth.currentUser.email || '', localStorage.getItem('pos_relogin_pw') || ''
+            );
+            if (cred) await auth.currentUser.reauthenticateWithCredential(cred);
+            await auth.currentUser.getIdToken(true);
+            firestoreSnapshotStates = {};
+            await attachFirestoreListeners(auth.currentUser.uid).catch(() => {});
+            showToast('রీ-অথেনটিকেশন সফল · সিঙ্ক আবার চলছে…', 'success');
+          } catch (e2) {
+            showPermissionDeniedAlert('ডেটা');
+          }
+        } else {
+          showPermissionDeniedAlert('ডেটা');
+        }
+      }
+    }
+
     function handleFirestoreSyncError(label, error) {
-      console.warn(label + ' listener:', error);
       if (!currentUserId) return;
       const isOffline = isFirestoreOfflineError(error);
-      setSyncStatus(
-        isOffline ? (navigator.onLine ? 'pending' : 'offline') : 'error',
-        isOffline
-          ? 'ইন্টারনেট/সার্ভার সংযোগ নেই · লোকাল/ক্যাশ ডেটা ব্যবহার হচ্ছে'
-          : 'Firebase ' + label + ' সিঙ্ক হয়নি · আবার চেষ্টা করুন'
-      );
-      if (isOffline) scheduleFirestoreReconnect();
+      const isPerm = isFirestorePermissionError(error);
+      // নেটওয়ার্ক/অফলাইন ত্রুটি — লোকাল persistেন্স ক্যাশ ডেটা দেখায়; র-লগ স্প্যাম নয়
+      if (isOffline) {
+        console.warn('[sync-offline] ' + label + ':', error && (error.code || error.message));
+        setSyncStatus(navigator.onLine ? 'pending' : 'offline',
+          'ইন্টারনেট/সার্ভার সংযোগ বিচ্ছিন্ন · অফলাইন ক্যাশ ডেটা ব্যবহার হচ্ছে');
+        scheduleFirestoreReconnect();
+        return;
+      }
+      // পারমিশন এরর — বাংলা অ্যালার্ট ও স্বয়ংক্রিয় টেন্যান্ট রি-অথেনটিকেশন
+      if (isPerm) {
+        console.warn('[sync-permission] ' + label + ': session refresh + tenant re-check queued');
+        setSyncStatus('error', 'অনুমতি সমস্যা · সেশন যাচাই করা হচ্ছে…');
+        autoReauthenticateTenantMembership();
+        showPermissionDeniedAlert(label);
+        return;
+      }
+      console.warn('[sync-error] ' + label + ':', error && (error.code || error.message));
+      setSyncStatus('error', 'Firebase ' + label + ' সিঙ্ক হয়নি · আবার চেষ্টা করুন');
     }
 
     function handleFirestoreSnapshot(snapshot, label) {
@@ -5070,11 +5149,18 @@
       } : null;
       if (dueCreditor) sale.dueLedgerId = dueCreditor.id;
       try {
+        // Cloud-first: offline ফরকিরিয়েট ব্লক করা হয়
+        if (!navigator.onLine) {
+          return showToast('ইন্টারনেট সংযোগ নেই! আপনার হিসাব বা সেলস ক্লাউডে সিঙ্ক করার জন্য ইন্টারনেট সংযোগ প্রয়োজন।', 'error');
+        }
         const batch = db.batch();
         batch.set(getPartnerSalesRef().doc(saleId), sale);
+        // নতুন ব্যালেন্স সরাসরি সংখ্যা লিখি — FieldValue.increment ব্যবহার করলে
+        // Firestore security rules-এ matchingSaleLedger মিল না করে "Missing or insufficient permissions" দেয়
+        const cashDelta = paymentType === 'cash' ? Number((draft.total - draft.partnerShare).toFixed(2)) : 0;
+        const newOperationalBalance = Number((safeNum(businessCashBalance) + cashDelta).toFixed(2));
         batch.update(getBusinessRef(), {
-          operationalCashBalance: firebase.firestore.FieldValue.increment(
-            paymentType === 'cash' ? Number((draft.total - draft.partnerShare).toFixed(2)) : 0),
+          operationalCashBalance: newOperationalBalance,
           lastLedgerId: saleId,
           lastLedgerType: 'partner_sale',
           updatedAt: new Date().toISOString()
@@ -5122,10 +5208,16 @@
       };
 
       try {
+        // Cloud-first: offline ফরকিরিয়েট ব্লক করা হয়
+        if (!navigator.onLine) {
+          return showToast('ইন্টারনেট সংযোগ নেই! আপনার হিসাব বা সেলস ক্লাউডে সিঙ্ক করার জন্য ইন্টারনেট সংযোগ প্রয়োজন।', 'error');
+        }
         const batch = db.batch();
         batch.set(getPartnerExpensesRef().doc(expenseId), expense);
+        // নতুন ব্যালেন্স সরাসরি সংখ্যা — increment ব্যবহার করলে matchingExpenseLedger rule fail করে
+        const newExpenseBalance = Number((safeNum(businessCashBalance) - amount).toFixed(2));
         batch.update(getBusinessRef(), {
-          operationalCashBalance: firebase.firestore.FieldValue.increment(-amount),
+          operationalCashBalance: newExpenseBalance,
           lastLedgerId: expenseId,
           lastLedgerType: 'partner_expense',
           updatedAt: new Date().toISOString()
