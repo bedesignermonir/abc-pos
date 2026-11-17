@@ -1835,6 +1835,13 @@
       font-weight: 800;
     }
 
+    .cash-expected-card .ce-note {
+      color: var(--gray-500);
+      font-size: 11px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
     .cash-variance-badge {
       justify-self: end;
       text-align: center;
@@ -1938,6 +1945,11 @@
     }
 
     @media (max-width: 600px) {
+      .cash-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
       .cash-variance-badge {
         justify-self: stretch;
       }
@@ -2962,12 +2974,14 @@
 
           <div class="cash-expected-card">
             <div>
-              <div class="ce-label">🧮 সিস্টেমে প্রত্যাশিত ক্যাশ</div>
+              <div class="ce-label">🧮 প্রত্যাশিত মোট ব্যালেন্স (ক্যাশ + ডিজিটাল)</div>
               <div class="ce-value" id="expectedCashDisplay">৳০</div>
+              <div class="ce-note" id="expectedCashBreakdown">ক্যাশ ৳০ + ডিজিটাল ৳০</div>
             </div>
             <div>
-              <div class="ce-label">✋ গণনা করা ক্যাশ</div>
+              <div class="ce-label">✋ গণনা করা মোট (ক্যাশ + ডিজিটাল)</div>
               <div class="ce-value" id="countedCashDisplay">৳০</div>
+              <div class="ce-note" id="countedCashBreakdown">ক্যাশ ৳০ + ডিজিটাল ৳০</div>
             </div>
             <div class="cash-variance-badge" id="cashVarianceBadge">✓ হিসাব মিলে গেছে</div>
           </div>
@@ -3607,7 +3621,7 @@
       review: 'https://share.google/KXGlETK8yzlJE6DeS'
     };
 
-    const CASH_DENOMS = [10, 20, 50, 100, 200, 500, 1000];
+    const CASH_DENOMS = [5, 10, 20, 50, 100, 200, 500, 1000];
     const BALANCE_ACCOUNTS = [
       { key: 'bkash', label: 'বিকাশ (Business/Main)' },
       { key: 'nagad', label: 'নগদ' },
@@ -6700,6 +6714,7 @@
 
     // ===== অটোমেটিক ক্যাশ সিঙ্ক, প্রত্যাশিত ব্যালেন্স ও স্মার্ট ক্যাশ রিকনসিলিয়েশন =====
     const EXPECTED_CASH_STORAGE_KEY = 'pos_expected_cash';
+    const EXPECTED_DIGITAL_STORAGE_KEY = 'pos_expected_digital';
     const CASH_ADJUSTMENT_STORAGE_KEY = 'pos_cash_adjustments';
     const CASH_RECONCILIATION_LABELS = {
       other_income: 'অন্যান্য আয় / ক্যাশব্যাক',
@@ -6709,6 +6724,9 @@
     };
 
     let expectedCashBalance = 0;
+    // ডিজিটাল ব্যালেন্সের ভিত্তি (বিকাশ/নগদ/রকেট/ব্যাংক/রিচার্জ) — একত্রিত (ক্যাশ + ডিজিটাল) মিলকরণের জন্য
+    let expectedDigitalBalance = 0;
+    let expectedDigitalKnown = false;
     let pendingCashReconciliation = null;
     let cashAdjustmentLog = (function () {
       try {
@@ -6744,15 +6762,26 @@
     function updateExpectedCashPanel() {
       const expectedEl = document.getElementById('expectedCashDisplay');
       const countedEl = document.getElementById('countedCashDisplay');
+      const expectedBreakEl = document.getElementById('expectedCashBreakdown');
+      const countedBreakEl = document.getElementById('countedCashBreakdown');
       const badge = document.getElementById('cashVarianceBadge');
-      const counted = roundMoney(registerCashTotal());
-      if (expectedEl) expectedEl.textContent = formatMoney(expectedCashBalance);
-      if (countedEl) countedEl.textContent = formatMoney(counted);
+      const bal = consolidatedBalances();
+      if (expectedEl) expectedEl.textContent = formatMoney(bal.expectedGrand);
+      if (countedEl) countedEl.textContent = formatMoney(bal.countedGrand);
+      if (expectedBreakEl) {
+        expectedBreakEl.textContent = 'ক্যাশ ' + formatMoney(bal.expectedCash) + ' + ডিজিটাল ' + formatMoney(bal.expectedDigital);
+      }
+      if (countedBreakEl) {
+        countedBreakEl.textContent = 'ক্যাশ ' + formatMoney(bal.cash) + ' + ডিজিটাল ' + formatMoney(bal.digital);
+      }
       if (!badge) return;
-      const diff = roundMoney(counted - expectedCashBalance);
+      const diff = bal.consolidatedDifference;
       if (Math.abs(diff) < 0.01) {
+        // মোট মিলে গেলে ক্যাশ↔ডিজিটাল স্থানান্তরকে ভুল হিসেবে ধরা হয় না
         badge.className = 'cash-variance-badge';
-        badge.textContent = '✓ হিসাব মিলে গেছে';
+        badge.textContent = Math.abs(bal.cashDifference) >= 0.01
+          ? '✓ মোট মিলেছে · ক্যাশ ↔ ডিজিটাল সমন্বয়'
+          : '✓ হিসাব মিলে গেছে';
       } else if (diff > 0) {
         badge.className = 'cash-variance-badge surplus';
         badge.textContent = '⬆ ' + formatMoney(diff) + ' বেশি';
@@ -6770,12 +6799,65 @@
       updateRegisterTotals();
     }
 
+    function setExpectedDigitalBalance(value, options) {
+      const opts = options || {};
+      expectedDigitalBalance = Math.max(0, roundMoney(value));
+      expectedDigitalKnown = opts.known !== false;
+      try { localStorage.setItem(EXPECTED_DIGITAL_STORAGE_KEY, String(expectedDigitalBalance)); } catch (error) { }
+    }
+
+    // রেজিস্টার রেকর্ড / লোকাল স্টোরেজ থেকে ডিজিটাল ব্যালেন্সের ভিত্তি পুনরুদ্ধার
+    function initializeExpectedDigitalBalance(recordDigitalValue) {
+      const hasRecordValue = recordDigitalValue !== undefined && recordDigitalValue !== null
+        && recordDigitalValue !== '' && !isNaN(Number(recordDigitalValue));
+      if (hasRecordValue) {
+        setExpectedDigitalBalance(recordDigitalValue);
+        return;
+      }
+      let stored = null;
+      try { stored = localStorage.getItem(EXPECTED_DIGITAL_STORAGE_KEY); } catch (error) { }
+      if (stored !== null && stored !== '' && !isNaN(Number(stored))) {
+        setExpectedDigitalBalance(stored);
+      }
+    }
+
+    // একত্রিত হিসাব: মোট শারীরিক ক্যাশ + মোট ডিজিটাল ব্যালেন্স বনাম সিস্টেমের প্রত্যাশিত মোট
+    function consolidatedBalances() {
+      const cash = roundMoney(registerCashTotal());
+      const digital = roundMoney(registerDigitalTotal());
+      const expectedCash = roundMoney(expectedCashBalance);
+      // প্রথমবার ভিত্তি অজানা থাকলে বর্তমান ডিজিটাল ব্যালেন্সই ভিত্তি ধরা হয় — ভুয়া ঘাটতি/বেশি দেখায় না
+      const expectedDigital = expectedDigitalKnown ? roundMoney(expectedDigitalBalance) : digital;
+      const countedGrand = roundMoney(cash + digital);
+      const expectedGrand = roundMoney(expectedCash + expectedDigital);
+      return {
+        cash: cash,
+        digital: digital,
+        expectedCash: expectedCash,
+        expectedDigital: expectedDigital,
+        expectedDigitalKnown: expectedDigitalKnown,
+        countedGrand: countedGrand,
+        expectedGrand: expectedGrand,
+        cashDifference: roundMoney(cash - expectedCash),
+        digitalDifference: roundMoney(digital - expectedDigital),
+        consolidatedDifference: roundMoney(countedGrand - expectedGrand)
+      };
+    }
+
+    // মিলে যাওয়া গণনাই নতুন ভিত্তি — কোনো ব্যালেন্স শূন্য করা হয় না
+    function commitConsolidatedBaseline(bal) {
+      setExpectedCashBalance(bal.cash, { mirror: false });
+      setExpectedDigitalBalance(bal.digital);
+      updateRegisterTotals();
+    }
+
     function initializeExpectedCashBalance() {
       let stored = null;
       try { stored = localStorage.getItem(EXPECTED_CASH_STORAGE_KEY); } catch (error) { }
       if (!cashHistoryRecords.length && stored !== null && stored !== '') {
         expectedCashBalance = Math.max(0, roundMoney(stored));
       }
+      initializeExpectedDigitalBalance();
       setExpectedCashBalance(expectedCashBalance, { mirror: true });
     }
 
@@ -6793,6 +6875,8 @@
       });
       const cashTotal = roundMoney(CASH_DENOMS.reduce((sum, d) => sum + d * denominations[d], 0));
       const digitalTotal = roundMoney(BALANCE_ACCOUNTS.reduce((sum, a) => sum + balances[a.key], 0));
+      const expectedDigital = roundMoney(expectedDigitalKnown ? expectedDigitalBalance : digitalTotal);
+      const expectedGrand = roundMoney(roundMoney(expectedCashBalance) + expectedDigital);
       return Object.assign({
         id: 'cash-' + date,
         date: date,
@@ -6800,6 +6884,10 @@
         digitalTotal: digitalTotal,
         grandTotal: roundMoney(cashTotal + digitalTotal),
         expectedCash: roundMoney(expectedCashBalance),
+        expectedDigital: expectedDigital,
+        expectedGrand: expectedGrand,
+        consolidatedVariance: roundMoney(roundMoney(cashTotal + digitalTotal) - expectedGrand),
+        cashVariance: roundMoney(cashTotal - roundMoney(expectedCashBalance)),
         denominations: denominations,
         balances: balances,
         adjustments: cashAdjustmentLog.slice(0, 20),
@@ -6808,6 +6896,8 @@
     }
 
     function persistCashRegisterSnapshot(reason, extra) {
+      // ডিজিটাল ভিত্তি প্রথমবারেই রেকর্ড থেকে স্থাপন করা হয়, যাতে পুরোনো ডেটায় ভুয়া পার্থক্য না আসে
+      if (!expectedDigitalKnown) setExpectedDigitalBalance(registerDigitalTotal());
       const record = buildCashRegisterRecord(Object.assign({ autoSync: reason || 'manual' }, extra || {}));
       record.expectedCash = roundMoney(expectedCashBalance);
       try { localStorage.setItem('pos_cash_register', JSON.stringify(record)); } catch (error) { }
@@ -6836,32 +6926,39 @@
       showToast('ক্যাশ গণনা সেভ হয়নি — হিসাব মিলিয়ে আবার সেভ করুন', 'loading');
     }
 
-    function showCashReconciliationPrompt(difference, countedCash) {
+    function showCashReconciliationPrompt(difference, snapshot) {
       const surplus = difference > 0;
       const amount = Math.abs(roundMoney(difference));
+      const bal = snapshot && snapshot.countedGrand !== undefined ? snapshot : consolidatedBalances();
       pendingCashReconciliation = {
         surplus: surplus,
         amount: amount,
-        countedCash: roundMoney(countedCash),
-        expectedBefore: roundMoney(expectedCashBalance)
+        countedCash: roundMoney(bal.cash),
+        countedDigital: roundMoney(bal.digital),
+        countedGrand: roundMoney(bal.countedGrand),
+        expectedBefore: roundMoney(bal.expectedCash),
+        expectedDigitalBefore: roundMoney(bal.expectedDigital),
+        expectedGrandBefore: roundMoney(bal.expectedGrand)
       };
       const modal = document.getElementById('cashReconcileModal');
       const title = document.getElementById('cashReconcileTitle');
       const message = document.getElementById('cashReconcileMessage');
       const summary = document.getElementById('cashReconcileSummary');
       const options = document.getElementById('cashReconcileOptions');
-      if (title) title.textContent = surplus ? '💰 ক্যাশে বেশি টাকা পাওয়া গেছে' : '⚠️ ক্যাশে ঘাটতি পাওয়া গেছে';
+      if (title) title.textContent = surplus ? '💰 মোট ব্যালেন্সে বেশি টাকা পাওয়া গেছে' : '⚠️ মোট ব্যালেন্সে ঘাটতি পাওয়া গেছে';
       if (message) {
         message.className = 'reconcile-message' + (surplus ? '' : ' shortage');
         message.textContent = surplus
-          ? 'আপনার সিস্টেমে থাকা হিসাবের চেয়ে ক্যাশে ' + formatMoney(amount) + ' টাকা বেশি রয়েছে।'
-          : 'আপনার সিস্টেমে থাকা হিসাবের চেয়ে ক্যাশে ' + formatMoney(amount) + ' টাকা কম রয়েছে (ঘাটতি)।';
+          ? 'আপনার মোট ব্যালেন্স (ক্যাশ + ডিজিটাল) সিস্টেমের হিসাবের চেয়ে ' + formatMoney(amount) + ' টাকা বেশি রয়েছে।'
+          : 'আপনার মোট ব্যালেন্স (ক্যাশ + ডিজিটাল) সিস্টেমের হিসাবের চেয়ে ' + formatMoney(amount) + ' টাকা কম রয়েছে (ঘাটতি)।';
       }
       if (summary) {
         summary.innerHTML = `
-          <div><div class="rs-label">প্রত্যাশিত ক্যাশ</div><div class="rs-value">${formatMoney(expectedCashBalance)}</div></div>
-          <div><div class="rs-label">গণনা করা ক্যাশ</div><div class="rs-value">${formatMoney(countedCash)}</div></div>
-          <div><div class="rs-label">${surplus ? 'বেশি' : 'ঘাটতি'}</div><div class="rs-value" style="color:${surplus ? '#2563eb' : '#dc2626'};">${formatMoney(amount)}</div></div>`;
+          <div><div class="rs-label">প্রত্যাশিত মোট (ক্যাশ + ডিজিটাল)</div><div class="rs-value">${formatMoney(bal.expectedGrand)}</div></div>
+          <div><div class="rs-label">গণনা করা মোট (ক্যাশ + ডিজিটাল)</div><div class="rs-value">${formatMoney(bal.countedGrand)}</div></div>
+          <div><div class="rs-label">${surplus ? 'বেশি' : 'ঘাটতি'}</div><div class="rs-value" style="color:${surplus ? '#2563eb' : '#dc2626'};">${formatMoney(amount)}</div></div>
+          <div><div class="rs-label">ক্যাশ</div><div class="rs-value">${formatMoney(bal.cash)}</div></div>
+          <div><div class="rs-label">ডিজিটাল</div><div class="rs-value">${formatMoney(bal.digital)}</div></div>`;
       }
       if (options) {
         const choices = surplus ? [
@@ -6996,8 +7093,9 @@
         else if (choice === 'expense') recordCashReconciliationExpense(amount);
         else if (choice === 'loan_given') recordCashReconciliationLoan(amount);
 
-        // শারীরিক গণনাই এখন থেকে সিস্টেমের প্রত্যাশিত ক্যাশ
+        // নতুন গণনাই এখন থেকে দুই ব্যালেন্সের ভিত্তি (ক্যাশ বা ডিজিটাল কোথাও শূন্য করা হয় না)
         setExpectedCashBalance(pending.countedCash, { mirror: true });
+        setExpectedDigitalBalance(pending.countedDigital);
         persistCashRegisterSnapshot('reconciliation', {
           reconciliation: {
             id: 'rec-' + Date.now(),
@@ -7005,7 +7103,10 @@
             label: CASH_RECONCILIATION_LABELS[choice],
             amount: pending.surplus ? amount : -amount,
             expectedBefore: pending.expectedBefore,
+            expectedDigitalBefore: pending.expectedDigitalBefore,
+            expectedGrandBefore: pending.expectedGrandBefore,
             countedCash: pending.countedCash,
+            countedDigital: pending.countedDigital,
             at: new Date().toISOString()
           }
         });
@@ -7027,7 +7128,7 @@
       if (!denomGrid || !balGrid) return;
       denomGrid.innerHTML = CASH_DENOMS.map(d => `
     <div class="cash-cell">
-      <label for="denom_${d}">৳${toBnNum(d)} নোট</label>
+      <label for="denom_${d}">৳${toBnNum(d)} টাকা নোট</label>
       <input type="number" id="denom_${d}" min="0" step="1" placeholder="০" oninput="updateRegisterTotals()">
     </div>`).join('');
       balGrid.innerHTML = BALANCE_ACCOUNTS.map(a => `
@@ -7076,20 +7177,32 @@
     async function saveRegister() {
       let localSaved = false;
       try {
-        const countedCash = roundMoney(registerCashTotal());
-        const difference = roundMoney(countedCash - expectedCashBalance);
+        const bal = consolidatedBalances();
+        const difference = bal.consolidatedDifference;
+        // পপআপ শুধু তখনই আসবে যখন মোট (ক্যাশ + ডিজিটাল) সত্যিই সিস্টেমের হিসাবের সঙ্গে মেলে না
         if (Math.abs(difference) >= 0.01) {
-          showCashReconciliationPrompt(difference, countedCash);
+          showCashReconciliationPrompt(difference, bal);
           return;
         }
-        expectedCashBalance = countedCash;
-        try { localStorage.setItem(EXPECTED_CASH_STORAGE_KEY, String(expectedCashBalance)); } catch (error) { }
-        persistCashRegisterSnapshot('manual', { expectedCash: countedCash });
+        // মোট মিলে গেলে ক্যাশ ↔ ডিজিটাল স্থানান্তর হিসেবেই সেভ হবে, কোনো ব্যালেন্স শূন্য হবে না
+        const cashShift = roundMoney(bal.cashDifference);
+        const digitalShift = roundMoney(bal.digitalDifference);
+        commitConsolidatedBaseline(bal);
+        persistCashRegisterSnapshot('manual', {
+          expectedCash: bal.cash,
+          expectedDigital: bal.digital,
+          transferDetected: Math.abs(cashShift) >= 0.01 && Math.abs(roundMoney(cashShift + digitalShift)) < 0.01
+            ? { cash: cashShift, digital: digitalShift }
+            : null
+        });
         localSaved = true;
         updateRegisterTotals();
-        showToast(currentUserId
-          ? '✅ ক্যাশ ও ব্যালেন্স সেভ হয়েছে — Firebase-এ সিঙ্ক হচ্ছে'
-          : '✅ ক্যাশ ও ব্যালেন্স লোকালি সেভ হয়েছে');
+        const shiftNote = Math.abs(digitalShift) >= 0.01
+          ? ' · ক্যাশ ↔ ডিজিটাল সমন্বয় ' + formatMoney(Math.abs(digitalShift))
+          : '';
+        showToast((currentUserId
+          ? '✅ মোট ব্যালেন্স সেভ হয়েছে — Firebase-এ সিঙ্ক হচ্ছে'
+          : '✅ মোট ব্যালেন্স লোকালি সেভ হয়েছে') + shiftNote);
       } catch (error) {
         console.error('ক্যাশ রেজিস্টার সেভ ত্রুটি:', error);
         showToast((localSaved ? 'লোকালি সেভ হয়েছে, কিন্তু ক্লাউডে সিঙ্ক হয়নি: ' : 'সেভ করা যায়নি: ') + error.message, 'error');
@@ -7125,6 +7238,15 @@
           ? safeNum(data.cashTotal) : safeNum(data.expectedCash);
         expectedCashBalance = Math.max(0, roundMoney(recordExpected));
         try { localStorage.setItem(EXPECTED_CASH_STORAGE_KEY, String(expectedCashBalance)); } catch (error) { }
+        const recordBalancesTotal = BALANCE_ACCOUNTS.reduce((sum, a) => sum + Math.max(0, safeNum(balances[a.key])), 0);
+        const hasDigitalRecord = (data.expectedDigital !== undefined && data.expectedDigital !== null)
+          || (data.digitalTotal !== undefined && data.digitalTotal !== null);
+        if (hasDigitalRecord || recordBalancesTotal > 0) {
+          const recordDigital = hasDigitalRecord
+            ? (data.expectedDigital !== undefined && data.expectedDigital !== null ? data.expectedDigital : data.digitalTotal)
+            : recordBalancesTotal;
+          initializeExpectedDigitalBalance(recordDigital);
+        }
         if (!sourceData) {
           cashHistoryRecords = [data];
           renderCashHistory();
@@ -7435,6 +7557,13 @@
     function setSourceBalanceDelta(sourceKey, delta) {
       const current = getRegisterBalanceValue(sourceKey);
       setRegisterBalanceValue(sourceKey, Math.max(0, current + delta));
+      if (sourceKey !== 'cash') {
+        // ডিজিটাল অ্যাকাউন্ট থেকে খরচ হলে প্রত্যাশিত ডিজিটাল ভিত্তিও কমে, যাতে একত্রিত হিসাবে ভুয়া ঘাটতি না আসে
+        const amount = safeNum(delta);
+        const baseline = expectedDigitalKnown ? expectedDigitalBalance : roundMoney(registerDigitalTotal() - amount);
+        setExpectedDigitalBalance(baseline + amount);
+        updateRegisterTotals();
+      }
     }
 
     function applyExpenseEffects(rows, source, sign) {
