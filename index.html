@@ -4608,11 +4608,14 @@
         }
         // ৩) লিসেনার আবার যুক্ত করে সিঙ্ক পুনরায় চালান
         firestoreSnapshotStates = {};
-        await attachFirestoreListeners(auth.currentUser.uid).catch(err => {
+        const refreshUser = auth.currentUser;
+        const attachFn = currentAccess && currentAccess.role === 'Partner/Staff'
+          ? attachPartnerListeners : attachFirestoreListeners;
+        await attachFn(refreshUser.uid).catch(err => {
           if (isFirestorePermissionError(err)) showPermissionDeniedAlert('ডেটা');
         });
-        if (currentTenantId && typeof loadBusinessPartnerData === 'function') {
-          await loadBusinessPartnerData(currentTenantId).catch(() => {});
+        if (currentAccess && currentAccess.role !== 'Partner/Staff' && isMasterAdmin(refreshUser)) {
+          void ensureBusinessWorkspace().then(() => attachAdminManagementListeners()).catch(() => {});
         }
         showToast('সেশন রিফ্রেশ হয়েছে · সিঙ্ক আবার চালু হচ্ছে…', 'success');
         // ৪) টোকেন রিফ্রেশেও ব্যর্থ হলে একবার sign-out/sign-in hint
@@ -4964,6 +4967,14 @@
       await firestorePersistenceReady;
       if (currentUserId !== uid || currentAccess.role !== 'Partner/Staff') return;
       stopBusinessListeners();
+      // ১) আগেই সদস্যপদ যাচাই — members ডক না থাকলেও আর "permission denied" অ্যালার্ট স্প্যাম হবে না
+      let memberDoc = null;
+      try {
+        const memberSnap = await getMembersRef().doc(uid).get();
+        if (memberSnap.exists) memberDoc = memberSnap.data();
+      } catch (e) {
+        console.warn('[partner] tenant membership pre-check failed:', e && (e.code || e.message));
+      }
       partnerSales = [];
       partnerExpenses = [];
       partnerSettlements = [];
@@ -5003,14 +5014,27 @@
       }, error => handleFirestoreSyncError('অপারেশনাল ক্যাশ', error));
       const memberUnsubscribe = getMembersRef().doc(uid).onSnapshot(snapshot => {
         if (!snapshot.exists) {
-          handleFirestoreSyncError('পার্টনারের লাভের ভাগ', new Error('পার্টনার সদস্যের রেকর্ড পাওয়া যায়নি'));
+          // members ডক নেই — র-এরর/অ্যালার্ট স্প্যাম নয়; users প্রোফাইলের লাভের ভাগ দিয়ে চালিয়ে যাও
+          const fallbackShare = currentAccess && currentAccess.sharePercent;
+          if (fallbackShare !== undefined && fallbackShare !== null) currentAccess.sharePercent = fallbackShare;
+          setSyncStatus(navigator.onLine ? 'pending' : 'offline',
+            'পার্টনার সদস্যপদ রেকর্ড পাওয়া যায়নি · এডমিন থেকে "ভাগ সংরক্ষণ" করান');
+          renderPartnerDashboard();
+          calculatePartnerSale();
           return;
         }
         const member = snapshot.data();
         if (member.sharePercent !== undefined) currentAccess.sharePercent = member.sharePercent;
         renderPartnerDashboard();
         calculatePartnerSale();
-      }, error => handleFirestoreSyncError('পার্টনারের লাভের ভাগ', error));
+      }, error => {
+        if (isFirestorePermissionError(error)) {
+          console.warn('[partner] members read denied · session refresh queued');
+          autoReauthenticateTenantMembership();
+        } else {
+          handleFirestoreSyncError('পার্টনারের লাভের ভাগ', error);
+        }
+      });
       businessUnsubscribers.push(salesUnsubscribe, expensesUnsubscribe, settlementsUnsubscribe, businessUnsubscribe, memberUnsubscribe);
       const metricsInput = document.getElementById('partnerMetricsDate');
       if (metricsInput && !metricsInput.value) metricsInput.value = localDateKey();
@@ -5332,9 +5356,25 @@
       }
 
       const activeMembers = adminMembers.filter(member => member.status === 'active');
+      // ফলব্যাক: members লিস্ট খালি/ডেনাইড হলে অনুমোদিত Partner/Staff ইউজার প্রোফাইল থেকে তালিকা বানাও
+      // — যাতে অ্যাডমিন প্যানেলে ভুলভাবে "কোনো সক্রিয় পার্টনার নেই" দেখায় না
+      const partnerProfiles = adminUserProfiles.filter(profile =>
+        profile.uid !== currentUserId
+        && String(profile.accountStatus || profile.status || '').trim().toLowerCase() === 'approved'
+        && ['partner/staff', 'partner', 'staff'].includes(String(profile.role || '').trim().toLowerCase()));
+      let effectiveMembers = activeMembers;
+      if (!activeMembers.length && partnerProfiles.length) {
+        effectiveMembers = partnerProfiles.map(profile => ({
+          uid: profile.uid,
+          displayName: profile.displayName,
+          email: profile.email,
+          status: 'active',
+          sharePercent: profile.sharePercent ?? 40
+        }));
+      }
       const membersList = document.getElementById('adminPartnersList');
       if (membersList) {
-        const partnerRows = activeMembers.map(member => {
+        const partnerRows = effectiveMembers.map(member => {
           const sales = adminPartnerSales.filter(sale => sale.partnerUid === member.uid);
           const expenses = adminPartnerExpenses.filter(expense => expense.partnerUid === member.uid);
           const memberSettlements = adminSettlements.filter(settlement => settlement.partnerUid === member.uid);

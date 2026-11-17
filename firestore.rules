@@ -18,11 +18,19 @@ service cloud.firestore {
     }
 
     // অনুমোদিত এডমিন চেক (মাস্টার এডমিন অথবা ডাটাবেজে এপ্রুভড এডমিন)
+    // accountStatus ছোট-বড় হাতের নির্বিশেষে ('approved'/'Approved') গ্রহণ করে
     function isApprovedAdmin() {
       return isMasterAdmin() || (signedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountStatus == 'approved'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountStatus.lower() == 'approved'
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin');
+    }
+
+    // অনুমোদিত সদস্য — Admin বা Partner/Staff, যে কেউ tenant ডেটা পড়তে পারবে
+    function isApprovedMember() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountStatus.lower() == 'approved';
     }
 
     function canManageTenant() {
@@ -112,7 +120,10 @@ service cloud.firestore {
 
     // বিজনেস ও পার্টনার কালেকশন
     match /businesses/{tenantId} {
-      allow read: if canManageTenant() || isActivePartner(tenantId);
+      allow get: if canManageTenant() || isActivePartner(tenantId) || isApprovedMember();
+      // LIST অনুমতি — মাস্টার এডমিন ও অনুমোদিত এডমিন tenant-এর সব ডকুমেন্ট লিস্ট করতে পারবে
+      // (অ্যাডমিন প্যানেলের "পার্টনার ও পাওনা" টেবিল এখান থেকেই members লোড করে)
+      allow list: if isMasterAdmin() || isApprovedAdmin();
       allow create, delete: if isMasterAdmin();
       allow update: if isMasterAdmin()
         || (isActivePartner(tenantId)
@@ -123,12 +134,18 @@ service cloud.firestore {
           && (matchingSaleLedger(tenantId) || matchingExpenseLedger(tenantId)));
 
       match /members/{memberId} {
-        allow read, write: if isMasterAdmin();
+        // মাস্টার এডমিন সবকিছু; অনুমোদিত সদস্য নিজের সদস্যপদ পড়তে/আপডেট করতে পারবে
+        allow get: if isMasterAdmin() || request.auth.uid == memberId;
+        allow list: if isMasterAdmin() || isApprovedAdmin();
+        allow create, delete: if isMasterAdmin();
+        allow update: if isMasterAdmin()
+          || (request.auth.uid == memberId && isApprovedMember());
       }
 
       match /partner_sales/{saleId} {
-        allow read: if canManageTenant()
+        allow get: if canManageTenant() || isApprovedMember()
           || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
+        allow list: if isMasterAdmin() || isApprovedAdmin();
         // সক্রিয় পার্টনার নিজের UID মেলা সাপেক্ষে সরাসরি সেল তৈরি করতে পারবে
         // (settled ফিল্ড না দিলেও চলবে — পুরোনো ক্লায়েন্ট ভার্সন ব্লক করবে না)
         allow create: if isActivePartner(tenantId)
@@ -141,8 +158,9 @@ service cloud.firestore {
       }
 
       match /partner_expenses/{expenseId} {
-        allow read: if canManageTenant()
+        allow get: if canManageTenant() || isApprovedMember()
           || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
+        allow list: if isMasterAdmin() || isApprovedAdmin();
         // সক্রিয় পার্টনার নিজের UID মেলা সাপেক্ষে সরাসরি খরচ তৈরি করতে পারবে
         allow create: if isActivePartner(tenantId)
           && request.resource.data.partnerUid == request.auth.uid
@@ -154,8 +172,9 @@ service cloud.firestore {
       }
 
       match /settlements/{settlementId} {
-        allow read: if canManageTenant()
+        allow get: if canManageTenant() || isApprovedMember()
           || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
+        allow list: if isMasterAdmin() || isApprovedAdmin();
         allow create, update, delete: if canManageTenant();
       }
     }
