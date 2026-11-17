@@ -122,7 +122,9 @@ service cloud.firestore {
           && (matchingSaleLedger(tenantId) || matchingExpenseLedger(tenantId)));
 
       match /members/{memberId} {
-        allow read, write: if isMasterAdmin();
+        allow read: if isMasterAdmin() || canManageTenant()
+          || (signedIn() && request.auth.uid == memberId);
+        allow write: if isMasterAdmin() || canManageTenant();
       }
 
       match /partner_sales/{saleId} {
@@ -132,7 +134,8 @@ service cloud.firestore {
         allow create: if isActivePartner(tenantId)
           && request.resource.data.partnerUid == request.auth.uid;
         allow update, delete: if canManageTenant() 
-          || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid && resource.data.settled == false);
+          || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid
+            && (!resource.data.keys().hasAny(['settled']) || resource.data.settled == false));
       }
 
       match /partner_expenses/{expenseId} {
@@ -141,7 +144,8 @@ service cloud.firestore {
         allow create: if isActivePartner(tenantId)
           && request.resource.data.partnerUid == request.auth.uid;
         allow update, delete: if canManageTenant() 
-          || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid && resource.data.settled == false);
+          || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid
+            && (!resource.data.keys().hasAny(['settled']) || resource.data.settled == false));
       }
 
       match /settlements/{settlementId} {

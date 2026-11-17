@@ -472,6 +472,32 @@
       overflow-wrap: anywhere;
     }
 
+    .partner-financial-breakdown {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+    }
+
+    .partner-financial-breakdown > div {
+      display: grid;
+      gap: 5px;
+      padding: 10px;
+      border: 1px solid var(--gray-200);
+      border-radius: 9px;
+      background: #fff;
+    }
+
+    .partner-financial-breakdown span {
+      color: var(--gray-500);
+      font-size: 11px;
+    }
+
+    .partner-financial-breakdown strong {
+      color: var(--dark-2);
+      font-size: 14px;
+      overflow-wrap: anywhere;
+    }
+
     .partner-record-balance {
       display: grid;
       gap: 2px;
@@ -4253,8 +4279,10 @@
         return;
       }
       setSyncStatus('pending', 'পেন্ডিং ডেটা Firebase-এ সিঙ্ক হচ্ছে…');
+      resetTenantPermissionRecovery(currentUserId);
       void db.enableNetwork()
-        .then(() => attachFirestoreListeners(currentUserId))
+        .then(() => currentAccess.role === 'Partner/Staff'
+          ? attachPartnerListeners(currentUserId) : attachFirestoreListeners(currentUserId))
         .catch(error => {
           console.warn('Firebase sync requested; waiting for automatic reconnect:', error);
           setSyncStatus(isFirestoreOfflineError(error) ? 'offline' : 'pending',
@@ -4580,65 +4608,91 @@
     }
 
     let _permAlertShownAt = 0;
-    let _tenantReloginTried = false;
+    let _tenantRecoveryUid = null;
+    let _tenantRecoveryAttempts = 0;
+    let _tenantRecoveryInFlight = false;
+    let _tenantRecoveryTimer = null;
+    let _tenantRecoveryNoticeShown = false;
+    const MAX_TENANT_RECOVERY_ATTEMPTS = 2;
 
     function showPermissionDeniedAlert(label) {
       const now = Date.now();
       if (now - _permAlertShownAt < 8000) return; // একসাথে অনেক listener fail করলে একটাই অ্যালার্ট
       _permAlertShownAt = now;
       alert('⛔ ' + (label || 'ডেটা') + ' সংরক্ষণ/পড়া যায়নি: "Missing or insufficient permissions"\n\n'
-        + 'কারণ: আপনার অ্যাকাউন্টের এই টেন্যান্ট ডেটায় অনুমতি নেই।\n'
-        + '✅ সমাধান: নিচের "আবার চেষ্টা করুন" বোতামে সেশন রিফ্রেশ ও সদস্যপদ যাচাই হবে।\n'
-        + 'না হলে ব্যবসার মালিক/এডমিন থেকে আপনার সদস্যপদ "active" আছে কি না তা নিশ্চিত করুন।');
+        + 'স্বয়ংক্রিয় সেশন যাচাইয়ের চেষ্টা শেষ হয়েছে।\n'
+        + 'Firebase Console-এ Firestore Rules প্রকাশিত আছে কি না এবং ব্যবসার মালিক/এডমিনের কাছে আপনার সক্রিয় সদস্যপদ আছে কি না নিশ্চিত করুন।');
     }
 
-    async function autoReauthenticateTenantMembership() {
+    function resetTenantPermissionRecovery(uid) {
+      if (_tenantRecoveryTimer) clearTimeout(_tenantRecoveryTimer);
+      _tenantRecoveryTimer = null;
+      _tenantRecoveryUid = uid || null;
+      _tenantRecoveryAttempts = 0;
+      _tenantRecoveryInFlight = false;
+      _tenantRecoveryNoticeShown = false;
+    }
+
+    function autoReauthenticateTenantMembership() {
+      const refreshUser = auth && auth.currentUser;
+      if (!refreshUser || !currentUserId) return;
+      if (_tenantRecoveryUid !== refreshUser.uid) resetTenantPermissionRecovery(refreshUser.uid);
+      if (_tenantRecoveryTimer || _tenantRecoveryInFlight) return;
+      if (_tenantRecoveryAttempts >= MAX_TENANT_RECOVERY_ATTEMPTS) {
+        setSyncStatus('error', 'অনুমতি সমস্যা · Firestore Rules ও সক্রিয় সদস্যপদ যাচাই করুন');
+        if (!_tenantRecoveryNoticeShown) {
+          _tenantRecoveryNoticeShown = true;
+          showPermissionDeniedAlert('পার্টনার সিঙ্ক');
+        }
+        return;
+      }
+
+      const attempt = ++_tenantRecoveryAttempts;
+      const delay = 1000 * (2 ** (attempt - 1));
+      _tenantRecoveryTimer = setTimeout(() => {
+        _tenantRecoveryTimer = null;
+        void runTenantPermissionRecovery(refreshUser.uid);
+      }, delay);
+    }
+
+    async function runTenantPermissionRecovery(uid) {
+      if (_tenantRecoveryInFlight || !auth.currentUser || auth.currentUser.uid !== uid || currentUserId !== uid) return;
+      _tenantRecoveryInFlight = true;
       try {
-        if (!(typeof auth !== 'undefined' && auth && auth.currentUser)) return;
-        // ১) ID টোকেন জোর করে রিফ্রেশ (role/status ক্লেইম আপডেট হয়)
         await auth.currentUser.getIdToken(true);
-        // ২) নিজের ইউজার প্রোফাইল ও সদস্যপদ রি-চেკ
-        const meSnap = await db.collection('users').doc(auth.currentUser.uid).get();
-        const me = meSnap.exists ? meSnap.data() : {};
-        const status = String(me.accountStatus || '').toLowerCase();
-        if (status && status !== 'approved') {
-          setSyncStatus('error', 'অ্যাকাউন্ট এখনো অনুমোদনের অপেক্ষায় (' + (me.accountStatus || 'Pending') + ')');
-          showToast('আপনার অ্যাকাউন্ট এখনো অনুমোদিত নয়। এডমিনের অনুমোদনের অপেক্ষা করুন।', 'error');
+        const profileSnapshot = await getUserRef(uid).get();
+        if (currentUserId !== uid || !auth.currentUser || auth.currentUser.uid !== uid) return;
+        const profile = profileSnapshot.exists ? profileSnapshot.data() : {};
+        const accountStatus = String(profile.accountStatus || profile.status || '').trim().toLowerCase();
+        const roleValue = String(profile.role || '').trim().toLowerCase();
+        const approvedRole = roleValue === 'admin'
+          ? 'Admin'
+          : ['partner', 'partner/staff', 'staff'].includes(roleValue) ? 'Partner/Staff' : null;
+        if (accountStatus !== 'approved' || !approvedRole) {
+          setSyncStatus('error', 'অ্যাকাউন্ট অনুমোদিত নয় · এডমিনের অনুমোদন প্রয়োজন');
           return;
         }
-        // ৩) লিসেনার আবার যুক্ত করে সিঙ্ক পুনরায় চালান
+
+        currentAccess = {
+          ...profile,
+          role: approvedRole,
+          status: 'approved',
+          accountStatus: 'approved'
+        };
+        applyRoleVisibility();
         firestoreSnapshotStates = {};
-        const refreshUser = auth.currentUser;
-        const attachFn = currentAccess && currentAccess.role === 'Partner/Staff'
+        const attachFn = approvedRole === 'Partner/Staff'
           ? attachPartnerListeners : attachFirestoreListeners;
-        await attachFn(refreshUser.uid).catch(err => {
-          if (isFirestorePermissionError(err)) showPermissionDeniedAlert('ডেটা');
-        });
-        if (currentAccess && currentAccess.role !== 'Partner/Staff' && isMasterAdmin(refreshUser)) {
-          void ensureBusinessWorkspace().then(() => attachAdminManagementListeners()).catch(() => {});
+        await attachFn(uid);
+        if (approvedRole === 'Admin' && isMasterAdmin(auth.currentUser)) {
+          await ensureBusinessWorkspace();
+          attachAdminManagementListeners();
         }
-        showToast('সেশন রিফ্রেশ হয়েছে · সিঙ্ক আবার চালু হচ্ছে…', 'success');
-        // ৪) টোকেন রিফ্রেশেও ব্যর্থ হলে একবার sign-out/sign-in hint
-        setTimeout(checkSyncStatus, 2500);
-      } catch (e) {
-        console.warn('[reauth] tenant membership re-check failed:', e && (e.code || e.message));
-        if (!_tenantReloginTried && auth && auth.currentUser) {
-          _tenantReloginTried = true;
-          try {
-            const cred = firebase.auth.EmailAuthProvider.credential(
-              auth.currentUser.email || '', localStorage.getItem('pos_relogin_pw') || ''
-            );
-            if (cred) await auth.currentUser.reauthenticateWithCredential(cred);
-            await auth.currentUser.getIdToken(true);
-            firestoreSnapshotStates = {};
-            await attachFirestoreListeners(auth.currentUser.uid).catch(() => {});
-            showToast('রీ-অথেনটিকেশন সফল · সিঙ্ক আবার চলছে…', 'success');
-          } catch (e2) {
-            showPermissionDeniedAlert('ডেটা');
-          }
-        } else {
-          showPermissionDeniedAlert('ডেটা');
-        }
+      } catch (error) {
+        console.warn('[reauth] tenant membership re-check failed:', error && (error.code || error.message));
+        setSyncStatus('error', 'অনুমতি সমস্যা · Firestore Rules ও সক্রিয় সদস্যপদ যাচাই করুন');
+      } finally {
+        _tenantRecoveryInFlight = false;
       }
     }
 
@@ -4658,8 +4712,7 @@
       if (isPerm) {
         console.warn('[sync-permission] ' + label + ': session refresh + tenant re-check queued');
         setSyncStatus('error', 'অনুমতি সমস্যা · সেশন যাচাই করা হচ্ছে…');
-        autoReauthenticateTenantMembership();
-        showPermissionDeniedAlert(label);
+        void autoReauthenticateTenantMembership();
         return;
       }
       console.warn('[sync-error] ' + label + ':', error && (error.code || error.message));
@@ -4754,7 +4807,9 @@
       }
       try {
         await db.enableNetwork();
-        await attachFirestoreListeners(uid);
+        const attachFn = currentAccess.role === 'Partner/Staff'
+          ? attachPartnerListeners : attachFirestoreListeners;
+        await attachFn(uid);
       } catch (error) {
         console.error('Firestore reconnect failed:', error);
         setSyncStatus('error', 'Firebase পুনরায় সংযোগ করতে পারেনি · আবার চেষ্টা করা হবে');
@@ -4791,6 +4846,7 @@
         renderInvoices();
         renderSalesMetrics();
         updateCurrentInvoiceNo();
+        if (isMasterAdmin()) renderAdminManagement();
         handleFirestoreSnapshot(snap, 'বিক্রয়');
       }, err => handleFirestoreSyncError('বিক্রয়', err));
       firestoreUnsubscribers.push(unsubSales);
@@ -4800,6 +4856,7 @@
         saveExpenses();
         renderExpenseList();
         renderFinanceSummary();
+        if (isMasterAdmin()) renderAdminManagement();
         handleFirestoreSnapshot(snap, 'খরচ');
       }, err => handleFirestoreSyncError('খরচ', err));
       firestoreUnsubscribers.push(unsubExpenses);
@@ -5028,12 +5085,7 @@
         renderPartnerDashboard();
         calculatePartnerSale();
       }, error => {
-        if (isFirestorePermissionError(error)) {
-          console.warn('[partner] members read denied · session refresh queued');
-          autoReauthenticateTenantMembership();
-        } else {
-          handleFirestoreSyncError('পার্টনারের লাভের ভাগ', error);
-        }
+        handleFirestoreSyncError('পার্টনারের লাভের ভাগ', error);
       });
       businessUnsubscribers.push(salesUnsubscribe, expensesUnsubscribe, settlementsUnsubscribe, businessUnsubscribe, memberUnsubscribe);
       const metricsInput = document.getElementById('partnerMetricsDate');
@@ -5410,7 +5462,7 @@
         .includes(String(roleVal || '').trim().toLowerCase());
       const isActiveStatusVal = statusVal => String(statusVal || '').trim().toLowerCase() === 'active';
       const membersByUid = new Map(adminMembers
-        .filter(member => isActiveStatusVal(member.status) || isPartnerRoleVal(member.role))
+        .filter(member => isActiveStatusVal(member.status) && isPartnerRoleVal(member.role))
         .map(member => [member.uid || member.id, member]));
       const partnerProfilesByUid = new Map(adminUserProfiles
         .filter(profile => profile.uid !== currentUserId
@@ -5429,17 +5481,27 @@
             email: member.email || profile.email || '',
             status: 'active',
             role: member.role || profile.role || 'Partner/Staff',
-            sharePercent: member.sharePercent ?? profile.sharePercent ?? 40
+            sharePercent: member.sharePercent ?? profile.sharePercent ?? member.profitShare ?? 40
           };
         });
       const membersList = document.getElementById('adminPartnersList');
       if (membersList) {
         // প্রতি কার্ডে sales + expenses দুটো সোর্স থেকেই মার্জ করা হয় —
         // কোনো একটি কালেকশন ডেনাইড/খালি হলেও পার্টনার ব্ল্যাঙ্ক দেখাবে না
-        const partnerSalesFor = uid => [...adminPartnerSales, ...(Array.isArray(ownerInvoices) ? ownerInvoices : [])]
-          .filter(sale => sale.partnerUid === uid);
-        const partnerExpensesFor = uid => [...adminPartnerExpenses, ...(Array.isArray(expenses) ? expenses : [])]
-          .filter(expense => expense.partnerUid === uid);
+        const mergePartnerRecords = (primary, fallback, uid, sourceIdKey) => {
+          const recordsById = new Map();
+          [...primary, ...fallback].filter(record => record.partnerUid === uid).forEach(record => {
+            const recordId = record[sourceIdKey] || record.docId || record.id
+              || [record.date, record.invoiceNo || record.description || ''].join('-');
+            recordsById.set(String(recordId), {
+              ...record,
+              docId: record.docId || record[sourceIdKey] || String(recordId)
+            });
+          });
+          return [...recordsById.values()];
+        };
+        const partnerSalesFor = uid => mergePartnerRecords(adminPartnerSales, invoices, uid, 'sourcePartnerSaleId');
+        const partnerExpensesFor = uid => mergePartnerRecords(adminPartnerExpenses, expenses, uid, 'sourcePartnerExpenseId');
         const partnerRows = effectiveMembers.map(member => {
           const sales = partnerSalesFor(member.uid);
           const expenses = partnerExpensesFor(member.uid);
@@ -5450,6 +5512,11 @@
             && sale.paymentType !== 'due' && safeNum(sale.dueAmount) <= 0);
           const unsettledExpenses = expenses.filter(expense => !settledExpenses.has(expense.docId));
           const allSalesAmount = sales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
+          const partnerProfitEarned = Number(sales.reduce((sum, sale) =>
+            sum + calculatePartnerProfitShares(sale, member.sharePercent ?? 40).partnerShare, 0).toFixed(2));
+          const partnerProfitPaid = Number(memberSettlements.reduce((sum, settlement) =>
+            sum + safeNum(settlement.partnerShare), 0).toFixed(2));
+          const partnerProfitDue = Math.max(0, Number((partnerProfitEarned - partnerProfitPaid).toFixed(2)));
           const pending = Math.max(0,
             unsettledSales.reduce((sum, sale) =>
               sum + safeNum(sale.total) - calculatePartnerProfitShares(sale, member.sharePercent ?? 40).partnerShare, 0)
@@ -5485,7 +5552,15 @@
               </div>
               <div class="partner-record-balance"><span>মোট হস্তান্তর বাকি</span><strong>${formatMoney(pending)}</strong></div>
             </div>
-            <div class="partner-record-summary">সর্বমোট বিক্রি ${formatMoney(allSalesAmount)} · আইটেম ${toBnNum(itemCount)} · অপারেশনাল ক্যাশ ${formatMoney(businessCashBalance)}</div>
+            <div class="partner-record-summary">আইটেম ${toBnNum(itemCount)} · অপারেশনাল ক্যাশ ${formatMoney(businessCashBalance)}</div>
+            <div class="partner-financial-breakdown">
+              <div><span>পার্টনারের অংশ / শেয়ার হার</span><strong>${toBnNum(Math.min(100, Math.max(0, safeNum(member.sharePercent ?? 40))))}%</strong></div>
+              <div><span>এ পর্যন্ত মোট আয় / বিক্রি</span><strong>${formatMoney(allSalesAmount)}</strong></div>
+              <div><span>পার্টনারের মোট প্রাপ্য অংশ</span><strong>${formatMoney(partnerProfitEarned)}</strong></div>
+              <div><span>পার্টনার পেয়েছে / পরিশোধিত</span><strong>${formatMoney(partnerProfitPaid)}</strong></div>
+              <div><span>পার্টনারের বকেয়া প্রাপ্য অংশ</span><strong>${formatMoney(partnerProfitDue)}</strong></div>
+              <div><span>বর্তমান হস্তান্তর বাকি (পার্টনার → মালিক)</span><strong>${formatMoney(pending)}</strong></div>
+            </div>
             <details class="partner-date-details">
               <summary>📅 ${formatDate(selectedDate)}-এর হিসাব ও লেনদেন দেখুন</summary>
               <div class="partner-date-metrics">
@@ -8108,6 +8183,8 @@
       // Auth state listener
       let authBootstrapped = false;
       auth.onAuthStateChanged(async user => {
+        const nextUid = user ? user.uid : null;
+        if (currentUserId !== nextUid) resetTenantPermissionRecovery(nextUid);
         if (isMasterAdmin(user)) {
           const alreadyRendered = authBootstrapped && currentUserId === user.uid;
           currentUser = user;
