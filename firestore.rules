@@ -18,41 +18,32 @@ service cloud.firestore {
     }
 
     // অনুমোদিত এডমিন চেক (মাস্টার এডমিন অথবা ডাটাবেজে এপ্রুভড এডমিন)
-    // accountStatus ছোট-বড় হাতের নির্বিশেষে ('approved'/'Approved') গ্রহণ করে
     function isApprovedAdmin() {
       return isMasterAdmin() || (signedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountStatus.lower() == 'approved'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountStatus == 'approved'
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin');
-    }
-
-    // অনুমোদিত সদস্য — Admin বা Partner/Staff, যে কেউ tenant ডেটা পড়তে পারবে
-    function isApprovedMember() {
-      return signedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountStatus.lower() == 'approved';
     }
 
     function canManageTenant() {
       return isApprovedAdmin();
     }
 
-    // সক্রিয় পার্টনার চেক — মাস্টার এডমিন, members ডকুমেন্টে 'active' স্ট্যাটাস,
-    // অথবা বিজনেস ডকুমেন্টের মালিক (ownerUid) — যাতে পারমিশন এরর না হয়
+    // আপডেট করা isActivePartner: মাস্টার এডমিন, বিজনেস ওনার অথবা মেম্বার হিসেবে একটিভ থাকলে পাস করবে
     function isActivePartner(tenantId) {
-      return signedIn() && (isMasterAdmin()
-        || (exists(/databases/$(database)/documents/businesses/$(tenantId))
-          && get(/databases/$(database)/documents/businesses/$(tenantId)).data.ownerUid == request.auth.uid)
-        || (
-          exists(/databases/$(database)/documents/businesses/$(tenantId)/members/$(request.auth.uid))
-          && get(/databases/$(database)/documents/businesses/$(tenantId)/members/$(request.auth.uid)).data.status == 'active'
-        ));
+      let businessPath = /databases/$(database)/documents/businesses/$(tenantId);
+      let memberPath = /databases/$(database)/documents/businesses/$(tenantId)/members/$(request.auth.uid);
+      
+      return signedIn() && (
+        isMasterAdmin()
+        || (exists(businessPath) && get(businessPath).data.ownerUid == request.auth.uid)
+        || (exists(memberPath) && get(memberPath).data.status == 'active')
+      );
     }
 
-    // সেল লেজার মিল চেক — operationalCashBalance / lastLedgerId / lastLedgerType
-    // পারমাণবিক আপডেট অনুমোদন করে; নেগেটিভ বা ভগ্নাংশ সংখ্যায়ও নিরাপদ যোগবিয়োগ
-    function safeNum(v) {
-      return (type(v) == 'number' && v.isNan() == false) ? v : 0;
+    // সংখ্যা নিরাপদ রাখার জন্য হেল্পার ফাংশন
+    function safeNum(val) {
+      return val is number ? val : 0;
     }
 
     function matchingSaleLedger(tenantId) {
@@ -61,7 +52,7 @@ service cloud.firestore {
         && !exists(salePath)
         && existsAfter(salePath)
         && getAfter(salePath).data.partnerUid == request.auth.uid
-        && request.resource.data.operationalCashBalance
+        && safeNum(request.resource.data.operationalCashBalance)
           == safeNum(resource.data.operationalCashBalance) + safeNum(getAfter(salePath).data.total);
     }
 
@@ -71,23 +62,23 @@ service cloud.firestore {
         && !exists(expensePath)
         && existsAfter(expensePath)
         && getAfter(expensePath).data.partnerUid == request.auth.uid
-        && request.resource.data.operationalCashBalance
+        && safeNum(request.resource.data.operationalCashBalance)
           == safeNum(resource.data.operationalCashBalance) - safeNum(getAfter(expensePath).data.amount);
     }
 
     // ইউজার প্রোফাইল কালেকশন
     match /users/{userId} {
-      // মাস্টার এডমিন যেকোনো ইউজার পড়তে বা লিস্ট করতে পারবে, অন্যথায় শুধু নিজেরটা পারবে
+      // মাস্টার এডমিন যেকোনো ইউজার পড়তে বা লিস্ট করতে পারবে, অন্যথায় শুধু নিজেরটা পারবে
       allow read: if signedIn() && (request.auth.uid == userId || isMasterAdmin());
       allow list: if isMasterAdmin();
 
-      // নতুন ইউজার একাউন্ট খোলার নিয়ম
+      // নতুন ইউজার একাউন্ট খোলার নিয়ম
       allow create: if signedIn()
         && request.auth.uid == userId
         && request.resource.data.accountStatus == 'Pending Approval'
         && request.resource.data.role == 'Pending';
 
-      // আপডেট: মাস্টার এডমিন যেকোনো সময় যেকোনো ইউজারের রোল বা স্ট্যাটাস এপ্রুভ করতে পারবে
+      // আপডেট: মাস্টার এডমিন যেকোনো সময় যেকোনো ইউজারের রোল বা স্ট্যাটাস এপ্রুভ করতে পারবে
       allow update: if isMasterAdmin()
         || (signedIn() && request.auth.uid == userId
           && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL'])
@@ -120,61 +111,42 @@ service cloud.firestore {
 
     // বিজনেস ও পার্টনার কালেকশন
     match /businesses/{tenantId} {
-      allow get: if canManageTenant() || isActivePartner(tenantId) || isApprovedMember();
-      // LIST অনুমতি — মাস্টার এডমিন ও অনুমোদিত এডমিন tenant-এর সব ডকুমেন্ট লিস্ট করতে পারবে
-      // (অ্যাডমিন প্যানেলের "পার্টনার ও পাওনা" টেবিল এখান থেকেই members লোড করে)
-      allow list: if isMasterAdmin() || isApprovedAdmin();
+      allow read: if canManageTenant() || isActivePartner(tenantId);
       allow create, delete: if isMasterAdmin();
       allow update: if isMasterAdmin()
         || (isActivePartner(tenantId)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'operationalCashBalance', 'lastLedgerId', 'lastLedgerType', 'updatedAt', 'updatedBy'
+            'operationalCashBalance', 'lastLedgerId', 'lastLedgerType', 'updatedAt'
           ])
           && request.resource.data.operationalCashBalance >= 0
           && (matchingSaleLedger(tenantId) || matchingExpenseLedger(tenantId)));
 
       match /members/{memberId} {
-        // মাস্টার এডমিন সবকিছু; অনুমোদিত সদস্য নিজের সদস্যপদ পড়তে/আপডেট করতে পারবে
-        allow get: if isMasterAdmin() || request.auth.uid == memberId;
-        allow list: if isMasterAdmin() || isApprovedAdmin();
-        allow create, delete: if isMasterAdmin();
-        allow update: if isMasterAdmin()
-          || (request.auth.uid == memberId && isApprovedMember());
+        allow read, write: if isMasterAdmin();
       }
 
       match /partner_sales/{saleId} {
-        allow get: if canManageTenant() || isApprovedMember()
+        allow read: if canManageTenant()
           || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
-        allow list: if isMasterAdmin() || isApprovedAdmin();
-        // সক্রিয় পার্টনার নিজের UID মেলা সাপেক্ষে সরাসরি সেল তৈরি করতে পারবে
-        // (settled ফিল্ড না দিলেও চলবে — পুরোনো ক্লায়েন্ট ভার্সন ব্লক করবে না)
+        // পুরনো ক্লায়েন্টের সুবিধার্থে settled ফিল্ড অপশনাল করা হয়েছে
         allow create: if isActivePartner(tenantId)
-          && request.resource.data.partnerUid == request.auth.uid
-          && (request.resource.data.keys().hasAny(['settled'])
-            ? request.resource.data.settled == false
-            : true);
-        allow update, delete: if canManageTenant()
-          || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
+          && request.resource.data.partnerUid == request.auth.uid;
+        allow update, delete: if canManageTenant() 
+          || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid && resource.data.settled == false);
       }
 
       match /partner_expenses/{expenseId} {
-        allow get: if canManageTenant() || isApprovedMember()
+        allow read: if canManageTenant()
           || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
-        allow list: if isMasterAdmin() || isApprovedAdmin();
-        // সক্রিয় পার্টনার নিজের UID মেলা সাপেক্ষে সরাসরি খরচ তৈরি করতে পারবে
         allow create: if isActivePartner(tenantId)
-          && request.resource.data.partnerUid == request.auth.uid
-          && (request.resource.data.keys().hasAny(['settled'])
-            ? request.resource.data.settled == false
-            : true);
-        allow update, delete: if canManageTenant()
-          || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
+          && request.resource.data.partnerUid == request.auth.uid;
+        allow update, delete: if canManageTenant() 
+          || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid && resource.data.settled == false);
       }
 
       match /settlements/{settlementId} {
-        allow get: if canManageTenant() || isApprovedMember()
+        allow read: if canManageTenant()
           || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
-        allow list: if isMasterAdmin() || isApprovedAdmin();
         allow create, update, delete: if canManageTenant();
       }
     }
