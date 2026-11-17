@@ -53,7 +53,10 @@ service cloud.firestore {
         && existsAfter(salePath)
         && getAfter(salePath).data.partnerUid == request.auth.uid
         && safeNum(request.resource.data.operationalCashBalance)
-          == safeNum(resource.data.operationalCashBalance) + safeNum(getAfter(salePath).data.total);
+          == safeNum(resource.data.operationalCashBalance)
+            + (getAfter(salePath).data.paymentType == 'cash'
+              ? safeNum(getAfter(salePath).data.total) - safeNum(getAfter(salePath).data.partnerShare)
+              : 0);
     }
 
     function matchingExpenseLedger(tenantId) {
@@ -130,9 +133,9 @@ service cloud.firestore {
       match /partner_sales/{saleId} {
         allow read: if canManageTenant()
           || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
-        // পুরনো ক্লায়েন্টের সুবিধার্থে settled ফিল্ড অপশনাল করা হয়েছে
         allow create: if isActivePartner(tenantId)
-          && request.resource.data.partnerUid == request.auth.uid;
+          && request.resource.data.partnerUid == request.auth.uid
+          && request.resource.data.settled == false;
         allow update, delete: if canManageTenant() 
           || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid
             && (!resource.data.keys().hasAny(['settled']) || resource.data.settled == false));
@@ -142,7 +145,8 @@ service cloud.firestore {
         allow read: if canManageTenant()
           || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid);
         allow create: if isActivePartner(tenantId)
-          && request.resource.data.partnerUid == request.auth.uid;
+          && request.resource.data.partnerUid == request.auth.uid
+          && request.resource.data.settled == false;
         allow update, delete: if canManageTenant() 
           || (isActivePartner(tenantId) && resource.data.partnerUid == request.auth.uid
             && (!resource.data.keys().hasAny(['settled']) || resource.data.settled == false));

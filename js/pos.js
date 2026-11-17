@@ -4,6 +4,7 @@
  */
 
 let currentLogoDataUrl = null;
+
 let editingInvoiceId = null;
 
 function getBusinessInfo() {
@@ -149,31 +150,12 @@ function populateSettingsFormFromCurrent() {
   if (presetEl) presetEl.value = settings.presetItems || '';
   const expCatEl = document.getElementById('expenseCategories');
   if (expCatEl) expCatEl.value = settings.expenseCategories || '';
-
-  const bName = document.getElementById('settingBizName');
-  if (bName) bName.value = settings.businessName || '';
-  const bTag = document.getElementById('settingBizTagline');
-  if (bTag) bTag.value = settings.businessTagline || '';
-  const bPhone = document.getElementById('settingBizPhone');
-  if (bPhone) bPhone.value = settings.businessPhone || '';
-  const bAddr = document.getElementById('settingBizAddress');
-  if (bAddr) bAddr.value = settings.businessAddress || '';
-  const bWeb = document.getElementById('settingBizWebsite');
-  if (bWeb) bWeb.value = settings.businessWebsite || '';
-  const bLogoUrl = document.getElementById('settingBizLogoUrl');
-  if (bLogoUrl) bLogoUrl.value = (settings.businessLogo && !settings.businessLogo.startsWith('data:')) ? settings.businessLogo : '';
-  setLogoPreview(settings.businessLogo || null);
-
   renderPresetPriceFields();
-  if (typeof populateExpenseCategoryOptions === 'function') {
-    populateExpenseCategoryOptions();
-  }
+  populateExpenseCategoryOptions();
 }
 
-// ===== Items Management =====
 function addItem(name = '', qty = 1, price, costPrice) {
   const container = document.getElementById('itemsContainer');
-  if (!container) return;
   const presets = (settings.presetItems || '').split('\n').map(item => item.trim()).filter(Boolean);
   const row = document.createElement('div');
   row.className = 'item-row';
@@ -185,16 +167,16 @@ function addItem(name = '', qty = 1, price, costPrice) {
     ? Number((settings.costPrices || {})[name] || 0)
     : safeNum(costPrice);
   row.innerHTML = `
-    <div class="item-description">
-      <select aria-label="আইটেম প্রিসেট"></select>
-      <input type="text" class="customName" placeholder="নাম" value="${isCustom ? escAttr(name) : ''}" style="display:${isCustom ? 'block' : 'none'}">
-      <div class="item-cost-display">ক্রয়: ${formatMoney(initialCost)} / ইউনিট</div>
-      <input type="hidden" class="itemCostPrice" value="${initialCost}">
-    </div>
-    <input type="number" class="itemQty" value="${qty}" min="1" onchange="calculateRowTotal(this.closest('.item-row')); calculateTotal()" placeholder="পরিমাণ">
-    <input type="number" class="itemPrice" value="${initialPrice}" min="0" step="0.01" onchange="calculateRowTotal(this.closest('.item-row')); calculateTotal()" placeholder="বিক্রয়মূল্য">
-    <div class="item-total-display">৳০</div>
-    <button class="remove-btn" onclick="this.parentElement.remove(); calculateTotal()">×</button>
+<div class="item-description">
+  <select aria-label="আইটেম প্রিসেট"></select>
+  <input type="text" class="customName" placeholder="নাম" value="${isCustom ? escAttr(name) : ''}" style="display:${isCustom ? 'block' : 'none'}">
+  <div class="item-cost-display">ক্রয়: ${formatMoney(initialCost)} / ইউনিট</div>
+  <input type="hidden" class="itemCostPrice" value="${initialCost}">
+</div>
+<input type="number" class="itemQty" value="${qty}" min="1" onchange="calculateRowTotal(this.closest('.item-row')); calculateTotal()" placeholder="পরিমাণ">
+<input type="number" class="itemPrice" value="${initialPrice}" min="0" step="0.01" onchange="calculateRowTotal(this.closest('.item-row')); calculateTotal()" placeholder="বিক্রয়মূল্য">
+<div class="item-total-display">৳০</div>
+<button class="remove-btn" onclick="this.parentElement.remove(); calculateTotal()">×</button>
   `;
   const select = row.querySelector('select');
   populatePresetSelect(select, isCustom ? '__custom__' : name);
@@ -319,15 +301,7 @@ function normalizeInvoiceFinancials(invoice) {
     }, 0).toFixed(2))
     : Math.max(0, safeNum(invoice.costTotal));
 
-  return {
-    ...invoice,
-    items,
-    subtotal,
-    discount,
-    total,
-    costTotal,
-    netProfit: Number((total - costTotal).toFixed(2))
-  };
+  return { ...invoice, items, subtotal, discount, total, costTotal, netProfit: Number((total - costTotal).toFixed(2)) };
 }
 
 function calculateInvoiceCost(invoice) {
@@ -351,14 +325,7 @@ function calculateInvoiceCost(invoice) {
     const lineTotal = qty * price;
     const itemCost = costPrice * qty;
     costTotal += itemCost;
-    return {
-      ...item,
-      costPrice,
-      qty,
-      price,
-      total: Number(lineTotal.toFixed(2)),
-      costTotal: Number(itemCost.toFixed(2))
-    };
+    return { ...item, costPrice, qty, price, total: Number(lineTotal.toFixed(2)), costTotal: Number(itemCost.toFixed(2)) };
   });
 
   invoice.subtotal = Number(invoice.items.reduce((sum, item) => sum + safeNum(item.total), 0).toFixed(2));
@@ -371,8 +338,7 @@ function calculateInvoiceCost(invoice) {
 }
 
 function updateCurrentInvoiceNo() {
-  const el = document.getElementById('currentInvNo');
-  if (el) el.textContent = generateInvoiceNo(nextInvoiceNumber);
+  document.getElementById('currentInvNo').textContent = generateInvoiceNo(nextInvoiceNumber);
 }
 
 async function saveInvoiceOnly() {
@@ -390,18 +356,18 @@ async function saveInvoiceOnly() {
 
   const isEdit = Boolean(editingInvoiceId);
   const existing = isEdit ? invoices.find(i => i.id === editingInvoiceId) : null;
+  const paymentTypeEl = document.querySelector('input[name="invoicePaymentType"]:checked');
+  const paymentType = paymentTypeEl ? paymentTypeEl.value : 'cash';
 
   const invoice = {
     id: isEdit ? editingInvoiceId : Date.now(),
     invoiceNo: isEdit && existing && existing.invoiceNo ? existing.invoiceNo : generateInvoiceNo(nextInvoiceNumber),
-    customer: name,
-    phone: phone,
-    items: items,
-    subtotal: subtotal,
-    total: total,
-    discount: discount,
-    discountAmount: discountAmount,
-    discountType: discountType,
+    customer: name, phone: phone, items: items, subtotal: subtotal, total: total,
+    discount: discount, discountAmount: discountAmount, discountType: discountType,
+    paymentType: paymentType,
+    paymentStatus: paymentType === 'due' ? 'due' : 'paid',
+    dueAmount: paymentType === 'due' ? total : 0,
+    cashBalanceApplied: paymentType === 'cash',
     date: isEdit && existing && existing.date ? existing.date : new Date().toISOString()
   };
 
@@ -421,16 +387,27 @@ async function saveInvoiceOnly() {
     }
     localStorage.setItem('pos_invoices', JSON.stringify(invoices));
     resetForm();
-    if (typeof updateStats === 'function') updateStats();
+    updateStats();
     renderInvoices();
+    renderSalesMetrics();
     updateCurrentInvoiceNo();
 
+    // নগদ বিক্রয়ের অঙ্ক স্বয়ংক্রিয়ভাবে অপারেশনাল ক্যাশ ব্যালেন্সে যোগ/সমন্বয় হয়
+    // পুরোনো (ক্যাশ-ট্র্যাকিংয়ের আগের) ইনভয়েস এডিট করলে ব্যালেন্স দ্বিগুণ হয় না
+    const cashTracked = !isEdit || (existing && existing.cashBalanceApplied === true);
+    const cashAppliedNow = paymentType === 'cash' && cashTracked ? roundMoney(total) : 0;
+    const cashAppliedBefore = isEdit && existing && existing.cashBalanceApplied === true
+      ? roundMoney(existing.total) : 0;
+    const cashDelta = roundMoney(cashAppliedNow - cashAppliedBefore);
+    if (cashDelta) applyOperationalCashDelta(cashDelta, 'sale');
+
     const action = isEdit ? 'আপডেট হয়েছে: ' : 'সেভ হয়েছে: ';
+    const cashNote = paymentType === 'cash' ? ' · ক্যাশ ব্যালেন্সে যোগ হয়েছে' : ' · বাকি হিসেবে রেকর্ড হয়েছে';
     if (currentUserId) {
-      showToast('✓ ইনভয়েস লোকালি ' + action + invoice.invoiceNo + ' — ক্লাউডে সিঙ্ক হচ্ছে');
+      showToast('✓ ইনভয়েস লোকালি ' + action + invoice.invoiceNo + cashNote + ' — ক্লাউডে সিঙ্ক হচ্ছে');
       saveInvoiceToFirebase(invoice);
     } else {
-      showToast('✓ ইনভয়েস লোকাল স্টোরেজে ' + action + invoice.invoiceNo);
+      showToast('✓ ইনভয়েস লোকাল স্টোরেজে ' + action + invoice.invoiceNo + cashNote);
     }
   } catch (error) {
     console.error('Invoice save error:', error);
@@ -451,8 +428,7 @@ function sendWhatsAppMessage(inv, whatsappWindow = null) {
   let rawPhone = (inv && inv.phone != null && String(inv.phone).trim() !== '') ? String(inv.phone) : DEFAULT_PHONE;
   const BN_DIGITS = { '\u09e6': '0', '\u09e7': '1', '\u09e8': '2', '\u09e9': '3', '\u09ea': '4', '\u09eb': '5', '\u09ec': '6', '\u09ed': '7', '\u09ee': '8', '\u09ef': '9' };
   let waPhone = rawPhone.replace(/[\u09e6-\u09ef]/g, d => BN_DIGITS[d]).replace(/\D/g, '');
-  if (waPhone.startsWith('880')) { /* already ok */ }
-  else if (waPhone.startsWith('0')) waPhone = '880' + waPhone.substring(1);
+  if (waPhone.startsWith('880')) { } else if (waPhone.startsWith('0')) waPhone = '880' + waPhone.substring(1);
   else if (waPhone.length === 10) waPhone = '880' + waPhone;
   if (!waPhone) waPhone = DEFAULT_PHONE.replace(/^0/, '880');
 
@@ -475,7 +451,7 @@ function generateWhatsAppMessage(inv) {
   let msg = `${E ? '🧾' : '>>'} *ইনভয়েস নং: ${inv.invoiceNo}*\n\n`;
   msg += `${E ? '👤' : '>>'} জনাব/জনাবা, *${inv.customer}* আপনার *${biz.name}*-এর কাজের বিলের পরিমাণ নিম্নরূপ:\n\n`;
 
-  inv.items.forEach((item) => {
+  inv.items.forEach((item, i) => {
     msg += `${E ? '▸' : '>>'} ${item.name}\n`;
     msg += `   ${E ? '➜' : '>>'} ${toBnNum(safeNum(item.qty))} × ৳${toBnNum(safeNum(item.price))} = *৳${toBnNum(safeNum(item.total))}*\n\n`;
   });
@@ -524,6 +500,8 @@ function resetForm() {
   document.getElementById('itemsContainer').innerHTML = '';
   document.getElementById('discountAmount').value = '0';
   document.getElementById('discountType').value = 'amount';
+  const cashRadio = document.querySelector('input[name="invoicePaymentType"][value="cash"]');
+  if (cashRadio) cashRadio.checked = true;
   addItem();
   calculateTotal();
   updateCurrentInvoiceNo();
@@ -534,13 +512,13 @@ function generatePrintHTML(inv) {
   const biz = getBusinessInfo();
 
   let itemsHtml = inv.items.map((item, i) => `
-    <tr>
-      <td class="text-center">${toBnNum(i + 1)}</td>
-      <td>${escapeHtml(item.name)}</td>
-      <td class="text-center">${toBnNum(safeNum(item.qty))}</td>
-      <td class="text-right">৳${toBnNum(safeNum(item.price))}</td>
-      <td class="text-right">৳${toBnNum(safeNum(item.total))}</td>
-    </tr>
+<tr>
+  <td class="text-center">${toBnNum(i + 1)}</td>
+  <td>${escapeHtml(item.name)}</td>
+  <td class="text-center">${toBnNum(safeNum(item.qty))}</td>
+  <td class="text-right">৳${toBnNum(safeNum(item.price))}</td>
+  <td class="text-right">৳${toBnNum(safeNum(item.total))}</td>
+</tr>
   `).join('');
 
   let totalsHtml = '';
@@ -550,72 +528,72 @@ function generatePrintHTML(inv) {
   }
 
   const logoHtml = biz.logo ? `
-    <div class="print-logo-wrap">
-      <img src="${biz.logo}" alt="Logo" class="print-logo-img">
-    </div>
+<div class="print-logo-wrap">
+  <img src="${biz.logo}" alt="Logo" class="print-logo-img">
+</div>
   ` : '';
 
   return `
-    <div class="print-header">
-      ${logoHtml}
-      <div class="biz-name">${biz.logo ? '' : em('🖥️', '>>')} ${escapeHtml(biz.name)}</div>
-      <div class="biz-tag">${escapeHtml(biz.tagline)}</div>
-      <div class="biz-addr">${em('📍', '>>')} ${escapeHtml(biz.address)}</div>
-      <div class="biz-addr">${em('📞', '>>')} ${escapeHtml(biz.phone)} ${biz.website ? `| ${em('🌐', '>>')} ${escapeHtml(biz.website)}` : ''}</div>
-      ${biz.services ? `<div class="biz-services">✦ ${escapeHtml(biz.services)} ✦</div>` : ''}
-    </div>
+<div class="print-header">
+  ${logoHtml}
+  <div class="biz-name">${biz.logo ? '' : em('🖥️', '>>')} ${escapeHtml(biz.name)}</div>
+  <div class="biz-tag">${escapeHtml(biz.tagline)}</div>
+  <div class="biz-addr">${em('📍', '>>')} ${escapeHtml(biz.address)}</div>
+  <div class="biz-addr">${em('📞', '>>')} ${escapeHtml(biz.phone)} ${biz.website ? `| ${em('🌐', '>>')} ${escapeHtml(biz.website)}` : ''}</div>
+  ${biz.services ? `<div class="biz-services">✦ ${escapeHtml(biz.services)} ✦</div>` : ''}
+</div>
 
-    <div class="print-inv-no">ইনভয়েস নং: ${inv.invoiceNo || 'N/A'}</div>
+<div class="print-inv-no">ইনভয়েস নং: ${inv.invoiceNo || 'N/A'}</div>
 
-    <div class="print-meta">
-      <div><span>তারিখ:</span> ${formatDate(inv.date)}</div>
-      <div><span>সময়:</span> ${formatTime(inv.date)}</div>
-    </div>
-    <div class="print-meta" style="margin-top:-4px;">
-      <div><span>কাস্টমার:</span> ${inv.customer}</div>
-      ${inv.phone ? `<div><span>ফোন:</span> ${inv.phone}</div>` : ''}
-    </div>
+<div class="print-meta">
+  <div><span>তারিখ:</span> ${formatDate(inv.date)}</div>
+  <div><span>সময়:</span> ${formatTime(inv.date)}</div>
+</div>
+<div class="print-meta" style="margin-top:-4px;">
+  <div><span>কাস্টমার:</span> ${inv.customer}</div>
+  ${inv.phone ? `<div><span>ফোন:</span> ${inv.phone}</div>` : ''}
+</div>
 
-    <table class="print-table">
-      <thead>
-        <tr>
-          <th style="width:8%;">#</th>
-          <th style="width:42%;">বিবরণ</th>
-          <th style="width:12%;" class="text-center">পরিমাণ</th>
-          <th style="width:18%;" class="text-right">দাম</th>
-          <th style="width:20%;" class="text-right">মোট</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${itemsHtml}
-      </tbody>
-    </table>
+<table class="print-table">
+  <thead>
+    <tr>
+      <th style="width:8%;">#</th>
+      <th style="width:42%;">বিবরণ</th>
+      <th style="width:12%;" class="text-center">পরিমাণ</th>
+      <th style="width:18%;" class="text-right">দাম</th>
+      <th style="width:20%;" class="text-right">মোট</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${itemsHtml}
+  </tbody>
+</table>
 
-    <div class="print-totals">
-      ${totalsHtml}
-      <div class="final-total">সর্বমোট: ৳${toBnNum(safeNum(inv.total))}</div>
-    </div>
+<div class="print-totals">
+  ${totalsHtml}
+  <div class="final-total">সর্বমোট: ৳${toBnNum(safeNum(inv.total))}</div>
+</div>
 
-    <div class="print-footer">
-      <div class="thanks">${em('🙏', '>>')} আমাদের সেবার জন্য ধন্যবাদ!</div>
-      
-      <div class="print-footer-content ${isSmallBill ? 'small-bill' : 'large-bill'}">
-        <div class="print-social-text">
-          <div style="font-weight:700;margin-bottom:4px;">${em('📲', '>>')} আমাদের সাথে যুক্ত থাকুন:</div>
-          <div class="print-social-row">
-            <span>${em('▶️', '>>')} / ${BUSINESS.social.youtube.handle}</span>
-            <span>${em('📘', '>>')} / ${BUSINESS.social.facebook.handle}</span>
-            <span>${em('🎵', '>>')} / ${BUSINESS.social.tiktok.handle}</span>
-            <span>${em('📸', '>>')} / ${BUSINESS.social.instagram.handle}</span>
-          </div>
-          <div class="review-line">${em('⭐', '>>')} স্ক্যান করে রিভিউ দিন</div>
-        </div>
-        
-        <img src="QR.PNG" class="print-qr-img ${isSmallBill ? 'large' : ''}" alt="QR Code">
+<div class="print-footer">
+  <div class="thanks">${em('🙏', '>>')} আমাদের সেবার জন্য ধন্যবাদ!</div>
+
+  <div class="print-footer-content ${isSmallBill ? 'small-bill' : 'large-bill'}">
+    <div class="print-social-text">
+      <div style="font-weight:700;margin-bottom:4px;">${em('📲', '>>')} আমাদের সাথে যুক্ত থাকুন:</div>
+      <div class="print-social-row">
+        <span>${em('▶️', '>>')} / ${BUSINESS.social.youtube.handle}</span>
+        <span>${em('📘', '>>')} / ${BUSINESS.social.facebook.handle}</span>
+        <span>${em('🎵', '>>')} / ${BUSINESS.social.tiktok.handle}</span>
+        <span>${em('📸', '>>')} / ${BUSINESS.social.instagram.handle}</span>
       </div>
-      
-      <div class="print-computer-gen">এটি একটি কম্পিউটার জেনারেটেড ইনভয়েস</div>
+      <div class="review-line">${em('⭐', '>>')} স্ক্যান করে রিভিউ দিন</div>
     </div>
+
+    <img src="QR.PNG" class="print-qr-img ${isSmallBill ? 'large' : ''}" alt="QR Code">
+  </div>
+
+  <div class="print-computer-gen">এটি একটি কম্পিউটার জেনারেটেড ইনভয়েস</div>
+</div>
   `;
 }
 
@@ -625,7 +603,7 @@ function runPrint(buildHtml, inv, callerName) {
     const printArea = document.getElementById('printArea');
     if (!printArea) {
       console.error(callerName + ': #printArea element not found');
-      return showToast('প্রিন্ট এরিয়া পাওয়া যায়নি', 'error');
+      return showToast('প্রিন্ট এরিয়া পাওয়া যায়নি', 'error');
     }
     printArea.innerHTML = buildHtml(inv);
     const hideToast = () => {
@@ -638,13 +616,8 @@ function runPrint(buildHtml, inv, callerName) {
     const startPrint = () => {
       if (printed) return;
       printed = true;
-      try {
-        window.print();
-      } catch (err) {
-        console.error(callerName + ': window.print() failed', err);
-      } finally {
-        hideToast();
-      }
+      try { window.print(); } catch (err) { console.error(callerName + ': window.print() failed', err); }
+      finally { hideToast(); }
     };
     const qrImage = printArea.querySelector('.print-qr-img');
     const logoImage = printArea.querySelector('.print-logo-img');
@@ -665,13 +638,13 @@ function runPrint(buildHtml, inv, callerName) {
     }
   } catch (err) {
     console.error(callerName + ' error:', err);
-    showToast('প্রিন্ট করা যায়নি', 'error');
+    showToast('প্রিন্ট করা যায়নি', 'error');
   }
 }
 
 function printInvoice(id) {
   const inv = invoices.find(i => String(i.id) === String(id));
-  if (!inv) return showToast('ইনভয়েস খুঁজে পাওয়া যায়নি', 'error');
+  if (!inv) return showToast('ইনভয়েস খুঁজে পাওয়া যায়নি', 'error');
   runPrint(i => generatePrintHTML(i), inv, 'printInvoice');
 }
 
@@ -685,12 +658,7 @@ function printCurrent() {
   const editing = editingInvoiceId ? invoices.find(i => i.id === editingInvoiceId) : null;
   const inv = {
     invoiceNo: editing && editing.invoiceNo ? editing.invoiceNo : generateInvoiceNo(nextInvoiceNumber),
-    customer: name,
-    phone,
-    items,
-    subtotal,
-    discount,
-    total,
+    customer: name, phone, items, subtotal, discount, total,
     date: editing && editing.date ? editing.date : new Date().toISOString()
   };
 
@@ -699,7 +667,6 @@ function printCurrent() {
 
 function renderInvoices() {
   const list = document.getElementById('invoiceList');
-  if (!list) return;
   const monthFilter = document.getElementById('monthFilter').value;
   const search = document.getElementById('searchFilter').value.toLowerCase();
 
@@ -724,25 +691,25 @@ function renderInvoices() {
   }
 
   list.innerHTML = filtered.map(inv => `
-    <div class="invoice-item" onclick="viewInvoice(${inv.id})">
-      <div class="top">
-        <div>
-          <div class="inv-no">${inv.invoiceNo || 'N/A'}</div>
-          <div class="customer" style="margin-top:4px;">👤 ${inv.customer}</div>
-        </div>
-        <div class="amount">${formatMoney(inv.total)}</div>
-      </div>
-      <div class="meta">${formatDate(inv.date)} ${inv.phone ? '• 📱 ' + inv.phone : ''}</div>
-      <div class="actions" onclick="event.stopPropagation()">
-        <button style="background:#25d366;color:white;" onclick="quickResend(${inv.id})">📱 WhatsApp</button>
-        <button style="background:#f59e0b;color:white;" onclick="editInvoice(${inv.id})">✏️ এডিট</button>
-        <button style="background:#3b82f6;color:white;" onclick="printInvoice(${inv.id})">🖨️ প্রিন্ট</button>
-        <button style="background:#ef4444;color:white;" onclick="deleteInvoice(${inv.id})">🗑️</button>
-      </div>
+<div class="invoice-item" onclick="viewInvoice(${inv.id})">
+  <div class="top">
+    <div>
+      <div class="inv-no">${inv.invoiceNo || 'N/A'}</div>
+      <div class="customer" style="margin-top:4px;">👤 ${inv.customer}</div>
     </div>
+    <div class="amount">${formatMoney(inv.total)}</div>
+  </div>
+  <div class="meta">${formatDate(inv.date)} ${inv.phone ? '• 📱 ' + inv.phone : ''}</div>
+  <div class="actions" onclick="event.stopPropagation()">
+    <button style="background:#25d366;color:white;" onclick="quickResend(${inv.id})">📱 WhatsApp</button>
+    <button style="background:#f59e0b;color:white;" onclick="editInvoice(${inv.id})">✏️ এডিট</button>
+    <button style="background:#3b82f6;color:white;" onclick="printInvoice(${inv.id})">🖨️ প্রিন্ট</button>
+    <button style="background:#ef4444;color:white;" onclick="deleteInvoice(${inv.id})">🗑️</button>
+  </div>
+</div>
   `).join('');
 
-  if (typeof updateStats === 'function') updateStats();
+  updateStats();
 }
 
 function quickResend(id) {
@@ -775,7 +742,7 @@ function editInvoice(id) {
   document.getElementById('currentInvNo').textContent = inv.invoiceNo || generateInvoiceNo(nextInvoiceNumber);
 
   closeInvoiceModal();
-  if (typeof updateStats === 'function') updateStats();
+  updateStats();
   renderInvoices();
 
   try { document.getElementById('customerName').scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { }
@@ -790,53 +757,53 @@ function viewInvoice(id) {
   const biz = getBusinessInfo();
   const detail = document.getElementById('invoiceDetail');
   detail.innerHTML = `
-    <div style="background:linear-gradient(135deg,var(--dark),var(--dark-2));color:white;padding:12px 16px;border-radius:10px;margin-bottom:12px;text-align:center;">
-      <div style="font-size:11px;opacity:0.8;">ইনভয়েস নম্বর</div>
-      <div style="font-size:22px;font-weight:700;color:var(--primary);letter-spacing:1px;">${inv.invoiceNo || 'N/A'}</div>
+<div style="background:linear-gradient(135deg,var(--dark),var(--dark-2));color:white;padding:12px 16px;border-radius:10px;margin-bottom:12px;text-align:center;">
+  <div style="font-size:11px;opacity:0.8;">ইনভয়েস নম্বর</div>
+  <div style="font-size:22px;font-weight:700;color:var(--primary);letter-spacing:1px;">${inv.invoiceNo || 'N/A'}</div>
+</div>
+<div style="background:var(--gray-50);padding:15px;border-radius:10px;">
+  ${biz.logo ? `
+    <div style="text-align:center;margin-bottom:8px;">
+      <img src="${biz.logo}" alt="Logo" style="max-height:45px;max-width:140px;object-fit:contain;display:inline-block;">
     </div>
-    <div style="background:var(--gray-50);padding:15px;border-radius:10px;">
-      ${biz.logo ? `
-        <div style="text-align:center;margin-bottom:8px;">
-          <img src="${biz.logo}" alt="Logo" style="max-height:45px;max-width:140px;object-fit:contain;display:inline-block;">
-        </div>
-      ` : ''}
-      <div style="text-align:center;font-weight:700;color:var(--dark);font-size:16px;">${escapeHtml(biz.name)}</div>
-      <div style="text-align:center;font-size:11px;color:var(--gray-500);margin-bottom:10px;">${escapeHtml(biz.address)} • ${escapeHtml(biz.phone)}</div>
-      <h3 style="color:var(--dark);margin-top:10px;">👤 ${escapeHtml(inv.customer)}</h3>
-      ${inv.phone ? `<p style="color:var(--gray-500);font-size:13px;">📱 ${inv.phone}</p>` : ''}
-      <p style="color:#94a3b8;font-size:12px;margin:5px 0;">📅 ${formatDate(inv.date)} • ⏰ ${formatTime(inv.date)}</p>
-      <hr style="margin:10px 0;border:none;border-top:1px dashed #cbd5e1;">
-      ${financials.items.map(i => `
-        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--gray-100);">
-          <span>${i.name} × ${toBnNum(safeNum(i.qty))}</span>
-          <span style="font-weight:700;">${formatMoney(i.total)}</span>
-        </div>
-      `).join('')}
-      <div style="display:flex;justify-content:space-between;padding:5px 0;color:var(--gray-500);">
-        <span>সাবটোটাল</span>
-        <span>${formatMoney(financials.subtotal)}</span>
-      </div>
-      ${safeNum(financials.discount) > 0 ? `
-        <div style="display:flex;justify-content:space-between;padding:5px 0;color:var(--danger);">
-          <span>ডিসকাউন্ট</span>
-          <span>-${formatMoney(financials.discount)}</span>
-        </div>
-      ` : ''}
-      <div style="display:flex;justify-content:space-between;padding:10px 0;margin-top:8px;border-top:2px solid var(--primary);font-size:18px;font-weight:700;color:var(--success);">
-        <span>সর্বমোট</span>
-        <span>${formatMoney(financials.total)}</span>
-      </div>
-      <div style="margin-top:12px;padding:12px;background:#ecfdf5;border-radius:10px;">
-        <div style="display:flex;justify-content:space-between;font-weight:700;color:var(--dark);">
-            <span>মোট কস্ট</span>
-            <span>${formatMoney(financials.costTotal)}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-weight:700;color:${financials.netProfit >= 0 ? 'var(--success)' : 'var(--danger)'};margin-top:6px;">
-          <span>লাভ</span>
-          <span>${formatMoney(financials.netProfit)}</span>
-        </div>
-      </div>
+  ` : ''}
+  <div style="text-align:center;font-weight:700;color:var(--dark);font-size:16px;">${escapeHtml(biz.name)}</div>
+  <div style="text-align:center;font-size:11px;color:var(--gray-500);margin-bottom:10px;">${escapeHtml(biz.address)} • ${escapeHtml(biz.phone)}</div>
+  <h3 style="color:var(--dark);margin-top:10px;">👤 ${escapeHtml(inv.customer)}</h3>
+  ${inv.phone ? `<p style="color:var(--gray-500);font-size:13px;">📱 ${inv.phone}</p>` : ''}
+  <p style="color:#94a3b8;font-size:12px;margin:5px 0;">📅 ${formatDate(inv.date)} • ⏰ ${formatTime(inv.date)}</p>
+  <hr style="margin:10px 0;border:none;border-top:1px dashed #cbd5e1;">
+  ${financials.items.map(i => `
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--gray-100);">
+      <span>${i.name} × ${toBnNum(safeNum(i.qty))}</span>
+      <span style="font-weight:700;">${formatMoney(i.total)}</span>
     </div>
+  `).join('')}
+  <div style="display:flex;justify-content:space-between;padding:5px 0;color:var(--gray-500);">
+    <span>সাবটোটাল</span>
+    <span>${formatMoney(financials.subtotal)}</span>
+  </div>
+  ${safeNum(financials.discount) > 0 ? `
+    <div style="display:flex;justify-content:space-between;padding:5px 0;color:var(--danger);">
+      <span>ডিসকাউন্ট</span>
+      <span>-${formatMoney(financials.discount)}</span>
+    </div>
+  ` : ''}
+  <div style="display:flex;justify-content:space-between;padding:10px 0;margin-top:8px;border-top:2px solid var(--primary);font-size:18px;font-weight:700;color:var(--success);">
+    <span>সর্বমোট</span>
+    <span>${formatMoney(financials.total)}</span>
+  </div>
+  <div style="margin-top:12px;padding:12px;background:#ecfdf5;border-radius:10px;">
+    <div style="display:flex;justify-content:space-between;font-weight:700;color:var(--dark);">
+        <span>মোট কস্ট</span>
+        <span>${formatMoney(financials.costTotal)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-weight:700;color:${financials.netProfit >= 0 ? 'var(--success)' : 'var(--danger)'};margin-top:6px;">
+      <span>লাভ</span>
+      <span>${formatMoney(financials.netProfit)}</span>
+    </div>
+  </div>
+</div>
   `;
   document.getElementById('invoiceModal').classList.add('active');
 }
@@ -849,14 +816,19 @@ async function deleteInvoice(id) {
   if (!confirm('এই ইনভয়েসটি মুছে ফেলবেন?')) return;
 
   try {
+    const removedInvoice = invoices.find(i => i.id === id);
     invoices = invoices.filter(i => i.id !== id);
     localStorage.setItem('pos_invoices', JSON.stringify(invoices));
-    if (typeof updateStats === 'function') updateStats();
+    updateStats();
     renderInvoices();
+    renderSalesMetrics();
+    if (removedInvoice && removedInvoice.cashBalanceApplied === true) {
+      applyOperationalCashDelta(-roundMoney(removedInvoice.total), 'sale_delete');
+    }
 
     if (currentUserId) {
       showToast('✓ ইনভয়েস লোকালি মুছে ফেলা হয়েছে — ক্লাউডে সিঙ্ক হচ্ছে');
-      saveInvoiceToFirebase(id);
+      deleteInvoiceFromFirebase(id);
     } else {
       showToast('✓ ইনভয়েস মুছে ফেলা হয়েছে');
     }
@@ -866,7 +838,6 @@ async function deleteInvoice(id) {
   }
 }
 
-// ===== Settings Modal & Price Fields =====
 function openSettings() {
   if (currentAccess.role === 'Partner/Staff') {
     return showToast('পার্টনার অ্যাকাউন্ট থেকে ব্যবসার সেটিংস খোলা যাবে না।', 'error');
@@ -880,20 +851,13 @@ function capturePresetPriceDraft() {
   settings.sellingPrices = settings.sellingPrices || {};
   document.querySelectorAll('.preset-cost-input, .preset-selling-input').forEach(input => {
     const name = input.dataset.itemName;
-    const prices = input.classList.contains('preset-cost-input')
-      ? settings.costPrices
-      : settings.sellingPrices;
-    if (input.value === '') {
-      delete prices[name];
-    } else {
-      prices[name] = input.value;
-    }
+    const prices = input.classList.contains('preset-cost-input') ? settings.costPrices : settings.sellingPrices;
+    if (input.value === '') { delete prices[name]; } else { prices[name] = input.value; }
   });
 }
 
 function renderPresetPriceFields() {
   const container = document.getElementById('presetPriceFields');
-  if (!container) return;
   const presets = [...new Set((document.getElementById('presetItems').value || '')
     .split('\n').map(item => item.trim()).filter(Boolean))];
   container.innerHTML = '';
@@ -934,8 +898,7 @@ function renderPresetPriceFields() {
 }
 
 function closeSettings() {
-  const modal = document.getElementById('settingsModal');
-  if (modal) modal.classList.remove('active');
+  document.getElementById('settingsModal').classList.remove('active');
 }
 
 async function saveSettings() {
@@ -949,11 +912,8 @@ async function saveSettings() {
       invalidPrice = true;
       return;
     }
-    if (input.classList.contains('preset-cost-input')) {
-      costPrices[input.dataset.itemName] = price;
-    } else {
-      sellingPrices[input.dataset.itemName] = price;
-    }
+    if (input.classList.contains('preset-cost-input')) costPrices[input.dataset.itemName] = price;
+    else sellingPrices[input.dataset.itemName] = price;
   });
   if (invalidPrice) {
     return showToast('কস্ট ও বিক্রয়মূল্য শূন্য বা তার বেশি সংখ্যা হতে হবে', 'error');
@@ -979,9 +939,7 @@ async function saveSettings() {
   settings.sellingPrices = sellingPrices;
   localStorage.setItem('pos_settings', JSON.stringify(settings));
   applyBusinessBranding();
-  if (typeof populateExpenseCategoryOptions === 'function') {
-    populateExpenseCategoryOptions();
-  }
+  populateExpenseCategoryOptions();
   closeSettings();
   document.getElementById('itemsContainer').innerHTML = '';
   addItem();

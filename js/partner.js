@@ -3,6 +3,8 @@
  * Module: js/partner.js
  */
 
+let partnerMemberSyncRunning = false;
+
 function refreshPartnerSaleCatalog() {
   const container = document.getElementById('partnerItemsContainer');
   if (!container) return;
@@ -184,6 +186,14 @@ async function attachPartnerListeners(uid) {
   await firestorePersistenceReady;
   if (currentUserId !== uid || currentAccess.role !== 'Partner/Staff') return;
   stopBusinessListeners();
+  // ১) আগেই সদস্যপদ যাচাই — members ডক না থাকলেও আর "permission denied" অ্যালার্ট স্প্যাম হবে না
+  let memberDoc = null;
+  try {
+    const memberSnap = await getMembersRef().doc(uid).get();
+    if (memberSnap.exists) memberDoc = memberSnap.data();
+  } catch (e) {
+    console.warn('[partner] tenant membership pre-check failed:', e && (e.code || e.message));
+  }
   partnerSales = [];
   partnerExpenses = [];
   partnerSettlements = [];
@@ -223,14 +233,22 @@ async function attachPartnerListeners(uid) {
   }, error => handleFirestoreSyncError('অপারেশনাল ক্যাশ', error));
   const memberUnsubscribe = getMembersRef().doc(uid).onSnapshot(snapshot => {
     if (!snapshot.exists) {
-      handleFirestoreSyncError('পার্টনারের লাভের ভাগ', new Error('পার্টনার সদস্যের রেকর্ড পাওয়া যায়নি'));
+      // members ডক নেই — র-এরর/অ্যালার্ট স্প্যাম নয়; users প্রোফাইলের লাভের ভাগ দিয়ে চালিয়ে যাও
+      const fallbackShare = currentAccess && currentAccess.sharePercent;
+      if (fallbackShare !== undefined && fallbackShare !== null) currentAccess.sharePercent = fallbackShare;
+      setSyncStatus(navigator.onLine ? 'pending' : 'offline',
+        'পার্টনার সদস্যপদ রেকর্ড পাওয়া যায়নি · এডমিন থেকে "ভাগ সংরক্ষণ" করান');
+      renderPartnerDashboard();
+      calculatePartnerSale();
       return;
     }
     const member = snapshot.data();
     if (member.sharePercent !== undefined) currentAccess.sharePercent = member.sharePercent;
     renderPartnerDashboard();
     calculatePartnerSale();
-  }, error => handleFirestoreSyncError('পার্টনারের লাভের ভাগ', error));
+  }, error => {
+    handleFirestoreSyncError('পার্টনারের লাভের ভাগ', error);
+  });
   businessUnsubscribers.push(salesUnsubscribe, expensesUnsubscribe, settlementsUnsubscribe, businessUnsubscribe, memberUnsubscribe);
   const metricsInput = document.getElementById('partnerMetricsDate');
   if (metricsInput && !metricsInput.value) metricsInput.value = localDateKey();
@@ -238,16 +256,12 @@ async function attachPartnerListeners(uid) {
   if (dateInput && !dateInput.value) dateInput.value = localDateKey();
 }
 
-/**
- * Partner dashboard metrics and the unsettled cash amount due for handover.
- */
 function renderPartnerDashboard() {
   const metricsDateInput = document.getElementById('partnerMetricsDate');
   if (metricsDateInput && !metricsDateInput.value) metricsDateInput.value = localDateKey();
   const selectedDate = (metricsDateInput && metricsDateInput.value) || localDateKey();
   const isToday = selectedDate === localDateKey();
 
-  // Strict date-based metrics calculation for selected date
   const dateSales = partnerSales.filter(sale => localDateKey(sale.date) === selectedDate);
   const totalSales = dateSales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
   const partnerPercent = Math.min(100, Math.max(0, safeNum(currentAccess.sharePercent ?? 40)));
@@ -261,21 +275,20 @@ function renderPartnerDashboard() {
   const settledSales = new Set(partnerSettlements.flatMap(settlement => settlement.salesIds || []));
   const settledExpenses = new Set(partnerSettlements.flatMap(settlement => settlement.expenseIds || []));
 
-  const handoverEligibleSales = dateSales.filter(sale => !settledSales.has(sale.docId)
-    && sale.paymentType !== 'due' && safeNum(sale.dueAmount) <= 0);
-  const pendingSalesTotal = handoverEligibleSales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
-  const pendingPartnerProfit = handoverEligibleSales.reduce((sum, sale) =>
-    sum + calculatePartnerProfitShares(sale, partnerPercent).partnerShare, 0);
-  const dateExpenses = partnerExpenses.filter(expense => localDateKey(expense.date) === selectedDate);
-  const pendingPartnerExpenses = dateExpenses.filter(expense => !settledExpenses.has(expense.docId))
-    .reduce((sum, expense) => sum + safeNum(expense.amount), 0);
-  const handoverDue = Number(Math.max(0, pendingSalesTotal - pendingPartnerProfit - pendingPartnerExpenses).toFixed(2));
+  // Only unsettled cash sales can contribute to the amount due for handover.
+  const handoverEligibleSales = dateSales.filter(sale =>
+    !settledSales.has(sale.docId) && sale.paymentType !== 'due' && safeNum(sale.dueAmount) <= 0);
 
-  // Determine settlement status
-  const unsettledSales = dateSales.filter(sale => !settledSales.has(sale.docId));
-  const unsettledExpenses = dateExpenses.filter(expense => !settledExpenses.has(expense.docId));
-  const isFullySettled = (dateSales.length > 0 || dateExpenses.length > 0)
-    && unsettledSales.length === 0 && unsettledExpenses.length === 0;
+  const pendingSalesTotal = handoverEligibleSales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
+  const pendingPartnerProfit = handoverEligibleSales.reduce(
+    (sum, sale) => sum + calculatePartnerProfitShares(sale, partnerPercent).partnerShare, 0);
+
+  const dateExpenses = partnerExpenses.filter(expense => localDateKey(expense.date) === selectedDate);
+  const pendingPartnerExpenses = dateExpenses
+    .filter(expense => !settledExpenses.has(expense.docId))
+    .reduce((sum, expense) => sum + safeNum(expense.amount), 0);
+
+  const handoverDue = Number(Math.max(0, pendingSalesTotal - pendingPartnerProfit - pendingPartnerExpenses).toFixed(2));
 
   const salesCardLabel = document.getElementById('partnerSalesCardLabel');
   if (salesCardLabel) {
@@ -286,23 +299,19 @@ function renderPartnerDashboard() {
   document.getElementById('ownerTodayShare').textContent = formatMoney(dateShares.owner);
   document.getElementById('partnerSharePercent').textContent = toBnNum(partnerPercent);
   document.getElementById('ownerSharePercent').textContent = toBnNum(100 - partnerPercent);
-  document.getElementById('partnerPendingCash').textContent = formatMoney(handoverDue);
+  document.getElementById('partnerPendingCash').textContent = formatMoney(Math.max(0, handoverDue));
 
   const pendingSublabel = document.getElementById('partnerPendingCashSublabel');
   if (pendingSublabel) {
-    if (isFullySettled) {
-      pendingSublabel.textContent = `বিক্রি ${formatMoney(pendingSalesTotal)} − আমার অংশ ${formatMoney(pendingPartnerProfit)} − খরচ ${formatMoney(pendingPartnerExpenses)} · হস্তান্তরিত`;
-    } else {
-      pendingSublabel.textContent = `বিক্রি ${formatMoney(pendingSalesTotal)} − আমার অংশ ${formatMoney(pendingPartnerProfit)} − খরচ ${formatMoney(pendingPartnerExpenses)}`;
-    }
+    pendingSublabel.textContent = 'বিক্রি ' + formatMoney(pendingSalesTotal) + ' − আমার অংশ ' + formatMoney(pendingPartnerProfit) + ' − খরচ ' + formatMoney(pendingPartnerExpenses);
   }
 
-  // Bottom date-wise record history table: intact and independent
   const historyDateInput = document.getElementById('partnerHistoryDate');
   if (historyDateInput && !historyDateInput.value) historyDateInput.value = localDateKey();
   const selectedHistoryDay = historyDateInput && historyDateInput.value;
   const historySales = partnerSales.filter(sale => !selectedHistoryDay || localDateKey(sale.date) === selectedHistoryDay);
-  const historyExpenses = partnerExpenses.filter(expense => !selectedHistoryDay || localDateKey(expense.date) === selectedHistoryDay);
+  const historyExpenses = partnerExpenses.filter(expense =>
+    !selectedHistoryDay || localDateKey(expense.date) === selectedHistoryDay);
 
   const salesList = document.getElementById('partnerSalesHistory');
   if (salesList) {
@@ -325,7 +334,8 @@ function renderPartnerDashboard() {
 
 function savePartnerSale(event) {
   event.preventDefault();
-  if (currentAccess.role !== 'Partner/Staff' || !currentUserId) return showToast(PENDING_APPROVAL_MESSAGE, 'error');
+  const partnerUid = auth.currentUser && auth.currentUser.uid;
+  if (currentAccess.role !== 'Partner/Staff' || !partnerUid || partnerUid !== currentUserId) return showToast(PENDING_APPROVAL_MESSAGE, 'error');
   const customer = document.getElementById('partnerCustomer').value.trim();
   const phone = document.getElementById('partnerPhone').value.trim();
   const paymentType = document.querySelector('input[name="partnerPaymentType"]:checked').value;
@@ -333,15 +343,15 @@ function savePartnerSale(event) {
   if (!customer) return showToast('কাস্টমারের নাম দিন।', 'error');
   if (!draft || !draft.items.length) return showToast('কমপক্ষে একটি আইটেম বাছাই বা লিখুন।', 'error');
   if (draft.items.some(item => item.qty < 1 || !Number.isFinite(item.price) || item.price < 0 || item.costPrice < 0)) {
-    return showToast('প্রতিটি আইটেমের সঠিক পরিমাণ, বিক্রয়মূল্য ও কস্ট লিখুন।', 'error');
+    return showToast('প্রতিটি আইটেমের সঠিক পরিমাণ, বিক্রয়মূল্য ও কস্ট লিখুন।', 'error');
   }
-  if (draft.costTotal > draft.total) return showToast('মোট কস্ট বিক্রয়মূল্যের বেশি হতে পারবে না।', 'error');
-  if (draft.total <= 0) return showToast('সর্বমোট বিক্রয় শূন্যের বেশি হতে হবে।', 'error');
+  if (draft.costTotal > draft.total) return showToast('মোট কস্ট বিক্রয়মূল্যের বেশি হতে পারবে না।', 'error');
+  if (draft.total <= 0) return showToast('সর্বমোট বিক্রয় শূন্যের বেশি হতে হবে।', 'error');
   const saleId = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
   const sale = {
     id: saleId,
-    partnerUid: currentUserId,
-    partnerEmail: currentUser.email || '',
+    partnerUid,
+    partnerEmail: auth.currentUser.email || '',
     customer,
     phone,
     items: draft.items,
@@ -364,26 +374,31 @@ function savePartnerSale(event) {
     settled: false,
     createdAt: new Date().toISOString()
   };
-  let dueCreditor = null;
-  if (paymentType === 'due') {
-    dueCreditor = {
-      id: Date.now(),
-      name: `${customer} (${phone || 'P-' + saleId})`,
-      taken: draft.total,
-      paid: 0,
-      due: draft.total,
-      date: new Date().toISOString(),
-      partnerUid: currentUserId,
-      sourcePartnerSaleId: saleId
-    };
-  }
+  const dueCreditor = paymentType === 'due' ? {
+    id: Date.now(),
+    name: customer,
+    taken: draft.total,
+    paid: 0,
+    due: draft.total,
+    date: sale.date,
+    source: 'pos_sale',
+    sourcePartnerSaleId: saleId,
+    invoiceNo: sale.invoiceNo
+  } : null;
+  if (dueCreditor) sale.dueLedgerId = dueCreditor.id;
   try {
+    // Cloud-first: offline ফরকিরিয়েট ব্লক করা হয়
+    if (!navigator.onLine) {
+      return showToast('ইন্টারনেট সংযোগ নেই! আপনার হিসাব বা সেলস ক্লাউডে সিঙ্ক করার জন্য ইন্টারনেট সংযোগ প্রয়োজন।', 'error');
+    }
     const batch = db.batch();
     batch.set(getPartnerSalesRef().doc(saleId), sale);
+    // নতুন ব্যালেন্স সরাসরি সংখ্যা লিখি — FieldValue.increment ব্যবহার করলে
+    // Firestore security rules-এ matchingSaleLedger মিল না করে "Missing or insufficient permissions" দেয়
+    const cashDelta = paymentType === 'cash' ? Number((draft.total - draft.partnerShare).toFixed(2)) : 0;
+    const newOperationalBalance = Number((safeNum(businessCashBalance) + cashDelta).toFixed(2));
     batch.update(getBusinessRef(), {
-      operationalCashBalance: paymentType === 'cash'
-        ? firebase.firestore.FieldValue.increment(Number((draft.total - draft.partnerShare).toFixed(2)))
-        : firebase.firestore.FieldValue.increment(0),
+      operationalCashBalance: newOperationalBalance,
       lastLedgerId: saleId,
       lastLedgerType: 'partner_sale',
       updatedAt: new Date().toISOString()
@@ -391,7 +406,7 @@ function savePartnerSale(event) {
     if (dueCreditor) {
       batch.set(getCreditorsRef().doc(String(dueCreditor.id)), dueCreditor);
       creditors.unshift(dueCreditor);
-      if (typeof saveCreditors === 'function') saveCreditors();
+      saveCreditors();
     }
     trackFirestoreWrite(() => batch.commit(), 'পার্টনার বিক্রয়');
     document.getElementById('partnerSaleForm').reset();
@@ -408,17 +423,21 @@ function savePartnerSale(event) {
 
 function savePartnerExpense(event) {
   event.preventDefault();
-  if (currentAccess.role !== 'Partner/Staff' || !currentUserId) return showToast(PENDING_APPROVAL_MESSAGE, 'error');
+  const partnerUid = auth.currentUser && auth.currentUser.uid;
+  if (currentAccess.role !== 'Partner/Staff' || !partnerUid || partnerUid !== currentUserId) return showToast(PENDING_APPROVAL_MESSAGE, 'error');
+
   const description = document.getElementById('partnerExpenseDescription').value.trim();
   const qty = Math.floor(safeNum(document.getElementById('partnerExpenseQty').value));
   const amount = Number(safeNum(document.getElementById('partnerExpenseAmount').value).toFixed(2));
+
   if (!description || qty < 1 || amount <= 0) return showToast('খরচের বিবরণ, পরিমাণ ও সঠিক অঙ্ক লিখুন।', 'error');
   if (amount > businessCashBalance) return showToast('অপারেশনাল ক্যাশে পর্যাপ্ত ব্যালেন্স নেই।', 'error');
+
   const expenseId = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
   const expense = {
     id: expenseId,
-    partnerUid: currentUserId,
-    partnerEmail: currentUser.email || '',
+    partnerUid,
+    partnerEmail: auth.currentUser.email || '',
     description,
     qty,
     amount,
@@ -426,18 +445,35 @@ function savePartnerExpense(event) {
     settled: false,
     createdAt: new Date().toISOString()
   };
+
   try {
+    // Cloud-first: offline ফরকিরিয়েট ব্লক করা হয়
+    if (!navigator.onLine) {
+      return showToast('ইন্টারনেট সংযোগ নেই! আপনার হিসাব বা সেলস ক্লাউডে সিঙ্ক করার জন্য ইন্টারনেট সংযোগ প্রয়োজন।', 'error');
+    }
     const batch = db.batch();
     batch.set(getPartnerExpensesRef().doc(expenseId), expense);
+    // নতুন ব্যালেন্স সরাসরি সংখ্যা — increment ব্যবহার করলে matchingExpenseLedger rule fail করে
+    const newExpenseBalance = Number((safeNum(businessCashBalance) - amount).toFixed(2));
     batch.update(getBusinessRef(), {
-      operationalCashBalance: firebase.firestore.FieldValue.increment(-amount),
+      operationalCashBalance: newExpenseBalance,
       lastLedgerId: expenseId,
       lastLedgerType: 'partner_expense',
       updatedAt: new Date().toISOString()
     });
+
     trackFirestoreWrite(() => batch.commit(), 'পার্টনার খরচ');
+
+    // লোকাল ডেটা আপডেট করা হচ্ছে যাতে ফায়ারবেসের রেসপন্স আসার আগেই স্ক্রিনে পরিবর্তন দেখা যায়
+    partnerExpenses.unshift({ ...expense, docId: expenseId });
+    businessCashBalance = Math.max(0, businessCashBalance - amount);
+
     document.getElementById('partnerExpenseForm').reset();
     document.getElementById('partnerExpenseQty').value = '1';
+
+    // স্ক্রিনে কার্ড এবং লিস্ট রিফ্রেশ করা হচ্ছে
+    renderPartnerDashboard();
+
     showToast('খরচ সংরক্ষিত হয়েছে · অপারেশনাল ক্যাশ থেকে কাটা হচ্ছে');
   } catch (error) {
     showFirestoreOperationError(error, 'খরচ সংরক্ষণ হয়নি');
@@ -450,6 +486,7 @@ function attachAdminManagementListeners() {
     db.collection('users').onSnapshot(snapshot => {
       adminUserProfiles = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
       renderAdminManagement();
+      void syncApprovedPartnersToMembers(); // self-healing migration — fire-and-forget
     }, error => handleFirestoreSyncError('অ্যাকাউন্ট তালিকা', error)),
     getMembersRef().onSnapshot(snapshot => {
       adminMembers = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
@@ -475,6 +512,52 @@ function attachAdminManagementListeners() {
   businessUnsubscribers.push(...listeners);
   const adminDateInput = document.getElementById('adminMetricsDate');
   if (adminDateInput && !adminDateInput.value) adminDateInput.value = localDateKey();
+  // ★ Self-healing sync: অ্যাডমিন প্যানেল লোড হলেই অনুমোদিত পার্টনারদের
+  // members ডক নিশ্চিত করা হয় — তাই তালিকা কখনো ফাঁকা থাকবে না
+  void syncApprovedPartnersToMembers();
+}
+
+async function syncApprovedPartnersToMembers() {
+  if (!isMasterAdmin() || partnerMemberSyncRunning || !navigator.onLine) return;
+  partnerMemberSyncRunning = true;
+  try {
+    const membersByUid = new Map(adminMembers.map(member => [member.uid || member.id, member]));
+    const approvedPartners = adminUserProfiles.filter(profile => profile.uid !== currentUserId
+      && String(profile.accountStatus || profile.status || '').trim().toLowerCase() === 'approved'
+      && ['partner/staff', 'partner', 'staff'].includes(String(profile.role || '').trim().toLowerCase()));
+    const needsSync = approvedPartners.filter(profile => {
+      const member = membersByUid.get(profile.uid);
+      return !member
+        || String(member.status || '').trim().toLowerCase() !== 'active'
+        || !['partner/staff', 'partner', 'staff'].includes(String(member.role || '').trim().toLowerCase());
+    });
+    if (!needsSync.length) return;
+    const batch = db.batch();
+    needsSync.forEach(profile => {
+      const member = membersByUid.get(profile.uid) || {};
+      const sharePercent = member.sharePercent ?? profile.sharePercent ?? member.profitShare ?? 40;
+      batch.set(getMembersRef().doc(profile.uid), {
+        uid: profile.uid,
+        email: profile.email || member.email || '',
+        displayName: profile.displayName || member.displayName || '',
+        role: 'Partner',
+        status: 'active',
+        sharePercent,
+        ownerSharePercent: member.ownerSharePercent ?? profile.ownerSharePercent ?? 100 - sharePercent,
+        profitShare: member.profitShare ?? sharePercent,
+        tenantId: BUSINESS_TENANT_ID,
+        syncedAt: new Date().toISOString()
+      }, { merge: true });
+    });
+    await batch.commit();
+    console.info('[admin] self-heal: ' + needsSync.length + ' approved partner(s) synced to tenant members');
+    renderAdminManagement();
+  } catch (error) {
+    // migration ব্যর্থ হলেও অ্যালার্ট স্প্যাম নয় — মার্জড রেন্ডারিং তো কাজ করছে
+    console.warn('[admin] partner→members self-heal skipped:', error && (error.code || error.message));
+  } finally {
+    partnerMemberSyncRunning = false;
+  }
 }
 
 function renderAdminManagement() {
@@ -485,7 +568,6 @@ function renderAdminManagement() {
   const selectedDate = (dateInput && dateInput.value) || localDateKey();
   const isToday = selectedDate === localDateKey();
 
-  // Combine owner invoices and partner sales; settled partner invoices are excluded to avoid double counting.
   const dateSales = adminPartnerSales.filter(sale => localDateKey(sale.date) === selectedDate);
   const dateInvoices = invoices.filter(invoice => !invoice.partnerUid && !invoice.sourcePartnerSaleId
     && localDateKey(invoice.date) === selectedDate);
@@ -535,12 +617,56 @@ function renderAdminManagement() {
       </div>`).join('') : '<div class="empty">অনুমোদনের অপেক্ষায় কোনো অ্যাকাউন্ট নেই</div>';
   }
 
-  const activeMembers = adminMembers.filter(member => member.status === 'active');
+  // ★ পার্টনার তালিকা মার্জ: businesses/{tenantId}/members + users (case-insensitive)
+  // — কোনো case-sensitive ফিল্টার বা broken compound query নেই, তাই অনুমোদিত
+  // পার্টনার কখনো লুকানো থাকবে না ("blank list" bug fix)
+  const isPartnerRoleVal = roleVal => ['partner/staff', 'partner', 'staff']
+    .includes(String(roleVal || '').trim().toLowerCase());
+  const isActiveStatusVal = statusVal => String(statusVal || '').trim().toLowerCase() === 'active';
+  const membersByUid = new Map(adminMembers
+    .filter(member => isActiveStatusVal(member.status) && isPartnerRoleVal(member.role))
+    .map(member => [member.uid || member.id, member]));
+  const partnerProfilesByUid = new Map(adminUserProfiles
+    .filter(profile => profile.uid !== currentUserId
+      && String(profile.accountStatus || profile.status || '').trim().toLowerCase() === 'approved'
+      && isPartnerRoleVal(profile.role))
+    .map(profile => [profile.uid, profile]));
+  const effectiveMembers = [...new Set([...membersByUid.keys(), ...partnerProfilesByUid.keys()])]
+    .filter(Boolean)
+    .map(uid => {
+      const member = membersByUid.get(uid) || {};
+      const profile = partnerProfilesByUid.get(uid) || {};
+      return {
+        ...member,
+        uid,
+        displayName: member.displayName || profile.displayName || '',
+        email: member.email || profile.email || '',
+        status: 'active',
+        role: member.role || profile.role || 'Partner/Staff',
+        sharePercent: member.sharePercent ?? profile.sharePercent ?? member.profitShare ?? 40
+      };
+    });
   const membersList = document.getElementById('adminPartnersList');
   if (membersList) {
-    const partnerRows = activeMembers.map(member => {
-      const sales = adminPartnerSales.filter(sale => sale.partnerUid === member.uid);
-      const expenses = adminPartnerExpenses.filter(expense => expense.partnerUid === member.uid);
+    // প্রতি কার্ডে sales + expenses দুটো সোর্স থেকেই মার্জ করা হয় —
+    // কোনো একটি কালেকশন ডেনাইড/খালি হলেও পার্টনার ব্ল্যাঙ্ক দেখাবে না
+    const mergePartnerRecords = (primary, fallback, uid, sourceIdKey) => {
+      const recordsById = new Map();
+      [...primary, ...fallback].filter(record => record.partnerUid === uid).forEach(record => {
+        const recordId = record[sourceIdKey] || record.docId || record.id
+          || [record.date, record.invoiceNo || record.description || ''].join('-');
+        recordsById.set(String(recordId), {
+          ...record,
+          docId: record.docId || record[sourceIdKey] || String(recordId)
+        });
+      });
+      return [...recordsById.values()];
+    };
+    const partnerSalesFor = uid => mergePartnerRecords(adminPartnerSales, invoices, uid, 'sourcePartnerSaleId');
+    const partnerExpensesFor = uid => mergePartnerRecords(adminPartnerExpenses, expenses, uid, 'sourcePartnerExpenseId');
+    const partnerRows = effectiveMembers.map(member => {
+      const sales = partnerSalesFor(member.uid);
+      const expenses = partnerExpensesFor(member.uid);
       const memberSettlements = adminSettlements.filter(settlement => settlement.partnerUid === member.uid);
       const settledSales = new Set(memberSettlements.flatMap(settlement => settlement.salesIds || []));
       const settledExpenses = new Set(memberSettlements.flatMap(settlement => settlement.expenseIds || []));
@@ -548,35 +674,35 @@ function renderAdminManagement() {
         && sale.paymentType !== 'due' && safeNum(sale.dueAmount) <= 0);
       const unsettledExpenses = expenses.filter(expense => !settledExpenses.has(expense.docId));
       const allSalesAmount = sales.reduce((sum, sale) => sum + safeNum(sale.total), 0);
+      const partnerProfitEarned = Number(sales.reduce((sum, sale) =>
+        sum + calculatePartnerProfitShares(sale, member.sharePercent ?? 40).partnerShare, 0).toFixed(2));
+      const partnerProfitPaid = Number(memberSettlements.reduce((sum, settlement) =>
+        sum + safeNum(settlement.partnerShare), 0).toFixed(2));
+      const partnerProfitDue = Math.max(0, Number((partnerProfitEarned - partnerProfitPaid).toFixed(2)));
       const pending = Math.max(0,
         unsettledSales.reduce((sum, sale) =>
           sum + safeNum(sale.total) - calculatePartnerProfitShares(sale, member.sharePercent ?? 40).partnerShare, 0)
         - unsettledExpenses.reduce((sum, expense) => sum + safeNum(expense.amount), 0));
       const itemCount = sales.reduce((sum, sale) => sum + (sale.items || []).reduce((count, item) => count + safeNum(item.qty), 0), 0);
 
-      // Selected date calculations for member
       const memberDateSales = sales.filter(sale => localDateKey(sale.date) === selectedDate);
-      const memberDateExpenses = expenses.filter(expense => localDateKey(expense.date) === selectedDate);
       const memberDateTotal = memberDateSales.reduce((sum, s) => sum + safeNum(s.total), 0);
       const memberDatePartnerShare = memberDateSales.reduce((sum, sale) =>
         sum + calculatePartnerProfitShares(sale, member.sharePercent ?? 40).partnerShare, 0);
       const memberDateOwnerShare = memberDateSales.reduce((sum, sale) =>
         sum + calculatePartnerProfitShares(sale, member.sharePercent ?? 40).ownerShare, 0);
-      const memberDateExpenseTotal = memberDateExpenses.reduce((sum, exp) => sum + safeNum(exp.amount), 0);
       const memberDateCustomerDue = memberDateSales.reduce((sum, sale) => sum + Math.max(0,
         safeNum(sale.dueAmount !== undefined ? sale.dueAmount : sale.paymentType === 'due' ? sale.total : 0)), 0);
       const memberDateUnsettledSales = memberDateSales.filter(sale => !settledSales.has(sale.docId)
         && sale.paymentType !== 'due' && safeNum(sale.dueAmount) <= 0);
-      const memberDateUnsettledExpenses = memberDateExpenses.filter(expense => !settledExpenses.has(expense.docId));
+      const memberDateUnsettledExpenses = expenses.filter(expense => localDateKey(expense.date) === selectedDate
+        && !settledExpenses.has(expense.docId));
       const memberDateHandoverDue = Number(Math.max(0,
         memberDateUnsettledSales.reduce((sum, sale) =>
           sum + safeNum(sale.total) - calculatePartnerProfitShares(sale, member.sharePercent ?? 40).partnerShare, 0)
         - memberDateUnsettledExpenses.reduce((sum, expense) => sum + safeNum(expense.amount), 0)).toFixed(2));
 
-      const saleDetails = sales.map(sale => `${escapeHtml(sale.customer || '')} (${escapeHtml(sale.phone || '')}): ${(sale.items || []).map(item => `${escapeHtml(item.name)} × ${toBnNum(item.qty)}`).join(', ')} · ${formatMoney(sale.total)} · ${sale.paymentType === 'due' ? 'বাকি ' + formatMoney(sale.dueAmount !== undefined ? sale.dueAmount : sale.total) : 'নগদ'}${settledSales.has(sale.docId) ? ' · হস্তান্তরিত' : ''}`);
-      const expenseDetails = expenses.map(expense => `খরচ: ${escapeHtml(expense.description)} (${toBnNum(expense.qty)}টি) · ${formatMoney(expense.amount)}${settledExpenses.has(expense.docId) ? ' · হিসাবে যুক্ত' : ' · হস্তান্তর বাকি'}`);
-      const details = [...saleDetails, ...expenseDetails].join('<br>');
-
+      const details = sales.map(sale => `${escapeHtml(sale.customer || '')} (${escapeHtml(sale.phone || '')}): ${(sale.items || []).map(item => `${escapeHtml(item.name)} × ${toBnNum(item.qty)}`).join(', ')} · ${formatMoney(sale.total)} · ${sale.paymentType === 'due' ? 'বাকি ' + formatMoney(sale.dueAmount !== undefined ? sale.dueAmount : sale.total) : 'নগদ'}${settledSales.has(sale.docId) ? ' · হস্তান্তরিত' : ''}`).join('<br>');
       const disabled = unsettledSales.length + unsettledExpenses.length && !settlingPartnerIds.has(member.uid) ? '' : 'disabled';
       const safeUid = escapeHtml(member.uid);
       const challengeText = escapeHtml(member.email || member.displayName || member.uid);
@@ -588,17 +714,25 @@ function renderAdminManagement() {
           </div>
           <div class="partner-record-balance"><span>মোট হস্তান্তর বাকি</span><strong>${formatMoney(pending)}</strong></div>
         </div>
-        <div class="partner-record-summary">সর্বমোট বিক্রি ${formatMoney(allSalesAmount)} · আইটেম ${toBnNum(itemCount)} · অপারেশনাল ক্যাশ ${formatMoney(businessCashBalance)}</div>
+        <div class="partner-record-summary">আইটেম ${toBnNum(itemCount)} · অপারেশনাল ক্যাশ ${formatMoney(businessCashBalance)}</div>
+        <div class="partner-financial-breakdown">
+          <div><span>পার্টনারের অংশ / শেয়ার হার</span><strong>${toBnNum(Math.min(100, Math.max(0, safeNum(member.sharePercent ?? 40))))}%</strong></div>
+          <div><span>এ পর্যন্ত মোট আয় / বিক্রি</span><strong>${formatMoney(allSalesAmount)}</strong></div>
+          <div><span>পার্টনারের মোট প্রাপ্য অংশ</span><strong>${formatMoney(partnerProfitEarned)}</strong></div>
+          <div><span>পার্টনার পেয়েছে / পরিশোধিত</span><strong>${formatMoney(partnerProfitPaid)}</strong></div>
+          <div><span>পার্টনারের বকেয়া প্রাপ্য অংশ</span><strong>${formatMoney(partnerProfitDue)}</strong></div>
+          <div><span>বর্তমান হস্তান্তর বাকি (পার্টনার → মালিক)</span><strong>${formatMoney(pending)}</strong></div>
+        </div>
         <details class="partner-date-details">
           <summary>📅 ${formatDate(selectedDate)}-এর হিসাব ও লেনদেন দেখুন</summary>
           <div class="partner-date-metrics">
             <div>বিক্রি<strong>${formatMoney(memberDateTotal)}</strong></div>
             <div>পার্টনারের লাভ<strong>${formatMoney(memberDatePartnerShare)}</strong></div>
             <div>মালিকের অংশ<strong>${formatMoney(memberDateOwnerShare)}</strong></div>
-            <div>খরচ<strong>${formatMoney(memberDateExpenseTotal)}</strong></div>
+            <div>কাস্টমারের বাকি<strong>${formatMoney(memberDateCustomerDue)}</strong></div>
             <div>হস্তান্তর বাকি<strong>${formatMoney(memberDateHandoverDue)}</strong></div>
           </div>
-          <div class="partner-record-transactions">${details || 'নতুন কোনো লেনদেন নেই'}</div>
+          <div class="partner-record-transactions">${details || 'নতুন কোনো বিক্রি নেই'}</div>
         </details>
         <div class="role-actions partner-record-actions">
           <label>লাভের ভাগ % <input id="share-${escapeHtml(member.uid)}" type="number" min="0" max="100" value="${Math.min(100, Math.max(0, safeNum(member.sharePercent ?? 40)))}"></label>
@@ -621,7 +755,7 @@ async function approveAccount(uid) {
   if (!isMasterAdmin()) return showToast('শুধু মাস্টার অ্যাডমিন অনুমোদন দিতে পারবেন।', 'error');
   if (!navigator.onLine) return showToast('ইন্টারনেট নেই। অনুমোদনের জন্য সংযোগ ফিরে এলে আবার চেষ্টা করুন।', 'error');
   const roleSelect = document.getElementById('approval-role-' + uid);
-  const role = roleSelect && roleSelect.value === 'Admin' ? 'Admin' : 'Partner/Staff';
+  const role = roleSelect && roleSelect.value === 'Admin' ? 'Admin' : 'Partner';
   const profile = adminUserProfiles.find(item => item.uid === uid);
   if (!profile) return showToast('অ্যাকাউন্টের তথ্য পাওয়া যায়নি।', 'error');
   try {
@@ -631,17 +765,25 @@ async function approveAccount(uid) {
       approvedBy: currentUser.email, approvedAt: new Date().toISOString()
     }, { merge: true });
     const memberRef = getMembersRef().doc(uid);
-    if (role === 'Partner/Staff') {
+    if (role === 'Partner') {
+      // ★ দুটোতেই লেখা হচ্ছে: users/{uid} (role/accountStatus/tenantId) +
+      // businesses/{tenantId}/members/{uid} (status active, sharePercent/profitShare)
       batch.set(memberRef, {
         uid, email: profile.email || '', displayName: profile.displayName || '',
-        role, status: 'active', sharePercent: 40, ownerSharePercent: 60,
+        role, status: 'active',
+        sharePercent: profile.sharePercent ?? 40,
+        ownerSharePercent: profile.ownerSharePercent ?? 60,
+        profitShare: profile.sharePercent ?? 40,
+        tenantId: BUSINESS_TENANT_ID,
+        approvedBy: currentUser.email,
         approvedAt: new Date().toISOString()
       }, { merge: true });
+      batch.set(getUserRef(uid), { sharePercent: profile.sharePercent ?? 40 }, { merge: true });
     } else {
       batch.delete(memberRef);
     }
     await batch.commit();
-    showToast('অ্যাকাউন্ট অনুমোদিত হয়েছে ✓');
+    showToast('অ্যাকাউন্ট অনুমোদিত হয়েছে · পার্টনার তালিকায় যুক্ত হয়েছে ✓');
   } catch (error) {
     showFirestoreOperationError(error, 'অ্যাকাউন্ট অনুমোদন হয়নি');
   }
@@ -655,9 +797,7 @@ async function savePartnerShare(uid) {
   if (percent < 0 || percent > 100) return showToast('লাভের ভাগ ০ থেকে ১০০-এর মধ্যে হতে হবে।', 'error');
   try {
     await getMembersRef().doc(uid).update({
-      sharePercent: percent,
-      ownerSharePercent: 100 - percent,
-      updatedAt: new Date().toISOString()
+      sharePercent: percent, ownerSharePercent: 100 - percent, updatedAt: new Date().toISOString()
     });
     const profile = adminUserProfiles.find(item => item.uid === uid);
     if (profile) await getUserRef(uid).update({ sharePercent: percent, ownerSharePercent: 100 - percent });
@@ -754,29 +894,18 @@ async function markPartnerPaid(uid) {
         if (type === 'sale') {
           const invoiceId = Date.now() + offset + index;
           const ownerInvoice = {
-            ...record,
-            id: invoiceId,
-            invoiceNo: record.invoiceNo || 'PARTNER-' + record.docId,
-            partnerUid: uid,
-            sourcePartnerSaleId: record.docId,
-            settled: true,
-            settlementId,
+            ...record, id: invoiceId, invoiceNo: record.invoiceNo || 'PARTNER-' + record.docId,
+            partnerUid: uid, sourcePartnerSaleId: record.docId, settled: true, settlementId,
             settlementAt: new Date().toISOString()
           };
           batch.set(getSalesRef().doc('partner-' + uid + '-' + record.docId), ownerInvoice, { merge: true });
         } else {
           const ownerExpense = {
             id: Date.now() + offset + index,
-            category: 'পার্টনার খরচ',
-            desc: record.description,
+            category: 'পার্টনার খরচ', desc: record.description,
             items: [{ category: 'পার্টনার খরচ', desc: record.description, qty: record.qty, amount: record.amount }],
-            amount: safeNum(record.amount),
-            source: 'cash',
-            sourceLabel: 'পার্টনার ক্যাশ',
-            date: record.date,
-            partnerUid: uid,
-            sourcePartnerExpenseId: record.docId,
-            settlementId
+            amount: safeNum(record.amount), source: 'cash', sourceLabel: 'পার্টনার ক্যাশ',
+            date: record.date, partnerUid: uid, sourcePartnerExpenseId: record.docId, settlementId
           };
           batch.set(getExpensesRef().doc('partner-' + uid + '-' + record.docId), ownerExpense, { merge: true });
         }

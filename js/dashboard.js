@@ -7,7 +7,7 @@ function switchTab(tabName) {
   const validTabs = ['sales', 'expenses', 'cash', 'creditors', 'dashboard', 'partner', 'admin'];
   if (!currentUser || currentAccess.role === 'Pending') return;
   if (currentAccess.role === 'Partner/Staff' && tabName !== 'partner') return;
-  if (tabName === 'admin' && typeof isMasterAdmin === 'function' && !isMasterAdmin()) return;
+  if (tabName === 'admin' && !isMasterAdmin()) return;
   if (!validTabs.includes(tabName)) return;
   document.querySelectorAll('[data-tab-panel]').forEach(panel => {
     panel.hidden = panel.dataset.tabPanel !== tabName;
@@ -16,28 +16,57 @@ function switchTab(tabName) {
     if (button.dataset.tab === tabName) button.setAttribute('aria-current', 'page');
     else button.removeAttribute('aria-current');
   });
-  if (tabName === 'partner' && typeof renderPartnerDashboard === 'function') renderPartnerDashboard();
-  if (tabName === 'admin' && typeof renderAdminManagement === 'function') renderAdminManagement();
-  if (tabName === 'dashboard' && typeof updateStats === 'function') updateStats();
+  if (tabName === 'partner') renderPartnerDashboard();
+  if (tabName === 'admin') renderAdminManagement();
+  if (tabName === 'sales') renderSalesMetrics();
+  if (tabName === 'dashboard') updateStats();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+function setSalesDateToday() {
+  const dateInput = document.getElementById('salesMetricsDate');
+  if (dateInput) {
+    dateInput.value = localDateKey();
+    renderSalesMetrics();
+  }
+}
+
+function renderSalesMetrics() {
+  const dateInput = document.getElementById('salesMetricsDate');
+  if (!dateInput) return;
+  if (!dateInput.value) dateInput.value = localDateKey();
+  const selectedDate = dateInput.value;
+  const isToday = selectedDate === localDateKey();
+
+  const dayInvoices = invoices.filter(inv => localDateKey(inv.date) === selectedDate);
+  const totalSales = dayInvoices.reduce((sum, inv) => sum + safeNum(inv.total), 0);
+  const totalCost = dayInvoices.reduce((sum, inv) => sum + getInvoiceCostTotal(inv), 0);
+  const netProfit = totalSales - totalCost;
+
+  const labelEl = document.getElementById('salesMetricsLabel');
+  if (labelEl) labelEl.textContent = isToday ? 'আজকের বিক্রি' : 'মোট বিক্রি';
+
+  const setVal = (id, amount) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = formatMoney(amount);
+    el.style.color = amount < 0 ? '#dc2626' : '';
+  };
+  setVal('salesMetricsTotal', totalSales);
+  setVal('salesMetricsCost', totalCost);
+  setVal('salesMetricsProfit', netProfit);
+}
+
 function getInvoiceCostTotal(inv) {
-  return typeof normalizeInvoiceFinancials === 'function'
-    ? normalizeInvoiceFinancials(inv).costTotal
-    : safeNum(inv.costTotal);
+  return normalizeInvoiceFinancials(inv).costTotal;
 }
 
 function currentPeriodInfo() {
   const sel = document.getElementById('periodSelect');
   const mode = sel ? sel.value : 'today';
   const now = new Date();
-  if (mode === 'all') {
-    return { mode, label: 'সব', start: null, end: null };
-  }
-  if (mode === 'month') {
-    return { mode, label: 'এই মাসের', start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth() + 1, 1) };
-  }
+  if (mode === 'all') return { mode, label: 'সব', start: null, end: null };
+  if (mode === 'month') return { mode, label: 'এই মাসের', start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth() + 1, 1) };
   let day;
   if (mode === 'custom') {
     const v = (document.getElementById('periodDate') || {}).value;
@@ -69,42 +98,36 @@ function updateStats() {
   let periodSales = 0;
   periodInvoices.forEach(inv => { periodSales += Number(inv.total) || 0; });
 
-  const todaySalesEl = document.getElementById('todaySales');
-  if (todaySalesEl) todaySalesEl.textContent = formatMoney(periodSales);
-  const totalCountEl = document.getElementById('totalCount');
-  if (totalCountEl) totalCountEl.textContent = toBnNum(periodInvoices.length);
+  document.getElementById('todaySales').textContent = formatMoney(periodSales);
+  document.getElementById('totalCount').textContent = toBnNum(periodInvoices.length);
 
-  const salesCardLabel = document.getElementById('salesCardLabel');
-  if (salesCardLabel) salesCardLabel.textContent = (p.mode === 'all' ? 'সব সময়ের' : p.label) + ' বিক্রি';
-  const countCardLabel = document.getElementById('countCardLabel');
-  if (countCardLabel) countCardLabel.textContent = p.mode === 'all' ? 'মোট ইনভয়েস (সব)' : p.label + ' ইনভয়েস';
+  document.getElementById('salesCardLabel').textContent = (p.mode === 'all' ? 'সব সময়ের' : p.label) + ' বিক্রি';
+  document.getElementById('countCardLabel').textContent = p.mode === 'all' ? 'মোট ইনভয়েস (সব)' : p.label + ' ইনভয়েস';
 
   updateNetAssetsCard();
   updateDailyMetrics();
+  renderSalesMetrics();
 }
 
 function updateDailyMetrics() {
   const today = localDateKey();
   const todaySales = invoices.filter(inv => localDateKey(inv.date) === today);
-  const todayGrossProfit = todaySales.reduce((sum, inv) =>
-    sum + safeNum(inv.total) - getInvoiceCostTotal(inv), 0);
+  const todayGrossProfit = todaySales.reduce((sum, inv) => sum + safeNum(inv.total) - getInvoiceCostTotal(inv), 0);
   const todayExpenseTotal = expenses.filter(expense => localDateKey(expense.date) === today)
     .reduce((sum, expense) => sum + safeNum(expense.amount), 0);
   const now = new Date();
   const monthPeriod = { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now.getFullYear(), now.getMonth() + 1, 1) };
   const monthExpenseTotal = expenses.filter(expense => isInPeriod(expense, monthPeriod))
     .reduce((sum, expense) => sum + safeNum(expense.amount), 0);
-  const profitEl = document.getElementById('todayProfit');
   const todayExpenseEl = document.getElementById('todayExpenses');
   const monthExpenseEl = document.getElementById('monthExpenses');
-  if (profitEl) profitEl.textContent = formatMoney(todayGrossProfit - todayExpenseTotal);
   if (todayExpenseEl) todayExpenseEl.textContent = formatMoney(todayExpenseTotal);
   if (monthExpenseEl) monthExpenseEl.textContent = formatMoney(monthExpenseTotal);
 }
 
 function computeNetAssets() {
-  const cash = typeof registerCashTotal === 'function' ? registerCashTotal() : 0;
-  const digital = typeof registerDigitalTotal === 'function' ? registerDigitalTotal() : 0;
+  const cash = registerCashTotal();
+  const digital = registerDigitalTotal();
   const totalDue = creditors.reduce((sum, c) => sum + Math.max(0, safeNum(c.taken) - safeNum(c.paid)), 0);
   return { cash, digital, totalDue, net: cash + digital - totalDue };
 }
@@ -116,8 +139,7 @@ function updateNetAssetsCard() {
   const na = computeNetAssets();
   el.textContent = formatMoney(na.net);
   el.style.color = na.net < 0 ? '#dc2626' : '';
-  sub.textContent = 'ক্যাশ ' + formatMoney(na.cash) + ' + ডিজিটাল ' + formatMoney(na.digital) +
-    ' − বকেয়া ' + formatMoney(na.totalDue);
+  sub.textContent = 'ক্যাশ ' + formatMoney(na.cash) + ' + ডিজিটাল ' + formatMoney(na.digital) + ' − বকেয়া ' + formatMoney(na.totalDue);
 }
 
 function onPeriodChange() {
@@ -153,18 +175,17 @@ function syncSectionFiltersToPeriod() {
   const ef = document.getElementById('expenseMonthFilter');
   if (mf) mf.value = periodMonthValue(p);
   if (ef) ef.value = periodMonthValue(p);
-  try { if (typeof renderInvoices === 'function') renderInvoices(); } catch (e) { }
-  try { if (typeof renderExpenseList === 'function') renderExpenseList(); } catch (e) { }
-  try { if (typeof renderFinanceSummary === 'function') renderFinanceSummary(); } catch (e) { }
+  try { renderInvoices(); } catch (e) { }
+  try { renderExpenseList(); } catch (e) { }
+  try { renderFinanceSummary(); } catch (e) { }
 }
 
-// Auto-reset at midnight
 (function scheduleMidnightReset() {
   const now = new Date();
   const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
   setTimeout(function tick() {
     updateStats();
-    if (typeof renderInvoices === 'function') renderInvoices();
+    renderInvoices();
     setTimeout(tick, 24 * 60 * 60 * 1000);
   }, nextMidnight - now);
 })();

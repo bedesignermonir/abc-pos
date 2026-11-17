@@ -3,6 +3,33 @@
  * Module: js/auth.js
  */
 
+function openAuthModal() {
+  sessionStorage.removeItem('pos_auth_modal_dismissed');
+  const modal = document.getElementById('authLoginModal');
+  if (!modal) return;
+  try {
+    const emEl = document.getElementById('emailLoginInput');
+    if (emEl && !emEl.value && window.currentUser && currentUser.email) emEl.value = currentUser.email;
+  } catch (e) { }
+  showAuthEmailPane();
+  modal.classList.add('active');
+}
+
+function showAuthEmailPane() {
+  const paneEmail = document.getElementById('authPaneEmail');
+  if (paneEmail) paneEmail.style.display = 'block';
+}
+
+function switchAuthTab(tab) {
+  showAuthEmailPane();
+}
+
+function closeAuthModal() {
+  sessionStorage.setItem('pos_auth_modal_dismissed', '1');
+  const modal = document.getElementById('authLoginModal');
+  if (modal) modal.classList.remove('active');
+}
+
 function isMasterAdmin(user = currentUser) {
   return Boolean(user && (user.email === MASTER_ADMIN_EMAIL || user.uid === MASTER_ADMIN_UID));
 }
@@ -75,16 +102,13 @@ function applyRoleVisibility() {
     return;
   }
   if (appContent) appContent.inert = true;
-  updateAccessGate('আপনার অ্যাকাউন্টটি পর্যালোচনায় রয়েছে। অনুগ্রহ করে অপেক্ষা করুন।', 'অনুমোদন অপেক্ষমাণ');
+  updateAccessGate('আপনার অ্যাকাউন্টটি পর্যালোচনায় রয়েছে। অনুগ্রহ করে অপেক্ষা করুন।', 'অনুমোদন অপেক্ষমাণ');
 }
 
 async function resolveUserAccess(user) {
   if (isMasterAdmin(user)) {
     currentAccess = {
-      role: 'Admin',
-      status: 'approved',
-      accountStatus: 'approved',
-      email: user.email
+      role: 'Admin', status: 'approved', accountStatus: 'approved', email: user.email
     };
     return currentAccess;
   }
@@ -157,114 +181,6 @@ async function correctMasterAdminProfile(user) {
   }
 }
 
-function startRoleSession(user, access) {
-  if (!user || currentUserId !== user.uid) return;
-  currentAccess = access;
-  applyRoleVisibility();
-  if (access.role !== 'Admin' && access.role !== 'Partner/Staff') {
-    stopUserDataListeners();
-    return;
-  }
-
-  if (access.role === 'Partner/Staff') {
-    stopUserDataListeners();
-    if (typeof attachPartnerListeners === 'function') {
-      void attachPartnerListeners(user.uid);
-    }
-    return;
-  }
-
-  void attachFirestoreListeners(user.uid).catch(error => handleFirestoreSyncError('ডেটা', error));
-  if (isMasterAdmin(user)) {
-    void ensureBusinessWorkspace().then(() => {
-      if (typeof attachAdminManagementListeners === 'function') {
-        attachAdminManagementListeners();
-      }
-    });
-  } else {
-    stopBusinessListeners();
-  }
-}
-
-function watchAccountProfile(user) {
-  if (isMasterAdmin(user)) return;
-  if (accountProfileUnsubscribe) accountProfileUnsubscribe();
-  const profileRef = getUserRef(user.uid);
-  accountProfileUnsubscribe = profileRef.onSnapshot(snapshot => {
-    if (currentUserId !== user.uid || !snapshot.exists) return;
-    const profile = snapshot.data();
-    const accountStatus = String(profile.accountStatus || profile.status || '').trim().toLowerCase();
-    const roleValue = String(profile.role || '').trim().toLowerCase();
-    const approvedRole = roleValue === 'admin'
-      ? 'Admin'
-      : ['partner/staff', 'partner', 'staff'].includes(roleValue) ? 'Partner/Staff' : null;
-    const isApproved = accountStatus === 'approved' && Boolean(approvedRole);
-    const nextAccess = {
-      ...profile,
-      ...(currentAccess.role === 'Partner/Staff' ? { sharePercent: currentAccess.sharePercent } : {}),
-      role: isApproved ? approvedRole : 'Pending',
-      status: isApproved ? 'approved' : accountStatus || 'pending',
-      accountStatus: isApproved ? 'approved' : accountStatus || 'Pending Approval'
-    };
-    const roleChanged = nextAccess.role !== currentAccess.role || nextAccess.status !== currentAccess.status;
-    const shareChanged = nextAccess.sharePercent !== currentAccess.sharePercent;
-    currentAccess = nextAccess;
-    if (roleChanged) {
-      startRoleSession(user, nextAccess);
-      if (nextAccess.role !== 'Pending') showToast('আপনার অ্যাকাউন্ট অনুমোদিত হয়েছে ✓');
-    } else if (shareChanged && nextAccess.role === 'Partner/Staff') {
-      if (typeof renderPartnerDashboard === 'function') {
-        renderPartnerDashboard();
-      }
-    }
-  }, error => handleFirestoreSyncError('অনুমোদন', error));
-}
-
-// Auth UI & Modals
-function openAuthModal() {
-  sessionStorage.removeItem('pos_auth_modal_dismissed');
-  const modal = document.getElementById('authLoginModal');
-  if (!modal) return;
-  try {
-    const emEl = document.getElementById('emailLoginInput');
-    if (emEl && !emEl.value && currentUser && currentUser.email) emEl.value = currentUser.email;
-  } catch (e) { }
-  showAuthEmailPane();
-  modal.classList.add('active');
-}
-
-function showAuthEmailPane() {
-  const paneEmail = document.getElementById('authPaneEmail');
-  if (paneEmail) paneEmail.style.display = 'block';
-}
-
-function switchAuthTab(tab) {
-  showAuthEmailPane();
-}
-
-function closeAuthModal() {
-  sessionStorage.setItem('pos_auth_modal_dismissed', '1');
-  const modal = document.getElementById('authLoginModal');
-  if (modal) modal.classList.remove('active');
-}
-
-function openAccountPasswordModal() {
-  const user = auth.currentUser;
-  if (!user || !user.email) return showToast('পাসওয়ার্ড সেট করতে প্রথমে সাইন-ইন করুন।', 'error');
-  const hasPassword = (user.providerData || []).some(provider => provider.providerId === 'password');
-  document.getElementById('accountPasswordStatus').textContent = hasPassword
-    ? 'এই অ্যাকাউন্টে পাসওয়ার্ড আছে। নতুন পাসওয়ার্ড দিলে সেটি আপডেট হবে।'
-    : 'Google অ্যাকাউন্টের সঙ্গে সরাসরি পাসওয়ার্ড যুক্ত করুন।';
-  document.getElementById('accountPasswordInput').value = '';
-  document.getElementById('accountPasswordModal').classList.add('active');
-  document.getElementById('accountPasswordInput').focus();
-}
-
-function closeAccountPasswordModal() {
-  const modal = document.getElementById('accountPasswordModal');
-  if (modal) modal.classList.remove('active');
-}
-
 function renderAuthUI(user) {
   const slot = document.getElementById('authHeaderSlot');
   const banner = document.getElementById('tenantNoticeBanner');
@@ -311,7 +227,11 @@ function renderAuthUI(user) {
     if (profileCard) profileCard.style.display = 'none';
 
     if (slot) {
-      slot.innerHTML = `<button type="button" class="login-button" onclick="openAuthModal()"><span class="login-icon">🔒</span>লগইন</button>`;
+      slot.innerHTML = `
+    <button class="header-btn" onclick="openAuthModal()" style="background:linear-gradient(135deg, #1e3a8a, #0f172a);color:white;display:flex;align-items:center;gap:6px;margin-right:6px;">
+      <span>🔑</span><span>লগইন</span>
+    </button>
+  `;
     }
     setSyncStatus('offline', 'লোকাল ডেটা · Google-এ সাইন-ইন করুন');
   }
@@ -320,9 +240,7 @@ function renderAuthUI(user) {
 function shouldUseGoogleRedirect() {
   const hostname = window.location.hostname.toLowerCase();
   const isMobileBrowser = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
-  return hostname === 'localhost'
-    || hostname === '127.0.0.1'
-    || isMobileBrowser;
+  return hostname === 'localhost' || hostname === '127.0.0.1' || isMobileBrowser;
 }
 
 function getGoogleAuthErrorMessage(error) {
@@ -451,6 +369,22 @@ async function loginWithEmail() {
   }
 }
 
+function openAccountPasswordModal() {
+  const user = auth.currentUser;
+  if (!user || !user.email) return showToast('পাসওয়ার্ড সেট করতে প্রথমে সাইন-ইন করুন।', 'error');
+  const hasPassword = (user.providerData || []).some(provider => provider.providerId === 'password');
+  document.getElementById('accountPasswordStatus').textContent = hasPassword
+    ? 'এই অ্যাকাউন্টে পাসওয়ার্ড আছে। নতুন পাসওয়ার্ড দিলে সেটি আপডেট হবে।'
+    : 'Google অ্যাকাউন্টের সঙ্গে সরাসরি পাসওয়ার্ড যুক্ত করুন।';
+  document.getElementById('accountPasswordInput').value = '';
+  document.getElementById('accountPasswordModal').classList.add('active');
+  document.getElementById('accountPasswordInput').focus();
+}
+
+function closeAccountPasswordModal() {
+  document.getElementById('accountPasswordModal').classList.remove('active');
+}
+
 async function saveAccountPassword(inputId) {
   const user = auth.currentUser;
   if (!user || !user.email) {
@@ -495,10 +429,6 @@ async function saveAccountPassword(inputId) {
   } finally {
     hideLoading();
   }
-}
-
-async function linkEmailCredential() {
-  await saveAccountPassword();
 }
 
 async function loginWithGoogle() {
@@ -558,4 +488,61 @@ async function logoutUser() {
   } finally {
     hideLoading();
   }
+}
+
+function startRoleSession(user, access) {
+  if (!user || currentUserId !== user.uid) return;
+  currentAccess = access;
+  applyRoleVisibility();
+  if (access.role !== 'Admin' && access.role !== 'Partner/Staff') {
+    stopUserDataListeners();
+    return;
+  }
+  if (access.role === 'Partner/Staff') {
+    stopUserDataListeners();
+    void attachPartnerListeners(user.uid);
+    return;
+  }
+  void attachFirestoreListeners(user.uid).catch(error => handleFirestoreSyncError('ডেটা', error));
+  if (isMasterAdmin(user)) {
+    void ensureBusinessWorkspace().then(() => attachAdminManagementListeners());
+  } else {
+    stopBusinessListeners();
+  }
+}
+
+function watchAccountProfile(user) {
+  if (isMasterAdmin(user)) return;
+  if (accountProfileUnsubscribe) accountProfileUnsubscribe();
+  const profileRef = getUserRef(user.uid);
+  accountProfileUnsubscribe = profileRef.onSnapshot(snapshot => {
+    if (currentUserId !== user.uid || !snapshot.exists) return;
+    const profile = snapshot.data();
+    const accountStatus = String(profile.accountStatus || profile.status || '').trim().toLowerCase();
+    const roleValue = String(profile.role || '').trim().toLowerCase();
+    const approvedRole = roleValue === 'admin'
+      ? 'Admin'
+      : ['partner/staff', 'partner', 'staff'].includes(roleValue) ? 'Partner/Staff' : null;
+    const isApproved = accountStatus === 'approved' && Boolean(approvedRole);
+    const nextAccess = {
+      ...profile,
+      ...(currentAccess.role === 'Partner/Staff' ? { sharePercent: currentAccess.sharePercent } : {}),
+      role: isApproved ? approvedRole : 'Pending',
+      status: isApproved ? 'approved' : accountStatus || 'pending',
+      accountStatus: isApproved ? 'approved' : accountStatus || 'Pending Approval'
+    };
+    const roleChanged = nextAccess.role !== currentAccess.role || nextAccess.status !== currentAccess.status;
+    const shareChanged = nextAccess.sharePercent !== currentAccess.sharePercent;
+    currentAccess = nextAccess;
+    if (roleChanged) {
+      startRoleSession(user, nextAccess);
+      if (nextAccess.role !== 'Pending') showToast('আপনার অ্যাকাউন্ট অনুমোদিত হয়েছে ✓');
+    } else if (shareChanged && nextAccess.role === 'Partner/Staff') {
+      renderPartnerDashboard();
+    }
+  }, error => handleFirestoreSyncError('অনুমোদন', error));
+}
+
+async function linkEmailCredential() {
+  await saveAccountPassword();
 }

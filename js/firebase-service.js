@@ -3,7 +3,7 @@
  * Module: js/firebase-service.js
  */
 
-const firebaseConfig = window.FIREBASE_CONFIG || {
+const firebaseConfig = {
   apiKey: 'AIzaSyCyqeeiDFEfhQLB4VrGra-UKVXORbnHyGA',
   authDomain: 'abc-pos-webapp.firebaseapp.com',
   projectId: 'abc-pos-webapp',
@@ -14,8 +14,8 @@ const firebaseConfig = window.FIREBASE_CONFIG || {
 };
 
 const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
+
 let analytics = null;
-window.firebaseServices = { app, auth: null, db: null, analytics: null, persistenceReady: null };
 
 const analyticsReady = firebase.analytics.isSupported()
   .then(supported => {
@@ -28,26 +28,13 @@ const analyticsReady = firebase.analytics.isSupported()
     console.warn('Firebase Analytics is unavailable in this browser:', error);
     return null;
   });
-window.firebaseServices.analyticsReady = analyticsReady;
 
 const auth = firebase.auth(app);
-try {
-  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
-    .catch(pErr => console.warn('Auth persistence set failed:', pErr));
-} catch (pErr) {
-  console.warn('Auth persistence unsupported:', pErr);
-}
 
 const db = firebase.firestore(app);
-window.firebaseServices.auth = auth;
-window.firebaseServices.db = db;
 
-// Start multi-tab IndexedDB persistence before any Firestore reads or listeners
 const firestorePersistenceReady = db.enablePersistence({ synchronizeTabs: true })
-  .then(() => {
-    console.info('Firestore multi-tab offline persistence enabled.');
-    return true;
-  })
+  .then(() => { console.info('Firestore multi-tab offline persistence enabled.'); return true; })
   .catch(error => {
     if (error.code === 'failed-precondition') {
       console.warn('Firestore persistence is disabled because another tab already owns the cache; using in-memory cache.');
@@ -58,52 +45,50 @@ const firestorePersistenceReady = db.enablePersistence({ synchronizeTabs: true }
     }
     return false;
   });
-window.firebaseServices.persistenceReady = firestorePersistenceReady;
 
-// Firestore Collection References
+let _permAlertShownAt = 0;
+
+let _tenantRecoveryUid = null;
+
+let _tenantRecoveryAttempts = 0;
+
+let _tenantRecoveryInFlight = false;
+
+let _tenantRecoveryTimer = null;
+
+let _tenantRecoveryNoticeShown = false;
+
+const MAX_TENANT_RECOVERY_ATTEMPTS = 2;
+
 function getUserRef(uid = currentUserId) {
   if (!uid) throw new Error('ব্যবহারকারী লগইন করেননি');
   return db.collection('users').doc(uid);
 }
-function getSalesRef(uid = currentUserId) {
-  return getUserRef(uid).collection('sales');
-}
-function getExpensesRef(uid = currentUserId) {
-  return getUserRef(uid).collection('expenses');
-}
-function getCreditorsRef(uid = currentUserId) {
-  return getUserRef(uid).collection('creditors');
-}
-function getCashRegisterRef(uid = currentUserId) {
-  return getUserRef(uid).collection('cash_register');
-}
-function getSettingsRef(uid = currentUserId) {
-  return getUserRef(uid).collection('settings').doc('doc');
-}
-function getPresetsRef(uid = currentUserId) {
-  return getUserRef(uid).collection('settings').doc('presets');
-}
-function getBusinessRef() {
-  return db.collection('businesses').doc(BUSINESS_TENANT_ID);
-}
-function getMembersRef() {
-  return getBusinessRef().collection('members');
-}
-function getPartnerSalesRef() {
-  return getBusinessRef().collection('partner_sales');
-}
-function getPartnerExpensesRef() {
-  return getBusinessRef().collection('partner_expenses');
-}
 
-// Sync Status & Error Handling
+function getSalesRef(uid = currentUserId) { return getUserRef(uid).collection('sales'); }
+
+function getExpensesRef(uid = currentUserId) { return getUserRef(uid).collection('expenses'); }
+
+function getCreditorsRef(uid = currentUserId) { return getUserRef(uid).collection('creditors'); }
+
+function getCashRegisterRef(uid = currentUserId) { return getUserRef(uid).collection('cash_register'); }
+
+function getSettingsRef(uid = currentUserId) { return getUserRef(uid).collection('settings').doc('doc'); }
+
+function getPresetsRef(uid = currentUserId) { return getUserRef(uid).collection('settings').doc('presets'); }
+
+function getBusinessRef() { return db.collection('businesses').doc(BUSINESS_TENANT_ID); }
+
+function getMembersRef() { return getBusinessRef().collection('members'); }
+
+function getPartnerSalesRef() { return getBusinessRef().collection('partner_sales'); }
+
+function getPartnerExpensesRef() { return getBusinessRef().collection('partner_expenses'); }
+
 function setSyncStatus(state, message) {
   const status = document.getElementById('syncStatus');
   const button = document.getElementById('syncNowButton');
-  if (status) {
-    status.dataset.state = state;
-    status.textContent = message;
-  }
+  if (status) { status.dataset.state = state; status.textContent = message; }
   if (button) {
     button.disabled = state === 'syncing';
     button.textContent = state === 'synced' ? '✓ সব সিঙ্ক হয়েছে · আবার সিঙ্ক করুন' : '🔄 এখনই সিঙ্ক করুন';
@@ -151,7 +136,7 @@ function checkSyncStatus() {
 function forceSyncNow() {
   if (!currentUserId) {
     setSyncStatus('offline', 'সিঙ্ক করতে Google-এ সাইন-ইন করুন');
-    if (typeof openAuthModal === 'function') openAuthModal();
+    openAuthModal();
     return;
   }
   if (!navigator.onLine) {
@@ -159,8 +144,10 @@ function forceSyncNow() {
     return;
   }
   setSyncStatus('pending', 'পেন্ডিং ডেটা Firebase-এ সিঙ্ক হচ্ছে…');
+  resetTenantPermissionRecovery(currentUserId);
   void db.enableNetwork()
-    .then(() => attachFirestoreListeners(currentUserId))
+    .then(() => currentAccess.role === 'Partner/Staff'
+      ? attachPartnerListeners(currentUserId) : attachFirestoreListeners(currentUserId))
     .catch(error => {
       console.warn('Firebase sync requested; waiting for automatic reconnect:', error);
       setSyncStatus(isFirestoreOfflineError(error) ? 'offline' : 'pending',
@@ -168,17 +155,115 @@ function forceSyncNow() {
     });
 }
 
+function isFirestorePermissionError(error) {
+  const code = String((error && error.code) || '');
+  const message = String((error && error.message) || '');
+  return code === 'permission-denied'
+    || /missing or insufficient permissions|insufficient permission/i.test(message);
+}
+
+function showPermissionDeniedAlert(label) {
+  const now = Date.now();
+  if (now - _permAlertShownAt < 8000) return; // একসাথে অনেক listener fail করলে একটাই অ্যালার্ট
+  _permAlertShownAt = now;
+  alert('⛔ ' + (label || 'ডেটা') + ' সংরক্ষণ/পড়া যায়নি: "Missing or insufficient permissions"\n\n'
+    + 'স্বয়ংক্রিয় সেশন যাচাইয়ের চেষ্টা শেষ হয়েছে।\n'
+    + 'Firebase Console-এ Firestore Rules প্রকাশিত আছে কি না এবং ব্যবসার মালিক/এডমিনের কাছে আপনার সক্রিয় সদস্যপদ আছে কি না নিশ্চিত করুন।');
+}
+
+function resetTenantPermissionRecovery(uid) {
+  if (_tenantRecoveryTimer) clearTimeout(_tenantRecoveryTimer);
+  _tenantRecoveryTimer = null;
+  _tenantRecoveryUid = uid || null;
+  _tenantRecoveryAttempts = 0;
+  _tenantRecoveryInFlight = false;
+  _tenantRecoveryNoticeShown = false;
+}
+
+function autoReauthenticateTenantMembership() {
+  const refreshUser = auth && auth.currentUser;
+  if (!refreshUser || !currentUserId) return;
+  if (_tenantRecoveryUid !== refreshUser.uid) resetTenantPermissionRecovery(refreshUser.uid);
+  if (_tenantRecoveryTimer || _tenantRecoveryInFlight) return;
+  if (_tenantRecoveryAttempts >= MAX_TENANT_RECOVERY_ATTEMPTS) {
+    setSyncStatus('error', 'অনুমতি সমস্যা · Firestore Rules ও সক্রিয় সদস্যপদ যাচাই করুন');
+    if (!_tenantRecoveryNoticeShown) {
+      _tenantRecoveryNoticeShown = true;
+      showPermissionDeniedAlert('পার্টনার সিঙ্ক');
+    }
+    return;
+  }
+
+  const attempt = ++_tenantRecoveryAttempts;
+  const delay = 1000 * (2 ** (attempt - 1));
+  _tenantRecoveryTimer = setTimeout(() => {
+    _tenantRecoveryTimer = null;
+    void runTenantPermissionRecovery(refreshUser.uid);
+  }, delay);
+}
+
+async function runTenantPermissionRecovery(uid) {
+  if (_tenantRecoveryInFlight || !auth.currentUser || auth.currentUser.uid !== uid || currentUserId !== uid) return;
+  _tenantRecoveryInFlight = true;
+  try {
+    await auth.currentUser.getIdToken(true);
+    const profileSnapshot = await getUserRef(uid).get();
+    if (currentUserId !== uid || !auth.currentUser || auth.currentUser.uid !== uid) return;
+    const profile = profileSnapshot.exists ? profileSnapshot.data() : {};
+    const accountStatus = String(profile.accountStatus || profile.status || '').trim().toLowerCase();
+    const roleValue = String(profile.role || '').trim().toLowerCase();
+    const approvedRole = roleValue === 'admin'
+      ? 'Admin'
+      : ['partner', 'partner/staff', 'staff'].includes(roleValue) ? 'Partner/Staff' : null;
+    if (accountStatus !== 'approved' || !approvedRole) {
+      setSyncStatus('error', 'অ্যাকাউন্ট অনুমোদিত নয় · এডমিনের অনুমোদন প্রয়োজন');
+      return;
+    }
+
+    currentAccess = {
+      ...profile,
+      role: approvedRole,
+      status: 'approved',
+      accountStatus: 'approved'
+    };
+    applyRoleVisibility();
+    firestoreSnapshotStates = {};
+    const attachFn = approvedRole === 'Partner/Staff'
+      ? attachPartnerListeners : attachFirestoreListeners;
+    await attachFn(uid);
+    if (approvedRole === 'Admin' && isMasterAdmin(auth.currentUser)) {
+      await ensureBusinessWorkspace();
+      attachAdminManagementListeners();
+    }
+  } catch (error) {
+    console.warn('[reauth] tenant membership re-check failed:', error && (error.code || error.message));
+    setSyncStatus('error', 'অনুমতি সমস্যা · Firestore Rules ও সক্রিয় সদস্যপদ যাচাই করুন');
+  } finally {
+    _tenantRecoveryInFlight = false;
+  }
+}
+
 function handleFirestoreSyncError(label, error) {
-  console.warn(label + ' listener:', error);
   if (!currentUserId) return;
   const isOffline = isFirestoreOfflineError(error);
-  setSyncStatus(
-    isOffline ? (navigator.onLine ? 'pending' : 'offline') : 'error',
-    isOffline
-      ? 'ইন্টারনেট/সার্ভার সংযোগ নেই · লোকাল/ক্যাশ ডেটা ব্যবহার হচ্ছে'
-      : 'Firebase ' + label + ' সিঙ্ক হয়নি · আবার চেষ্টা করুন'
-  );
-  if (isOffline) scheduleFirestoreReconnect();
+  const isPerm = isFirestorePermissionError(error);
+  // নেটওয়ার্ক/অফলাইন ত্রুটি — লোকাল persistেন্স ক্যাশ ডেটা দেখায়; র-লগ স্প্যাম নয়
+  if (isOffline) {
+    console.warn('[sync-offline] ' + label + ':', error && (error.code || error.message));
+    setSyncStatus(navigator.onLine ? 'pending' : 'offline',
+      'ইন্টারনেট/সার্ভার সংযোগ বিচ্ছিন্ন · অফলাইন ক্যাশ ডেটা ব্যবহার হচ্ছে');
+    scheduleFirestoreReconnect();
+    return;
+  }
+  // পারমিশন এরর — বাংলা অ্যালার্ট ও স্বয়ংক্রিয় টেন্যান্ট রি-অথেনটিকেশন
+  if (isPerm) {
+    console.warn('[sync-permission] ' + label + ': session refresh + tenant re-check queued');
+    setSyncStatus('error', 'অনুমতি সমস্যা · সেশন যাচাই করা হচ্ছে…');
+    void autoReauthenticateTenantMembership();
+    return;
+  }
+  console.warn('[sync-error] ' + label + ':', error && (error.code || error.message));
+  setSyncStatus('error', 'Firebase ' + label + ' সিঙ্ক হয়নি · আবার চেষ্টা করুন');
 }
 
 function handleFirestoreSnapshot(snapshot, label) {
@@ -207,7 +292,7 @@ function applyPresetSettingsFromCloud(remote) {
   if (!changed) return;
 
   localStorage.setItem('pos_settings', JSON.stringify(settings));
-  if (typeof isMasterAdmin === 'function' && isMasterAdmin()) {
+  if (isMasterAdmin()) {
     trackFirestoreWrite(() => getBusinessRef().set({
       presetItems: settings.presetItems || '',
       costPrices: settings.costPrices || {},
@@ -215,15 +300,15 @@ function applyPresetSettingsFromCloud(remote) {
       updatedAt: new Date().toISOString()
     }, { merge: true }), 'পার্টনার প্রি-সেট ক্যাটালগ');
   }
-  if (typeof refreshPresetOptions === 'function') refreshPresetOptions();
-  if (typeof populateExpenseCategoryOptions === 'function') populateExpenseCategoryOptions();
+  refreshPresetOptions();
+  populateExpenseCategoryOptions();
   const settingsModal = document.getElementById('settingsModal');
   if (settingsModal && settingsModal.classList.contains('active')) {
-    if (typeof populateSettingsFormFromCurrent === 'function') populateSettingsFormFromCurrent();
+    populateSettingsFormFromCurrent();
   }
-  if (typeof updateStats === 'function') updateStats();
-  if (typeof renderInvoices === 'function') renderInvoices();
-  if (typeof renderFinanceSummary === 'function') renderFinanceSummary();
+  updateStats();
+  renderInvoices();
+  renderFinanceSummary();
 }
 
 function migrateLegacyPresetSettingsIfNeeded(uid = currentUserId) {
@@ -269,7 +354,9 @@ async function reconnectFirestore() {
   }
   try {
     await db.enableNetwork();
-    await attachFirestoreListeners(uid);
+    const attachFn = currentAccess.role === 'Partner/Staff'
+      ? attachPartnerListeners : attachFirestoreListeners;
+    await attachFn(uid);
   } catch (error) {
     console.error('Firestore reconnect failed:', error);
     setSyncStatus('error', 'Firebase পুনরায় সংযোগ করতে পারেনি · আবার চেষ্টা করা হবে');
@@ -289,9 +376,8 @@ async function attachFirestoreListeners(uid) {
   setSyncStatus(navigator.onLine ? 'pending' : 'offline',
     navigator.onLine ? 'Firebase-এর সঙ্গে সংযোগ হচ্ছে…' : 'ইন্টারনেট নেই · ডেটা লোকালি সংরক্ষিত');
 
-  // 1. Sales / Invoices Listener
   const unsubSales = getSalesRef(uid).orderBy('date', 'desc').onSnapshot({ includeMetadataChanges: true }, snap => {
-    invoices = snap.docs.map(doc => typeof normalizeInvoiceFinancials === 'function' ? normalizeInvoiceFinancials(doc.data()) : doc.data());
+    invoices = snap.docs.map(doc => normalizeInvoiceFinancials(doc.data()));
     localStorage.setItem('pos_invoices', JSON.stringify(invoices));
     let maxNum = 0;
     invoices.forEach(inv => {
@@ -303,50 +389,49 @@ async function attachFirestoreListeners(uid) {
     });
     nextInvoiceNumber = maxNum > 0 ? maxNum + 1 : 1;
     localStorage.setItem('pos_next_inv_no', nextInvoiceNumber.toString());
-    if (typeof updateStats === 'function') updateStats();
-    if (typeof renderInvoices === 'function') renderInvoices();
-    if (typeof updateCurrentInvoiceNo === 'function') updateCurrentInvoiceNo();
+    updateStats();
+    renderInvoices();
+    renderSalesMetrics();
+    updateCurrentInvoiceNo();
+    if (isMasterAdmin()) renderAdminManagement();
     handleFirestoreSnapshot(snap, 'বিক্রয়');
   }, err => handleFirestoreSyncError('বিক্রয়', err));
   firestoreUnsubscribers.push(unsubSales);
 
-  // 2. Expenses Listener
   const unsubExpenses = getExpensesRef(uid).orderBy('date', 'desc').onSnapshot({ includeMetadataChanges: true }, snap => {
     expenses = snap.docs.map(doc => doc.data());
-    if (typeof saveExpenses === 'function') saveExpenses();
-    if (typeof renderExpenseList === 'function') renderExpenseList();
-    if (typeof renderFinanceSummary === 'function') renderFinanceSummary();
+    saveExpenses();
+    renderExpenseList();
+    renderFinanceSummary();
+    if (isMasterAdmin()) renderAdminManagement();
     handleFirestoreSnapshot(snap, 'খরচ');
   }, err => handleFirestoreSyncError('খরচ', err));
   firestoreUnsubscribers.push(unsubExpenses);
 
-  // 3. Creditors Listener
   const unsubCreditors = getCreditorsRef(uid).onSnapshot({ includeMetadataChanges: true }, snap => {
     creditors = snap.docs.map(doc => doc.data());
-    if (typeof saveCreditors === 'function') saveCreditors();
-    if (typeof renderCreditorList === 'function') renderCreditorList();
-    if (typeof updateNetAssetsCard === 'function') updateNetAssetsCard();
-    if (typeof renderFinanceSummary === 'function') renderFinanceSummary();
+    saveCreditors();
+    renderCreditorList();
+    updateNetAssetsCard();
+    renderFinanceSummary();
     handleFirestoreSnapshot(snap, 'পাওনাদার');
   }, err => handleFirestoreSyncError('পাওনাদার', err));
   firestoreUnsubscribers.push(unsubCreditors);
 
-  // 4. Cash Register Listener
   const unsubCash = getCashRegisterRef(uid).orderBy('date', 'desc').limit(30).onSnapshot({ includeMetadataChanges: true }, snap => {
     cashHistoryRecords = snap.docs.map(doc => doc.data());
-    if (typeof renderCashHistory === 'function') renderCashHistory();
+    renderCashHistory();
     if (cashHistoryRecords.length) {
       const latest = cashHistoryRecords[0];
-      if (typeof loadRegister === 'function') loadRegister(latest);
+      loadRegister(latest);
       localStorage.setItem('pos_cash_register', JSON.stringify(latest));
-      if (typeof updateRegisterTotals === 'function') updateRegisterTotals();
-      if (typeof updateNetAssetsCard === 'function') updateNetAssetsCard();
+      updateRegisterTotals();
+      updateNetAssetsCard();
     }
     handleFirestoreSnapshot(snap, 'ক্যাশ');
   }, err => handleFirestoreSyncError('ক্যাশ', err));
   firestoreUnsubscribers.push(unsubCash);
 
-  // 5. Settings Listener
   const unsubSettings = getSettingsRef(uid).onSnapshot({ includeMetadataChanges: true }, snap => {
     legacySettingsSnapshot = snap;
     if (snap.exists) {
@@ -360,11 +445,11 @@ async function attachFirestoreListeners(uid) {
       });
       if (changed) {
         localStorage.setItem('pos_settings', JSON.stringify(settings));
-        if (typeof refreshPresetOptions === 'function') refreshPresetOptions();
-        if (typeof applyBusinessBranding === 'function') applyBusinessBranding();
-        if (typeof updateStats === 'function') updateStats();
-        if (typeof renderInvoices === 'function') renderInvoices();
-        if (typeof renderFinanceSummary === 'function') renderFinanceSummary();
+        refreshPresetOptions();
+        applyBusinessBranding();
+        updateStats();
+        renderInvoices();
+        renderFinanceSummary();
       }
     }
     migrateLegacyPresetSettingsIfNeeded(uid);
@@ -372,7 +457,6 @@ async function attachFirestoreListeners(uid) {
   }, err => handleFirestoreSyncError('সেটিংস', err));
   firestoreUnsubscribers.push(unsubSettings);
 
-  // 6. Presets Listener
   const unsubPresets = getPresetsRef(uid).onSnapshot({ includeMetadataChanges: true }, snap => {
     if (snap.exists) {
       presetsSnapshotExists = true;
@@ -404,7 +488,7 @@ async function ensureBusinessWorkspace() {
     if (!snapshot.exists) {
       await businessRef.set({
         name: BUSINESS.name,
-        operationalCashBalance: Math.max(0, typeof registerCashTotal === 'function' ? registerCashTotal() : 0),
+        operationalCashBalance: Math.max(0, registerCashTotal()),
         presetItems: settings.presetItems || '',
         costPrices: settings.costPrices || {},
         sellingPrices: settings.sellingPrices || {},
@@ -462,7 +546,7 @@ async function getFirestoreSnapshotWithFallback(query, label) {
 async function refreshFromFirebase() {
   if (!currentUserId) {
     showToast('অনুরোধ করতে অনুগ্রহ করে প্রথমে লগইন করুন', 'error');
-    if (typeof openAuthModal === 'function') openAuthModal();
+    openAuthModal();
     return false;
   }
   setSyncStatus(navigator.onLine ? 'pending' : 'offline',
@@ -478,7 +562,7 @@ async function refreshFromFirebase() {
       getFirestoreSnapshotWithFallback(getPresetsRef(), 'প্রি-সেট')
     ]);
 
-    invoices = salesSnap.docs.map(doc => typeof normalizeInvoiceFinancials === 'function' ? normalizeInvoiceFinancials(doc.data()) : doc.data());
+    invoices = salesSnap.docs.map(doc => normalizeInvoiceFinancials(doc.data()));
     localStorage.setItem('pos_invoices', JSON.stringify(invoices));
 
     let maxNum = 0;
@@ -493,35 +577,41 @@ async function refreshFromFirebase() {
     localStorage.setItem('pos_next_inv_no', nextInvoiceNumber.toString());
 
     creditors = credSnap.docs.map(doc => doc.data());
-    if (typeof saveCreditors === 'function') saveCreditors();
+    saveCreditors();
 
     expenses = expSnap.docs.map(doc => doc.data());
-    if (typeof saveExpenses === 'function') saveExpenses();
+    saveExpenses();
 
     cashHistoryRecords = cashSnap.docs.map(doc => doc.data());
-    if (typeof renderCashHistory === 'function') renderCashHistory();
+    renderCashHistory();
     if (cashHistoryRecords.length) {
       const latest = cashHistoryRecords[0];
-      if (typeof loadRegister === 'function') loadRegister(latest);
+      loadRegister(latest);
       localStorage.setItem('pos_cash_register', JSON.stringify(latest));
+      updateRegisterTotals();
     }
 
+    if (presetsSnap.exists) {
+      applyPresetSettingsFromCloud(presetsSnap.data());
+    } else if (setSnap.exists) {
+      applyPresetSettingsFromCloud(setSnap.data());
+    }
     if (setSnap.exists) {
       const remote = setSnap.data();
       ['businessName', 'businessTagline', 'businessPhone', 'businessAddress', 'businessWebsite', 'businessLogo'].forEach(key => {
         if (remote[key] !== undefined) settings[key] = remote[key];
       });
       localStorage.setItem('pos_settings', JSON.stringify(settings));
-      if (typeof applyBusinessBranding === 'function') applyBusinessBranding();
+      applyBusinessBranding();
     }
 
-    if (typeof updateStats === 'function') updateStats();
-    if (typeof renderInvoices === 'function') renderInvoices();
-    if (typeof renderCreditorList === 'function') renderCreditorList();
-    if (typeof renderExpenseList === 'function') renderExpenseList();
-    if (typeof renderFinanceSummary === 'function') renderFinanceSummary();
-    if (typeof updateCurrentInvoiceNo === 'function') updateCurrentInvoiceNo();
-
+    updateStats();
+    renderInvoices();
+    renderSalesMetrics();
+    renderCreditorList();
+    renderExpenseList();
+    renderFinanceSummary();
+    updateCurrentInvoiceNo();
     const usedCache = [salesSnap, credSnap, expSnap, cashSnap, setSnap, presetsSnap].some(snap => snap.metadata.fromCache);
     if (usedCache) {
       setSyncStatus(navigator.onLine ? 'pending' : 'offline', 'ক্যাশ ডেটা দেখানো হচ্ছে · Firebase-এ সিঙ্ক বাকি');
@@ -546,7 +636,7 @@ async function refreshFromFirebase() {
 async function testFirebaseConnection() {
   if (!currentUserId) {
     showToast('কানেকশন টেস্ট করতে প্রথমে লগইন করুন', 'error');
-    if (typeof openAuthModal === 'function') openAuthModal();
+    openAuthModal();
     return;
   }
   if (!navigator.onLine) {
@@ -565,7 +655,6 @@ async function testFirebaseConnection() {
   }
 }
 
-// Track Writes to Firestore
 function trackFirestoreWrite(writeOperation, label) {
   if (!currentUserId) return true;
   setSyncStatus(navigator.onLine ? 'pending' : 'offline',
@@ -586,52 +675,31 @@ function trackFirestoreWrite(writeOperation, label) {
 }
 
 function saveInvoiceToFirebase(invoice) {
-  return trackFirestoreWrite(
-    () => getSalesRef().doc(String(invoice.id)).set(invoice, { merge: true }),
-    'ইনভয়েস'
-  );
+  return trackFirestoreWrite(() => getSalesRef().doc(String(invoice.id)).set(invoice, { merge: true }), 'ইনভয়েস');
 }
 
 function deleteInvoiceFromFirebase(id) {
-  return trackFirestoreWrite(
-    () => getSalesRef().doc(String(id)).delete(),
-    'ইনভয়েস মুছে ফেলা'
-  );
+  return trackFirestoreWrite(() => getSalesRef().doc(String(id)).delete(), 'ইনভয়েস মুছে ফেলা');
 }
 
 function saveCreditorToFirebase(creditor) {
-  return trackFirestoreWrite(
-    () => getCreditorsRef().doc(String(creditor.id)).set(creditor, { merge: true }),
-    'পাওনাদার'
-  );
+  return trackFirestoreWrite(() => getCreditorsRef().doc(String(creditor.id)).set(creditor, { merge: true }), 'পাওনাদার');
 }
 
 function removeCreditorFromFirebase(id) {
-  return trackFirestoreWrite(
-    () => getCreditorsRef().doc(String(id)).delete(),
-    'পাওনাদার মুছে ফেলা'
-  );
+  return trackFirestoreWrite(() => getCreditorsRef().doc(String(id)).delete(), 'পাওনাদার মুছে ফেলা');
 }
 
 function saveExpenseToFirebase(expense) {
-  return trackFirestoreWrite(
-    () => getExpensesRef().doc(String(expense.id)).set(expense, { merge: true }),
-    'খরচ'
-  );
+  return trackFirestoreWrite(() => getExpensesRef().doc(String(expense.id)).set(expense, { merge: true }), 'খরচ');
 }
 
 function removeExpenseFromFirebase(id) {
-  return trackFirestoreWrite(
-    () => getExpensesRef().doc(String(id)).delete(),
-    'খরচ মুছে ফেলা'
-  );
+  return trackFirestoreWrite(() => getExpensesRef().doc(String(id)).delete(), 'খরচ মুছে ফেলা');
 }
 
 function saveCashRegisterToFirebase(record) {
-  return trackFirestoreWrite(
-    () => getCashRegisterRef().doc(String(record.id)).set(record, { merge: true }),
-    'ক্যাশ রেজিস্টার'
-  );
+  return trackFirestoreWrite(() => getCashRegisterRef().doc(String(record.id)).set(record, { merge: true }), 'ক্যাশ রেজিস্টার');
 }
 
 function saveSettingsToFirebase() {
@@ -655,7 +723,7 @@ function saveSettingsToFirebase() {
     sellingPrices: settings.sellingPrices || {},
     updatedAt: new Date().toISOString()
   }, { merge: true }), 'প্রি-সেট তালিকা');
-  const catalogSaved = (typeof isMasterAdmin === 'function' && isMasterAdmin())
+  const catalogSaved = isMasterAdmin()
     ? trackFirestoreWrite(() => getBusinessRef().set({
       presetItems: settings.presetItems || '',
       costPrices: settings.costPrices || {},
@@ -665,3 +733,20 @@ function saveSettingsToFirebase() {
     : true;
   return settingsSaved && presetsSaved && catalogSaved;
 }
+
+window.firebaseServices = { app, auth: null, db: null, analytics: null, persistenceReady: null };
+
+window.firebaseServices.analyticsReady = analyticsReady;
+
+try {
+  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+    .catch(pErr => console.warn('Auth persistence set failed:', pErr));
+} catch (pErr) {
+  console.warn('Auth persistence unsupported:', pErr);
+}
+
+window.firebaseServices.auth = auth;
+
+window.firebaseServices.db = db;
+
+window.firebaseServices.persistenceReady = firestorePersistenceReady;
