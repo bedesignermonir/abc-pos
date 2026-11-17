@@ -5307,29 +5307,36 @@
       if (!isMasterAdmin() || partnerMemberSyncRunning || !navigator.onLine) return;
       partnerMemberSyncRunning = true;
       try {
-        const memberIds = new Set(adminMembers.map(member => member.uid || member.id));
-        const missing = adminUserProfiles.filter(profile => profile.uid !== currentUserId
+        const membersByUid = new Map(adminMembers.map(member => [member.uid || member.id, member]));
+        const approvedPartners = adminUserProfiles.filter(profile => profile.uid !== currentUserId
           && String(profile.accountStatus || profile.status || '').trim().toLowerCase() === 'approved'
-          && ['partner/staff', 'partner', 'staff'].includes(String(profile.role || '').trim().toLowerCase())
-          && !memberIds.has(profile.uid));
-        if (!missing.length) return;
+          && ['partner/staff', 'partner', 'staff'].includes(String(profile.role || '').trim().toLowerCase()));
+        const needsSync = approvedPartners.filter(profile => {
+          const member = membersByUid.get(profile.uid);
+          return !member
+            || String(member.status || '').trim().toLowerCase() !== 'active'
+            || !['partner/staff', 'partner', 'staff'].includes(String(member.role || '').trim().toLowerCase());
+        });
+        if (!needsSync.length) return;
         const batch = db.batch();
-        missing.forEach(profile => {
+        needsSync.forEach(profile => {
+          const member = membersByUid.get(profile.uid) || {};
+          const sharePercent = member.sharePercent ?? profile.sharePercent ?? member.profitShare ?? 40;
           batch.set(getMembersRef().doc(profile.uid), {
             uid: profile.uid,
-            email: profile.email || '',
-            displayName: profile.displayName || '',
-            role: 'Partner/Staff',
+            email: profile.email || member.email || '',
+            displayName: profile.displayName || member.displayName || '',
+            role: 'Partner',
             status: 'active',
-            sharePercent: profile.sharePercent ?? 40,
-            ownerSharePercent: profile.ownerSharePercent ?? 60,
-            profitShare: profile.sharePercent ?? 40,
+            sharePercent,
+            ownerSharePercent: member.ownerSharePercent ?? profile.ownerSharePercent ?? 100 - sharePercent,
+            profitShare: member.profitShare ?? sharePercent,
             tenantId: BUSINESS_TENANT_ID,
             syncedAt: new Date().toISOString()
           }, { merge: true });
         });
         await batch.commit();
-        console.info('[admin] self-heal: ' + missing.length + ' approved partner(s) synced to tenant members');
+        console.info('[admin] self-heal: ' + needsSync.length + ' approved partner(s) synced to tenant members');
         renderAdminManagement();
       } catch (error) {
         // migration ব্যর্থ হলেও অ্যালার্ট স্প্যাম নয় — মার্জড রেন্ডারিং তো কাজ করছে
@@ -5511,7 +5518,7 @@
       if (!isMasterAdmin()) return showToast('শুধু মাস্টার অ্যাডমিন অনুমোদন দিতে পারবেন।', 'error');
       if (!navigator.onLine) return showToast('ইন্টারনেট নেই। অনুমোদনের জন্য সংযোগ ফিরে এলে আবার চেষ্টা করুন।', 'error');
       const roleSelect = document.getElementById('approval-role-' + uid);
-      const role = roleSelect && roleSelect.value === 'Admin' ? 'Admin' : 'Partner/Staff';
+      const role = roleSelect && roleSelect.value === 'Admin' ? 'Admin' : 'Partner';
       const profile = adminUserProfiles.find(item => item.uid === uid);
       if (!profile) return showToast('অ্যাকাউন্টের তথ্য পাওয়া যায়নি।', 'error');
       try {
@@ -5521,7 +5528,7 @@
           approvedBy: currentUser.email, approvedAt: new Date().toISOString()
         }, { merge: true });
         const memberRef = getMembersRef().doc(uid);
-        if (role === 'Partner/Staff') {
+        if (role === 'Partner') {
           // ★ দুটোতেই লেখা হচ্ছে: users/{uid} (role/accountStatus/tenantId) +
           // businesses/{tenantId}/members/{uid} (status active, sharePercent/profitShare)
           batch.set(memberRef, {
