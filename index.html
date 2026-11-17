@@ -5271,6 +5271,7 @@
         db.collection('users').onSnapshot(snapshot => {
           adminUserProfiles = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
           renderAdminManagement();
+          void syncApprovedPartnersToMembers(); // self-healing migration — fire-and-forget
         }, error => handleFirestoreSyncError('অ্যাকাউন্ট তালিকা', error)),
         getMembersRef().onSnapshot(snapshot => {
           adminMembers = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
@@ -5296,6 +5297,46 @@
       businessUnsubscribers.push(...listeners);
       const adminDateInput = document.getElementById('adminMetricsDate');
       if (adminDateInput && !adminDateInput.value) adminDateInput.value = localDateKey();
+      // ★ Self-healing sync: অ্যাডমিন প্যানেল লোড হলেই অনুমোদিত পার্টনারদের
+      // members ডক নিশ্চিত করা হয় — তাই তালিকা কখনো ফাঁকা থাকবে না
+      void syncApprovedPartnersToMembers();
+    }
+
+    let partnerMemberSyncRunning = false;
+    async function syncApprovedPartnersToMembers() {
+      if (!isMasterAdmin() || partnerMemberSyncRunning || !navigator.onLine) return;
+      partnerMemberSyncRunning = true;
+      try {
+        const memberIds = new Set(adminMembers.map(member => member.uid || member.id));
+        const missing = adminUserProfiles.filter(profile => profile.uid !== currentUserId
+          && String(profile.accountStatus || profile.status || '').trim().toLowerCase() === 'approved'
+          && ['partner/staff', 'partner', 'staff'].includes(String(profile.role || '').trim().toLowerCase())
+          && !memberIds.has(profile.uid));
+        if (!missing.length) return;
+        const batch = db.batch();
+        missing.forEach(profile => {
+          batch.set(getMembersRef().doc(profile.uid), {
+            uid: profile.uid,
+            email: profile.email || '',
+            displayName: profile.displayName || '',
+            role: 'Partner/Staff',
+            status: 'active',
+            sharePercent: profile.sharePercent ?? 40,
+            ownerSharePercent: profile.ownerSharePercent ?? 60,
+            profitShare: profile.sharePercent ?? 40,
+            tenantId: BUSINESS_TENANT_ID,
+            syncedAt: new Date().toISOString()
+          }, { merge: true });
+        });
+        await batch.commit();
+        console.info('[admin] self-heal: ' + missing.length + ' approved partner(s) synced to tenant members');
+        renderAdminManagement();
+      } catch (error) {
+        // migration ব্যর্থ হলেও অ্যালার্ট স্প্যাম নয় — মার্জড রেন্ডারিং তো কাজ করছে
+        console.warn('[admin] partner→members self-heal skipped:', error && (error.code || error.message));
+      } finally {
+        partnerMemberSyncRunning = false;
+      }
     }
 
     function renderAdminManagement() {
@@ -5355,28 +5396,46 @@
           </div>`).join('') : '<div class="empty">অনুমোদনের অপেক্ষায় কোনো অ্যাকাউন্ট নেই</div>';
       }
 
-      const activeMembers = adminMembers.filter(member => member.status === 'active');
-      // ফলব্যাক: members লিস্ট খালি/ডেনাইড হলে অনুমোদিত Partner/Staff ইউজার প্রোফাইল থেকে তালিকা বানাও
-      // — যাতে অ্যাডমিন প্যানেলে ভুলভাবে "কোনো সক্রিয় পার্টনার নেই" দেখায় না
-      const partnerProfiles = adminUserProfiles.filter(profile =>
-        profile.uid !== currentUserId
-        && String(profile.accountStatus || profile.status || '').trim().toLowerCase() === 'approved'
-        && ['partner/staff', 'partner', 'staff'].includes(String(profile.role || '').trim().toLowerCase()));
-      let effectiveMembers = activeMembers;
-      if (!activeMembers.length && partnerProfiles.length) {
-        effectiveMembers = partnerProfiles.map(profile => ({
-          uid: profile.uid,
-          displayName: profile.displayName,
-          email: profile.email,
-          status: 'active',
-          sharePercent: profile.sharePercent ?? 40
-        }));
-      }
+      // ★ পার্টনার তালিকা মার্জ: businesses/{tenantId}/members + users (case-insensitive)
+      // — কোনো case-sensitive ফিল্টার বা broken compound query নেই, তাই অনুমোদিত
+      // পার্টনার কখনো লুকানো থাকবে না ("blank list" bug fix)
+      const isPartnerRoleVal = roleVal => ['partner/staff', 'partner', 'staff']
+        .includes(String(roleVal || '').trim().toLowerCase());
+      const isActiveStatusVal = statusVal => String(statusVal || '').trim().toLowerCase() === 'active';
+      const membersByUid = new Map(adminMembers
+        .filter(member => isActiveStatusVal(member.status) || isPartnerRoleVal(member.role))
+        .map(member => [member.uid || member.id, member]));
+      const partnerProfilesByUid = new Map(adminUserProfiles
+        .filter(profile => profile.uid !== currentUserId
+          && String(profile.accountStatus || profile.status || '').trim().toLowerCase() === 'approved'
+          && isPartnerRoleVal(profile.role))
+        .map(profile => [profile.uid, profile]));
+      const effectiveMembers = [...new Set([...membersByUid.keys(), ...partnerProfilesByUid.keys()])]
+        .filter(Boolean)
+        .map(uid => {
+          const member = membersByUid.get(uid) || {};
+          const profile = partnerProfilesByUid.get(uid) || {};
+          return {
+            ...member,
+            uid,
+            displayName: member.displayName || profile.displayName || '',
+            email: member.email || profile.email || '',
+            status: 'active',
+            role: member.role || profile.role || 'Partner/Staff',
+            sharePercent: member.sharePercent ?? profile.sharePercent ?? 40
+          };
+        });
       const membersList = document.getElementById('adminPartnersList');
       if (membersList) {
+        // প্রতি কার্ডে sales + expenses দুটো সোর্স থেকেই মার্জ করা হয় —
+        // কোনো একটি কালেকশন ডেনাইড/খালি হলেও পার্টনার ব্ল্যাঙ্ক দেখাবে না
+        const partnerSalesFor = uid => [...adminPartnerSales, ...(Array.isArray(ownerInvoices) ? ownerInvoices : [])]
+          .filter(sale => sale.partnerUid === uid);
+        const partnerExpensesFor = uid => [...adminPartnerExpenses, ...(Array.isArray(expenses) ? expenses : [])]
+          .filter(expense => expense.partnerUid === uid);
         const partnerRows = effectiveMembers.map(member => {
-          const sales = adminPartnerSales.filter(sale => sale.partnerUid === member.uid);
-          const expenses = adminPartnerExpenses.filter(expense => expense.partnerUid === member.uid);
+          const sales = partnerSalesFor(member.uid);
+          const expenses = partnerExpensesFor(member.uid);
           const memberSettlements = adminSettlements.filter(settlement => settlement.partnerUid === member.uid);
           const settledSales = new Set(memberSettlements.flatMap(settlement => settlement.salesIds || []));
           const settledExpenses = new Set(memberSettlements.flatMap(settlement => settlement.expenseIds || []));
@@ -5400,7 +5459,8 @@
             safeNum(sale.dueAmount !== undefined ? sale.dueAmount : sale.paymentType === 'due' ? sale.total : 0)), 0);
           const memberDateUnsettledSales = memberDateSales.filter(sale => !settledSales.has(sale.docId)
             && sale.paymentType !== 'due' && safeNum(sale.dueAmount) <= 0);
-          const memberDateUnsettledExpenses = memberDateExpenses.filter(expense => !settledExpenses.has(expense.docId));
+          const memberDateUnsettledExpenses = expenses.filter(expense => localDateKey(expense.date) === selectedDate
+            && !settledExpenses.has(expense.docId));
           const memberDateHandoverDue = Number(Math.max(0,
             memberDateUnsettledSales.reduce((sum, sale) =>
               sum + safeNum(sale.total) - calculatePartnerProfitShares(sale, member.sharePercent ?? 40).partnerShare, 0)
@@ -5462,16 +5522,24 @@
         }, { merge: true });
         const memberRef = getMembersRef().doc(uid);
         if (role === 'Partner/Staff') {
+          // ★ দুটোতেই লেখা হচ্ছে: users/{uid} (role/accountStatus/tenantId) +
+          // businesses/{tenantId}/members/{uid} (status active, sharePercent/profitShare)
           batch.set(memberRef, {
             uid, email: profile.email || '', displayName: profile.displayName || '',
-            role, status: 'active', sharePercent: 40, ownerSharePercent: 60,
+            role, status: 'active',
+            sharePercent: profile.sharePercent ?? 40,
+            ownerSharePercent: profile.ownerSharePercent ?? 60,
+            profitShare: profile.sharePercent ?? 40,
+            tenantId: BUSINESS_TENANT_ID,
+            approvedBy: currentUser.email,
             approvedAt: new Date().toISOString()
           }, { merge: true });
+          batch.set(getUserRef(uid), { sharePercent: profile.sharePercent ?? 40 }, { merge: true });
         } else {
           batch.delete(memberRef);
         }
         await batch.commit();
-        showToast('অ্যাকাউন্ট অনুমোদিত হয়েছে ✓');
+        showToast('অ্যাকাউন্ট অনুমোদিত হয়েছে · পার্টনার তালিকায় যুক্ত হয়েছে ✓');
       } catch (error) {
         showFirestoreOperationError(error, 'অ্যাকাউন্ট অনুমোদন হয়নি');
       }
